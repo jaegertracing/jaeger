@@ -820,10 +820,7 @@ func TestFindSpansWithFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, recv.GetSpans().ToTraces().SpanCount())
 
-	assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-		&expression.AnyValue{Value: "/cart"},
-	}}, dispatched.Filter)
+	assert.Equal(t, p.Span().Attr("http.route").Eq("/cart"), dispatched.Filter)
 }
 
 // TestFindSpansMalformedFilter pins that a filter this build cannot make sense of reaches the
@@ -1013,16 +1010,10 @@ func TestFindTracesWithFilter(t *testing.T) {
 
 	// The service name is compared as text because expression.ResolveConstants read the untyped
 	// constant as the type resource.service declares.
-	assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-			&expression.StringValue{Value: "myservice"},
-		}},
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "foo"},
-			&expression.AnyValue{Value: "bar"},
-		}},
-	}}, dispatched.Filter)
+	assert.Equal(t, p.And(
+		p.Resource().Service.Eq(p.String("myservice")),
+		p.Attr("foo").Eq("bar"),
+	), dispatched.Filter)
 }
 
 // TestFindTracesMalformedFilter pins that a filter this build cannot make sense of reaches the
@@ -1185,7 +1176,7 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 	for _, supported := range []bool{false, true} {
 		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
 			tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported})
-			order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+			order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}
 			start, end := time.Now().Add(-time.Hour).UTC(), time.Now().UTC()
 			if supported {
 				tsc.reader.On("FindSpans", matchContext, tracestore.SpanQueryParams{StartTimeMin: start, StartTimeMax: end, OrderBy: order, Pagination: tracestore.Pagination{PageSize: querysvc.DefaultPageSize}}).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {

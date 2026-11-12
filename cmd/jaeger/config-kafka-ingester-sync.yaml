@@ -131,3 +131,10 @@ exporters:
         # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
         min_size: 1048576
         max_size: 4194304 # 4 MiB, at most half of bulk_processing.max_bytes above
+        # exporterhelper v0.162 validates batch.partition on every batch, including
+        # one with no metadata_keys. An omitted partition unmarshals as zeros, not
+        # NewDefaultPartitionConfig, and both fields must be positive. 90s and 10000
+        # are those defaults. metadata_keys stays empty, so this remains one batcher.
+        partition:
+          idle_timeout: 90s
+          cache_size: 10000

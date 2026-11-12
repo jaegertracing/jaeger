@@ -216,20 +216,14 @@ const SearchTraceIDsBase = `SELECT DISTINCT
 FROM spans s
 WHERE 1=1`
 
-// SearchTraceIDs wraps a trace ID subquery with a JOIN to
-// trace_id_timestamps to retrieve the start and end times for each trace.
-// The %s placeholder is replaced with the complete inner subquery
-// (SearchTraceIDsBase + conditions + LIMIT).
-const SearchTraceIDs = `
-SELECT
-    l.trace_id,
-    min(t.start) AS start,
-    max(t.end) AS end
-FROM (
-%s
-) l
-LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
-GROUP BY l.trace_id`
+// SelectTraceIDTimestamps looks up global trace bounds only for the selected IDs.
+const SelectTraceIDTimestamps = `SELECT
+    trace_id,
+    min(start) AS start,
+    max(end) AS end
+FROM trace_id_timestamps
+WHERE trace_id IN (?)
+GROUP BY trace_id`
 
 const SelectServices = `
 SELECT

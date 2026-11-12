@@ -15,9 +15,11 @@ const (
 	// battery lists it, so the incomplete functionality is recorded here rather than silently
 	// untested. Remove the entry from a backend once it orders by attributes.
 	spanAttributeOrderingTest = "SpanOrdering/Attributes"
-	traceIDPaginationTest     = "Pagination/TraceIDs"
-	spanPaginationTest        = "Pagination/Spans"
-	summaryPaginationTest     = "Pagination/TraceSummaries"
+	// nonFiniteDoublesTest reads back a trace whose double attributes are NaN and the infinities.
+	nonFiniteDoublesTest  = "GetTraceWithNonFiniteDoubles"
+	traceIDPaginationTest = "Pagination/TraceIDs"
+	spanPaginationTest    = "Pagination/Spans"
+	summaryPaginationTest = "Pagination/TraceSummaries"
 
 	// attributeComparisonTest asserts the outcome the deployment declares through
 	// AttributeComparison; a backend that evaluates no ordered comparison on an attribute skips it.
@@ -168,6 +170,16 @@ func (c Capabilities) WithoutSpanAttributeOrdering() Capabilities {
 	return c
 }
 
+// WithoutNonFiniteDoubles excuses a corpus written by an Elasticsearch or OpenSearch writer from
+// before https://github.com/jaegertracing/jaeger/pull/9912, which dropped every span that carried
+// a NaN or an infinite double, so the trace is neither written nor read back. The backward
+// compatibility scenarios use it while the release they write with predates the fix; remove the
+// calls once that release includes it.
+func (c Capabilities) WithoutNonFiniteDoubles() Capabilities {
+	c.skipList = append(append([]string(nil), c.skipList...), nonFiniteDoublesTest)
+	return c
+}
+
 // WithoutNumericAttributes declares a deployment that does not configure the typed-attribute
 // mapping (RFC 0015), so that an ordered comparison on an attribute is refused rather than answered. A suite
 // that runs with indices.spans.numeric_attributes off uses it.
@@ -233,9 +245,14 @@ func Cassandra() Capabilities {
 // fresh slice, so a caller may append to it.
 func clickHouseSkipList() []string {
 	return []string{
-		// The reader implements neither FindSpans nor continuation tokens.
-		spanOrderingTest,
-		paginationTest,
+		// The span search orders by the built-in span fields only; no backend orders by an
+		// attribute yet.
+		spanAttributeOrderingTest,
+		// The lowering maps five built-in fields; span.startTime is not among them yet.
+		"SpanOrdering/Basic/TimestampFilter",
+		// The trace searches do not page yet.
+		traceIDPaginationTest,
+		summaryPaginationTest,
 		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
 		filterEventNameTest,
 		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
@@ -247,6 +264,9 @@ func clickHouseSkipList() []string {
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
+		// The span ID is the span search's tie-breaker and is not unique in the spans table,
+		// so the search loses the later copies of a span stored twice at a page boundary.
+		pagingDropsTiedSpans: true,
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
 		skipList: append(
@@ -264,8 +284,9 @@ func ClickHouse() Capabilities {
 // through jaeger-query.
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
-		traceStateRefused: true,
-		skipList:          clickHouseSkipList(),
+		pagingDropsTiedSpans: true,
+		traceStateRefused:    true,
+		skipList:             clickHouseSkipList(),
 	}
 }
 

@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+      uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit
 
@@ -53,6 +53,11 @@ jobs:
         done
         echo "::error::ocb build failed after 3 attempts"
         exit 1
+
+    - name: Verify Jaeger subcommands and build info
+      run: |
+        ./cmd/jaeger/_build/jaeger version | grep -F "$(git rev-parse HEAD)"
+        ./cmd/jaeger/_build/jaeger elasticsearch-mappings --help
 
     - name: Run ocb-built binary
       run: |

@@ -1,8 +1,0 @@
-{
-  "regexp": {
-    "traceID": {
-      "flags": "NONE",
-      "value": ".*(0af7[a-f].*).*"
-    }
-  }
-}

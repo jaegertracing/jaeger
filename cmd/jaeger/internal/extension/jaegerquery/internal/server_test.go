@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"net"
@@ -16,12 +17,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -35,12 +40,16 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -67,7 +76,9 @@ func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider) tele
 	return telset
 }
 
-var nilBackendCaps BackendCapabilityProvider
+// noBackendCaps stands in for the extension's provider in tests that do not care
+// what the UI is offered.
+var noBackendCaps BackendCapabilityProvider = func(*http.Request) BackendCapabilities { return BackendCapabilities{} }
 
 // noopTenancyMgr returns a manager with multi-tenancy disabled.
 func noopTenancyMgr() *tenancy.Manager {
@@ -109,7 +120,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
-		nilBackendCaps, noopTenancyMgr(), telset)
+		noBackendCaps, noopTenancyMgr(), telset)
 	require.Error(t, err)
 }
 
@@ -132,7 +143,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
-		nilBackendCaps, noopTenancyMgr(), telset)
+		noBackendCaps, noopTenancyMgr(), telset)
 	require.Error(t, err)
 }
 
@@ -156,7 +167,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		},
-		nilBackendCaps, noopTenancyMgr(), telset)
+		noBackendCaps, noopTenancyMgr(), telset)
 	require.NoError(t, err)
 	require.Error(t, s.Start(context.Background()))
 	t.Cleanup(func() {
@@ -460,7 +471,7 @@ func TestServerHTTPTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 
 			server, err := NewServer(context.Background(), querySvc.qs, nil,
-				serverOptions, nilBackendCaps, noopTenancyMgr(), telset)
+				serverOptions, noBackendCaps, noopTenancyMgr(), telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -573,7 +584,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, nilBackendCaps, noopTenancyMgr(),
+				nil, serverOptions, noBackendCaps, noopTenancyMgr(),
 				telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
@@ -630,7 +641,7 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
-		nilBackendCaps, noopTenancyMgr(),
+		noBackendCaps, noopTenancyMgr(),
 		telset)
 	require.Error(t, err)
 
@@ -650,7 +661,7 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
-		nilBackendCaps, noopTenancyMgr(),
+		noBackendCaps, noopTenancyMgr(),
 		telset)
 
 	require.Error(t, err)
@@ -691,7 +702,7 @@ func TestServerInUseHostPort(t *testing.T) {
 						},
 					},
 				},
-				nilBackendCaps, noopTenancyMgr(),
+				noBackendCaps, noopTenancyMgr(),
 				telset,
 			)
 			require.NoError(t, err)
@@ -699,6 +710,36 @@ func TestServerInUseHostPort(t *testing.T) {
 			server.Close()
 		})
 	}
+}
+
+// TestServerReportsServeErrors makes both Serve calls fail by closing their
+// listeners before the servers accept on them, so the error branches of the two
+// serving goroutines run every time instead of only when Close happens to race
+// ahead of Serve.
+func TestServerReportsServeErrors(t *testing.T) {
+	zapCore, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(zapCore), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+		&QueryOptions{
+			HTTP: confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+		},
+		noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+
+	// A closed listener fails Accept with a permanent error, which both Serve
+	// calls report, whether or not they had started accepting yet. The reports
+	// are awaited before Close, because a running gRPC Serve that observes Stop
+	// while it handles the Accept error returns nil instead.
+	require.NoError(t, server.httpConn.Close())
+	require.NoError(t, server.grpcConn.Close())
+	logged := func(message string) bool {
+		return logs.FilterMessage(message).Len() == 1
+	}
+	assert.Eventually(t, func() bool { return logged("Could not start HTTP server") }, 5*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return logged("Could not start GRPC server") }, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, server.Close())
 }
 
 func TestServerGracefulExit(t *testing.T) {
@@ -720,7 +761,7 @@ func TestServerGracefulExit(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 		},
-		nilBackendCaps, noopTenancyMgr(), telset)
+		noBackendCaps, noopTenancyMgr(), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 
@@ -765,7 +806,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 				},
 			},
 		},
-		nilBackendCaps, noopTenancyMgr(),
+		noBackendCaps, noopTenancyMgr(),
 		telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
@@ -828,7 +869,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		})).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
-		nil, serverOptions, nilBackendCaps, tenancyMgr, telset)
+		nil, serverOptions, noBackendCaps, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
@@ -881,8 +922,8 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			name:          "api v1/v2",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
+			queryString:   "/api/quality-metrics",
+			expectedTrace: "/api/quality-metrics",
 		},
 		{
 			name:          "api v3",
@@ -928,7 +969,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, nilBackendCaps, tenancyMgr, telset)
+				nil, serverOptions, noBackendCaps, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -976,7 +1017,7 @@ func TestServerAPINotFound(t *testing.T) {
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 
-			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, nilBackendCaps, tenancyMgr, telset)
+			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, noBackendCaps, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -1040,7 +1081,7 @@ func TestServerGRPC_HeaderForwarding(t *testing.T) {
 		GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
-	server, err := NewServer(context.Background(), qs, nil, opts, nilBackendCaps, noopTenancyMgr(), telset)
+	server, err := NewServer(context.Background(), qs, nil, opts, noBackendCaps, noopTenancyMgr(), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
@@ -1065,6 +1106,55 @@ func TestServerGRPC_HeaderForwarding(t *testing.T) {
 	assert.Equal(t, "alice", gotUser)
 }
 
+// TestServerGRPC_RecoversFromPanic checks that a panic while serving one call,
+// unary or streaming, fails only that call: without recovery it would terminate
+// the test binary. The tenancy interceptor, which runs after recovery, must still
+// reject a call that carries no tenant.
+func TestServerGRPC_RecoversFromPanic(t *testing.T) {
+	traceReader := &tracestoremocks.Reader{}
+	traceReader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	traceReader.On("GetServices", mock.Anything).Return([]string{"svc"}, nil)
+	traceReader.On("GetTraces", mock.Anything, mock.Anything).Run(func(mock.Arguments) { panic("storage failed") })
+	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	opts := &QueryOptions{
+		Tenancy: tenancy.Options{Enabled: true},
+		HTTP:    confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+		GRPC:    configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+	}
+	tenancyMgr := tenancy.NewManager(&opts.Tenancy)
+	core, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(core), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), qs, nil, opts, noBackendCaps, tenancyMgr, telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	client := newGRPCClient(t, server.GRPCAddr())
+	t.Cleanup(func() { require.NoError(t, client.conn.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tenantCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(tenancyMgr.Header, "acme"))
+
+	_, err = client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Internal, status.Code(err), "unary call that panicked")
+
+	stream, err := client.GetTrace(tenantCtx, &api_v2.GetTraceRequest{TraceID: model.NewTraceID(0, 1)})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	assert.Equal(t, codes.Internal, status.Code(err), "streaming call that panicked")
+
+	res, err := client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	require.NoError(t, err, "the server must keep serving after a panic")
+	assert.Equal(t, []string{"svc"}, res.Services)
+
+	_, err = client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "tenancy must still be enforced")
+
+	assert.Equal(t, 2, logs.FilterMessage("Recovered from panic in gRPC handler").Len())
+}
+
 func TestInitRouter_HeaderForwarding(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	traceReader := &tracestoremocks.Reader{}
@@ -1083,7 +1173,7 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
 	}
 
-	handler, cs, err := initRouter(context.Background(), qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+	handler, cs, err := initRouter(context.Background(), qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
@@ -1101,6 +1191,67 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 	assert.Equal(t, "alice", gotUser)
 }
 
+// A header named in header_forwarding reaches the agent on each turn's WebSocket
+// handshake, beside the static agent_headers and under its outbound name, and a
+// forwarded value replaces a static header of the same name. The agent here
+// only records the upgrade and speaks no ACP, so the chat request fails after
+// the handshake; the handshake is what this test is about.
+func TestInitRouter_HeaderForwardingReachesAgentHandshake(t *testing.T) {
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn.Close()
+	}))
+	t.Cleanup(agent.Close)
+
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	opts := DefaultQueryOptions()
+	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{
+		{HTTPName: "X-Identity-Token"},
+		{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"},
+		{HTTPName: "X-Caller"},
+		{HTTPName: "X-Never-Sent"},
+	}
+	opts.AI = configoptional.Some(jaegerai.Config{
+		AgentURL: "ws" + strings.TrimPrefix(agent.URL, "http"),
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "s3cret"},
+			{Name: "X-Caller", Value: "gateway"},
+		},
+		MaxRequestBodySize: 1 << 20,
+	})
+	handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
+	req.Header.Set("X-Identity-Token", "tok-123")
+	req.Header.Set("X-User", "alice")
+	req.Header.Set("X-Caller", "alice")
+	req.Header.Set("X-Unlisted", "private")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	var got http.Header
+	select {
+	case got = <-gotHeaders:
+	default:
+		t.Fatal("the gateway did not dial the agent")
+	}
+	assert.Equal(t, "s3cret", got.Get("X-Secret-Key"), "static agent headers still go on the handshake")
+	assert.Equal(t, "tok-123", got.Get("X-Identity-Token"))
+	assert.Equal(t, "alice", got.Get("X-Forwarded-User"), "a forwarded header is sent under its outbound name")
+	assert.Empty(t, got.Values("X-User"), "the inbound name is not sent when an outbound name is configured")
+	assert.Equal(t, "alice", got.Get("X-Caller"), "a forwarded header replaces a static header of the same name")
+	assert.Empty(t, got.Values("X-Never-Sent"), "a listed header the request did not carry is not sent")
+	assert.Empty(t, got.Values("X-Unlisted"), "a request header that is not listed stays with the gateway")
+}
+
 func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	querySvc := makeQuerySvc()
@@ -1108,9 +1259,9 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 	t.Run("ai handler disabled when sidecar url empty", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{AgentURL: ""})
+		opts.AI = configoptional.Some(jaegerai.Config{AgentURL: ""})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1125,9 +1276,9 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 	t.Run("ai handler registered without base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(jaegerai.Config{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1143,9 +1294,9 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	t.Run("ai handler registered with base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.BasePath = "/jaeger"
-		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(jaegerai.Config{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1162,12 +1313,12 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	// server coming up rather than degrade to serving no custom skills.
 	t.Run("unusable skills_dir aborts startup", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{
-			MCP:                configoptional.Some(MCPConfig{SkillsDir: filepath.Join(t.TempDir(), "no-such-dir")}),
+		opts.AI = configoptional.Some(jaegerai.Config{
+			MCP:                configoptional.Some(jaegerai.MCPConfig{SkillsDir: filepath.Join(t.TempDir(), "no-such-dir")}),
 			MaxRequestBodySize: 1 << 20,
 		})
 
-		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.ErrorContains(t, err, "cannot open skills_dir")
 	})
 
@@ -1177,21 +1328,21 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("catalog"), 0o600))
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{
-			MCP:                configoptional.Some(MCPConfig{SkillsDir: dir}),
+		opts.AI = configoptional.Some(jaegerai.Config{
+			MCP:                configoptional.Some(jaegerai.MCPConfig{SkillsDir: dir}),
 			MaxRequestBodySize: 1 << 20,
 		})
 
-		_, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		_, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		require.NoError(t, cs.Close())
 	})
 
 	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1210,12 +1361,153 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, chatRR.Code)
 	})
 
+	t.Run("ai auth gates the chat and shared MCP endpoints but not the REST API", func(t *testing.T) {
+		authID := component.MustNewID("testauth")
+		opts := DefaultQueryOptions()
+		aiCfg := jaegerai.Config{
+			AgentURL:           "ws://localhost:1",
+			MCP:                configoptional.Some(jaegerai.MCPConfig{}),
+			MaxRequestBodySize: 1 << 20,
+		}
+		aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{
+			Config:            configauth.Config{AuthenticatorID: authID},
+			RequestParameters: []string{"user"},
+		})
+		opts.AI = configoptional.Some(aiCfg)
+		authTelset := telset
+		authTelset.Host = &hostWithExtensions{extensions: map[component.ID]component.Component{
+			authID: &userHeaderAuthenticator{header: "X-Test-User", param: "user"},
+		}}
+
+		assistantUp := func(*http.Request) BackendCapabilities { return BackendCapabilities{AIAssistant: true} }
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, assistantUp, tenancyMgr, authTelset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cs.Close())
+		})
+
+		serve := func(method, path string, header http.Header) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(method, path, strings.NewReader(`{}`))
+			req.Header = header
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		alice := http.Header{"X-Test-User": {"alice"}}
+
+		// An admitted request reaches the handler behind the gate, and both handlers
+		// judge the probe for themselves: the MCP transport answers a GET with 405,
+		// because it has no standing event stream, and the chat gateway rejects the
+		// empty `{}` body because it wants a prompt. Either answer proves the gate
+		// let the request through.
+		for _, route := range []struct {
+			method, path string
+			admitted     int
+		}{
+			{http.MethodGet, "/api/ai/mcp/", http.StatusMethodNotAllowed},
+			{http.MethodPost, "/api/ai/chat", http.StatusBadRequest},
+		} {
+			anonymous := serve(route.method, route.path, http.Header{})
+			require.Equal(t, http.StatusUnauthorized, anonymous.Code, route.path)
+			require.Contains(t, anonymous.Body.String(), "no user")
+
+			require.Equal(t, route.admitted, serve(route.method, route.path, alice).Code, route.path)
+			require.Equal(t, route.admitted, serve(route.method, route.path+"?user=alice", http.Header{}).Code, route.path)
+		}
+
+		// The REST API on the same port is not behind the authenticator.
+		rest := serve(http.MethodGet, "/api/v3/services", http.Header{})
+		require.Equal(t, http.StatusOK, rest.Code)
+
+		// The UI is served to everyone, and only an admitted caller is told
+		// that the AI assistant is available.
+		page := serve(http.MethodGet, "/", http.Header{})
+		require.Equal(t, http.StatusOK, page.Code)
+		require.Contains(t, page.Body.String(), `"aiAssistant":false`)
+		require.Contains(t, serve(http.MethodGet, "/", alice).Body.String(), `"aiAssistant":true`)
+	})
+
+	t.Run("ai auth naming an unusable authenticator aborts startup", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		aiCfg := jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20}
+		aiCfg.Auth = configoptional.Some(confighttp.AuthConfig{
+			Config: configauth.Config{AuthenticatorID: component.MustNewID("missing")},
+		})
+		opts.AI = configoptional.Some(aiCfg)
+		hostTelset := telset
+		hostTelset.Host = &hostWithExtensions{}
+
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, hostTelset)
+		require.ErrorContains(t, err, "ai.auth")
+		require.ErrorContains(t, err, "authenticator not found")
+	})
+
+	t.Run("mcp disable_localhost_protection reaches the SDK handler", func(t *testing.T) {
+		// httptest.NewServer listens on 127.0.0.1, and a non-loopback Host header on
+		// that connection is what the SDK guard rejects, so the option is observable
+		// only over a real listener; a Recorder never sets the local address.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		for _, tc := range []struct {
+			disable bool
+			want    int
+		}{{disable: false, want: http.StatusForbidden}, {disable: true, want: http.StatusOK}} {
+			opts := DefaultQueryOptions()
+			opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{DisableLocalhostProtection: tc.disable}}), MaxRequestBodySize: 1 << 20})
+			handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+			require.NoError(t, err)
+			ts := httptest.NewServer(handler)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/ai/mcp/", strings.NewReader(initialize))
+			require.NoError(t, err)
+			req.Host = "jaeger.example.com"
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, resp.StatusCode, "disable_localhost_protection=%v", tc.disable)
+			require.NoError(t, resp.Body.Close())
+			ts.Close()
+			require.NoError(t, cs.Close())
+		}
+	})
+
+	t.Run("mcp endpoint serves a client from any replica", func(t *testing.T) {
+		// Two routers stand in for two jaeger-query replicas behind a load
+		// balancer without session affinity: nothing from the initialize one
+		// replica answered is needed by the tools/list the other one receives.
+		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+		post := func(handler http.Handler, body, sessionID string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/mcp/", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			if sessionID != "" {
+				req.Header.Set("Mcp-Session-Id", sessionID)
+			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			return rr
+		}
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs1.Close()) })
+		second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs2.Close()) })
+		rr := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Empty(t, rr.Header().Get("Mcp-Session-Id"), "the endpoint issues no session id")
+		rr = post(second, listTools, "")
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.BasePath = "/jaeger"
-		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1229,13 +1521,13 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 	t.Run("chat and MCP both enabled: session-free and session-scoped endpoints coexist", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		opts.AI = configoptional.Some(jaegerai.Config{AgentURL: "ws://127.0.0.1:1", MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
 
 		// initRouter registers both /api/ai/mcp/ (session-free, jaeger-query)
 		// and /api/ai/mcp/{sessionID}/ (session-scoped, jaegerai) on the same
 		// mux. ServeMux panics on conflicting patterns, so a clean return here
 		// is itself the coexistence assertion.
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, cs.Close())
@@ -1258,33 +1550,6 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 				"session-scoped endpoint must be mounted and reject unknown session at %s", scopedPath)
 		}
 	})
-}
-
-// TestMountSharedMCP_BasePathNormalization checks the mount prefix directly
-// (bypassing initRouter's other routes) so a trailing slash or bare "/" can't
-// produce a double-slash pattern. BasePath is normalized at config load, so
-// this guards the defensive normalization in mountSharedMCP.
-func TestMountSharedMCP_BasePathNormalization(t *testing.T) {
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
-
-	for _, basePath := range []string{"", "/", "/jaeger", "/jaeger/"} {
-		t.Run("base path "+basePath, func(t *testing.T) {
-			r := http.NewServeMux()
-			// Must not panic on a double-slash pattern.
-			require.NotPanics(t, func() {
-				mountSharedMCP(r, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), basePath, telset)
-			})
-
-			want := "/api/ai/mcp/"
-			if basePath == "/jaeger" || basePath == "/jaeger/" {
-				want = "/jaeger/api/ai/mcp/"
-			}
-			req := httptest.NewRequest(http.MethodGet, want, http.NoBody)
-			rr := httptest.NewRecorder()
-			r.ServeHTTP(rr, req)
-			require.NotEqual(t, http.StatusNotFound, rr.Code)
-		})
-	}
 }
 
 func TestOTLPProxyPathPrefix(t *testing.T) {
@@ -1318,7 +1583,7 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		require.False(t, opts.OTLPProxy.HasValue())
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
@@ -1354,7 +1619,7 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
@@ -1377,7 +1642,7 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
@@ -1402,7 +1667,7 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: "://not a url"})
 
-		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 		require.ErrorContains(t, err, "invalid OTLP proxy target")
 	})
 }
@@ -1429,7 +1694,7 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 
 	querySvc := makeQuerySvc()
 	tenancyMgr := noopTenancyMgr()
-	handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+	handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
@@ -1467,4 +1732,32 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, foundCount, uint64(3),
 		"expected at least 3 HTTP server metric measurements (one per request) from the OTLP proxy")
+}
+
+// userHeaderAuthenticator is an extensionauth.Server that admits a request
+// carrying the configured header or query parameter.
+type userHeaderAuthenticator struct {
+	component.StartFunc
+	component.ShutdownFunc
+	header string
+	param  string
+}
+
+func (a *userHeaderAuthenticator) Authenticate(ctx context.Context, sources map[string][]string) (context.Context, error) {
+	for _, key := range []string{a.header, a.param} {
+		if len(sources[key]) > 0 {
+			return ctx, nil
+		}
+	}
+	return ctx, errors.New("no user")
+}
+
+// hostWithExtensions is a component.Host whose extensions the test chooses.
+type hostWithExtensions struct {
+	component.Host
+	extensions map[component.ID]component.Component
+}
+
+func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Component {
+	return h.extensions
 }
