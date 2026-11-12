@@ -1386,6 +1386,29 @@ func (m *mockAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	}, nil
 }
 
+func TestPromqlDurationString(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+		expected string
+	}{
+		{name: "ten minutes", duration: 10 * time.Minute, expected: "10m"},
+		{name: "ninety seconds", duration: 90 * time.Second, expected: "90s"},
+		{name: "ninety minutes", duration: 90 * time.Minute, expected: "90m"},
+		{name: "five hundred milliseconds", duration: 500 * time.Millisecond, expected: "500ms"},
+		{name: "fifteen hundred milliseconds", duration: 1500 * time.Millisecond, expected: "1500ms"},
+		{name: "one hour", duration: time.Hour, expected: "1h"},
+		{name: "two hours", duration: 2 * time.Hour, expected: "2h"},
+		{name: "thirty seconds", duration: 30 * time.Second, expected: "30s"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			d := test.duration
+			assert.Equal(t, test.expected, promqlDurationString(&d))
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

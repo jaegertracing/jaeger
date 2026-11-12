@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -392,15 +391,19 @@ func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) ([]s
 
 // promqlDurationString formats the duration string to be promQL-compliant.
 // PromQL only accepts "single-unit" durations like "30s", "1m", "1h"; not "1h5s" or "1m0s".
+// The duration is rendered in the largest single unit that divides it evenly,
+// down to milliseconds, so 90s stays "90s" instead of being truncated to "1m".
 func promqlDurationString(d *time.Duration) string {
-	var b []byte
-	for _, c := range d.String() {
-		b = append(b, byte(c)) //nolint:gosec // G115 - duration strings are ASCII
-		if unicode.IsLetter(c) {
-			break
-		}
+	switch {
+	case *d%time.Hour == 0:
+		return fmt.Sprintf("%dh", *d/time.Hour)
+	case *d%time.Minute == 0:
+		return fmt.Sprintf("%dm", *d/time.Minute)
+	case *d%time.Second == 0:
+		return fmt.Sprintf("%ds", *d/time.Second)
+	default:
+		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
-	return string(b)
 }
 
 func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
