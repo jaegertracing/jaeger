@@ -4,16 +4,21 @@
 package jaegerai
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	acp "github.com/coder/acp-go-sdk"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
@@ -90,7 +95,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
 			MCP: sharedMCPHandler(t), MCPBaseURL: base,
 		})
-		got := h.chat.announceMCP(httpCaps(true), "SID")
+		got := h.chat.announceMCP(t.Context(), httpCaps(true), turnGrant{routeID: "SID", token: "tok"})
 		require.Len(t, got, 1)
 		assert.Equal(t, "http://127.0.0.1:16686/api/ai/mcp/SID/", got[0].Http.Url,
 			"base URL %q must normalize to a single slash", base)
@@ -113,18 +118,43 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	require.NotNil(t, h.mcp, "MCP endpoint must be built when an MCP handler is supplied")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil) // active turn
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), nil) // active turn
+
+	turnRequest := func(path, token string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, path, http.NoBody)
+		if token != "" {
+			req.Header.Set(turnTokenHeader, token)
+		}
+		return req
+	}
 
 	t.Run("active turn is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID+"/mcp", http.NoBody))
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", grant.token))
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "registered turn must reach the MCP handler")
+		assert.NotEqual(t, http.StatusUnauthorized, rr.Code, "the turn's token must be accepted")
 	})
 
 	t.Run("active turn is served without a trailing slash", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID, http.NoBody))
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID, grant.token))
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "no-slash form must also reach the MCP handler")
+		assert.NotEqual(t, http.StatusUnauthorized, rr.Code, "the turn's token must be accepted")
+	})
+
+	t.Run("active turn without its token is refused", func(t *testing.T) {
+		for _, token := range []string{"", "not-the-token"} {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", token))
+			assert.Equal(t, http.StatusUnauthorized, rr.Code, "token %q", token)
+		}
+	})
+
+	t.Run("one turn's token does not open another turn", func(t *testing.T) {
+		other := registerTurn(h.mcp.turns, testAGUIRun(), nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, turnRequest("/api/ai/mcp/"+grant.routeID+"/mcp", other.token))
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
 
 	t.Run("unknown route id is rejected", func(t *testing.T) {
@@ -150,66 +180,61 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
 }
 
-// TestSharedCloseReapsTurnScopedSessions pins the turn-scoped endpoint into
-// jaeger-query's teardown chain (Server.Close → httpServer.Close → closers.Close →
-// mcptools.Handler.Close). The gateway holds nothing itself, so closing the shared
-// MCP handler has to reap the sessions the turn-scoped mount bound; the SDK reaps a
-// session only when it goes idle, so otherwise a live turn's session would outlive
-// the server.
-func TestSharedCloseReapsTurnScopedSessions(t *testing.T) {
-	shared := sharedMCPHandler(t)
-	h := NewHandler(HandlerParams{
-		Logger:             zap.NewNop(),
-		AgentURL:           "ws://127.0.0.1:1",
-		MaxRequestBodySize: 1 << 20,
-		MCP:                shared,
-	})
-
-	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
-	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err, "the session works before Close")
-
-	require.NoError(t, shared.Close())
-
-	_, err = session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.Error(t, err, "closing the shared handler must reap the turn-scoped session too")
-}
-
-// The ai.auth check arrives as ChatMiddleware. It must stop at the chat endpoint:
-// the turn-scoped MCP endpoint is dialed by the sidecar, which carries no user
-// credential, so wrapping it would break every chat turn.
-func TestChatMiddlewareLeavesTurnScopedEndpointAlone(t *testing.T) {
-	shared := sharedMCPHandler(t)
-	rejectEveryone := func(http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "no user", http.StatusUnauthorized)
-		})
-	}
-	h := NewHandler(HandlerParams{
-		Logger:             zap.NewNop(),
-		AgentURL:           "ws://127.0.0.1:1",
-		MaxRequestBodySize: 1 << 20,
-		MCP:                shared,
-		ChatMiddleware:     rejectEveryone,
-	})
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
-
-	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-
-	resp, err := ts.Client().Post(ts.URL+"/api/ai/chat", "application/json", strings.NewReader(`{}`))
+// The ai.auth check arrives as AuthMiddleware and guards the chat endpoint and
+// the turn-scoped MCP endpoint alike, with the authenticator the query server
+// builds. The agent sends the headers the gateway announced for the turn on every
+// tool call, so the check admits a tool call that carries them and refuses one
+// that does not, turn token or no turn token, on both forms of the route.
+func TestAuthMiddlewareGuardsChatAndTurnScopedEndpoints(t *testing.T) {
+	authID := component.MustNewID("testauth")
+	host := &extensionsHost{extensions: map[component.ID]component.Component{
+		authID: &headerAuthenticator{header: "X-User"},
+	}}
+	auth, err := newAuthenticator(t.Context(), &confighttp.AuthConfig{Config: configauth.Config{AuthenticatorID: authID}}, host)
 	require.NoError(t, err)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "the chat endpoint is behind the middleware")
+	forwarded := []headerforwarding.ForwardedHeader{{HTTPName: "X-User"}}
 
-	assert.Contains(t, listToolNames(t, ts, "/api/ai/mcp/"+routeID+"/"), "get_services",
-		"the turn-scoped endpoint serves the sidecar without the middleware")
+	h := NewHandler(HandlerParams{
+		Logger:             zap.NewNop(),
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		MCP:                sharedMCPHandler(t),
+		AuthMiddleware:     auth.wrap,
+	})
+	grant := registerTurn(h.mcp.turns, testAGUIRun(), nil)
+	announced := announcedHeaders(t, forwarded, grant, "", "alice")
+
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	post := func(path string, headers ...acp.HttpHeader) int {
+		req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(`{}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		for _, hdr := range headers {
+			req.Header.Set(hdr.Name, hdr.Value)
+		}
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	token := acp.HttpHeader{Name: turnTokenHeader, Value: grant.token}
+	user := acp.HttpHeader{Name: "X-User", Value: "alice"}
+	withSlash := routeMCPPrefix + grant.routeID + "/"
+	noSlash := routeMCPPrefix + grant.routeID
+
+	assert.Equal(t, http.StatusUnauthorized, post(routeChat), "the chat endpoint is behind the authenticator")
+	assert.Equal(t, http.StatusUnauthorized, post(withSlash, token), "the turn token alone does not pass the authenticator")
+	assert.Equal(t, http.StatusUnauthorized, post(noSlash, token), "nor on the no-slash form of the route")
+	assert.Equal(t, http.StatusUnauthorized, post(withSlash, user, acp.HttpHeader{Name: turnTokenHeader, Value: "wrong"}),
+		"an admitted caller still needs the turn's token")
+
+	session := connectTurnMCPWithHeaders(t, ts, withSlash, announced)
+	listed, err := session.ListTools(t.Context(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	assert.Contains(t, toolNames(listed.Tools), "get_services",
+		"the announced headers pass the authenticator and the turn check")
 }

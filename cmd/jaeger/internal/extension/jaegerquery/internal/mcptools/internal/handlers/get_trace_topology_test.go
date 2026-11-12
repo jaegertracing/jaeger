@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
@@ -194,6 +195,92 @@ func TestGetTraceTopologyHandler_Handle_MultipleChildren(t *testing.T) {
 	assert.True(t, names["child1"])
 	assert.True(t, names["child2"])
 	assert.True(t, names["child3"])
+}
+
+func TestGetTraceTopologyHandler_Handle_DuplicateSpanIDs(t *testing.T) {
+	rootHex, aHex, bHex := spanIDToHex("root001"), spanIDToHex("spanAAA"), spanIDToHex("spanBBB")
+	type pathAndName struct {
+		path string
+		name string
+	}
+
+	tests := []struct {
+		name     string
+		spans    []spanConfig
+		expected []pathAndName
+	}{
+		{
+			name: "second span with the root's ID is its child",
+			spans: []spanConfig{
+				{spanID: "root001", operation: "root"},
+				{spanID: "root001", parentSpanID: "root001", operation: "duplicate"},
+			},
+			expected: []pathAndName{
+				{path: rootHex, name: "root"},
+			},
+		},
+		{
+			name: "span reuses the ID of its grandparent",
+			spans: []spanConfig{
+				{spanID: "root001", operation: "root"},
+				{spanID: "spanAAA", parentSpanID: "root001", operation: "A"},
+				{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
+				{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "duplicate"},
+			},
+			expected: []pathAndName{
+				{path: rootHex, name: "root"},
+				{path: rootHex + "/" + aHex, name: "A"},
+				{path: rootHex + "/" + aHex + "/" + bHex, name: "B"},
+			},
+		},
+		{
+			name: "root reuses the ID of an earlier span",
+			spans: []spanConfig{
+				{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "A"},
+				{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
+				{spanID: "spanAAA", operation: "root"},
+			},
+			expected: []pathAndName{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &getTraceTopologyHandler{
+				queryService: newMockYieldingTraces(createTestTraceWithSpans(testTraceID, tt.spans)),
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			require.NoError(t, err)
+			assert.Equal(t, len(tt.spans), output.TotalSpanCount)
+
+			actual := make([]pathAndName, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				actual = append(actual, pathAndName{path: s.Path, name: s.SpanName})
+			}
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestGetTraceTopologyHandler_DFS_SkipsVisitedSpan(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	pos := jptrace.SpanIterPos{Resource: rs, Scope: ss}
+	a := &rawSpan{spanID: "a", pos: pos, span: ss.Spans().AppendEmpty()}
+	b := &rawSpan{spanID: "b", pos: pos, span: ss.Spans().AppendEmpty()}
+	childrenOf := map[string][]*rawSpan{"a": {b}, "b": {a}}
+
+	var result []types.TopologySpan
+	handler := &getTraceTopologyHandler{}
+	// maxSpans 0 leaves the walk unbounded; visited is what stops the a -> b -> a cycle.
+	handler.dfs(a, "a", 1, 0, 0, childrenOf, map[string]struct{}{}, &result)
+
+	require.Len(t, result, 2)
+	assert.Equal(t, "a", result[0].Path)
+	assert.Equal(t, "a/b", result[1].Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
@@ -674,140 +761,4 @@ func TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot(t *testing.T) {
 		assert.Zero(t, s.TruncatedChildren)
 	}
 	assert.Equal(t, []string{"rootA", "childA1", "childA2"}, names)
-}
-
-func TestGetTraceTopologyHandler_Handle_ParentCycle(t *testing.T) {
-	// Each span's parent is the other, so neither is a root.
-	spanConfigs := []spanConfig{
-		{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
-		{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
-	}
-	mock := newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID})
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 2)
-	a, b := spanIDToHex("spanA01"), spanIDToHex("spanB01")
-	assert.Equal(t, b+"/"+a, output.Spans[0].Path)
-	assert.Equal(t, b+"/"+a+"/"+b, output.Spans[1].Path)
-}
-
-func TestGetTraceTopologyHandler_Handle_DuplicateSpanID(t *testing.T) {
-	// The second span with ID spanD01 is a child of spanC01, which is itself a
-	// child of the first spanD01.
-	spanConfigs := []spanConfig{
-		{spanID: "spanD01", operation: "d-first"},
-		{spanID: "spanC01", parentSpanID: "spanD01", operation: "c"},
-		{spanID: "spanD01", parentSpanID: "spanC01", operation: "d-second"},
-	}
-	mock := newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID})
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 3)
-	d, c := spanIDToHex("spanD01"), spanIDToHex("spanC01")
-	assert.Equal(t, d, output.Spans[0].Path)
-	assert.Equal(t, d+"/"+c, output.Spans[1].Path)
-	assert.Equal(t, d+"/"+c+"/"+d, output.Spans[2].Path)
-}
-
-func TestGetTraceTopologyHandler_Handle_SelfParent(t *testing.T) {
-	spanConfigs := []spanConfig{
-		{spanID: "spanA01", parentSpanID: "spanA01", operation: "a"},
-	}
-	mock := newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID})
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 1)
-	a := spanIDToHex("spanA01")
-	assert.Equal(t, a+"/"+a, output.Spans[0].Path)
-}
-
-func TestGetTraceTopologyHandler_Handle_RootAndTwoCycles(t *testing.T) {
-	spanConfigs := []spanConfig{
-		{spanID: "root001", operation: "root"},
-		{spanID: "child01", parentSpanID: "root001", operation: "child"},
-		{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
-		{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
-		{spanID: "spanX01", parentSpanID: "spanY01", operation: "x"},
-		{spanID: "spanY01", parentSpanID: "spanX01", operation: "y"},
-	}
-	// Equal start times, so the order below comes from the span ID tie-break.
-	mock := newMockYieldingTraces(withEqualStartTimes(createTestTraceWithSpans(testTraceID, spanConfigs)))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID})
-
-	require.NoError(t, err)
-	names := make([]string, 0, len(output.Spans))
-	for _, s := range output.Spans {
-		names = append(names, s.SpanName)
-	}
-	assert.Equal(t, []string{"root", "child", "a", "b", "x", "y"}, names)
-}
-
-func TestGetTraceTopologyHandler_Handle_TwoRootsShareID(t *testing.T) {
-	// Both roots have span ID spanD01, so the child can't tell which one is its
-	// parent. The first root walked claims it.
-	spanConfigs := []spanConfig{
-		{spanID: "spanD01", operation: "d-first"},
-		{spanID: "spanD01", operation: "d-second"},
-		{spanID: "spanC01", parentSpanID: "spanD01", operation: "c"},
-	}
-	mock := newMockYieldingTraces(withEqualStartTimes(createTestTraceWithSpans(testTraceID, spanConfigs)))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID})
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 3)
-	d, c := spanIDToHex("spanD01"), spanIDToHex("spanC01")
-	assert.Equal(t, "d-first", output.Spans[0].SpanName)
-	assert.Equal(t, d+"/"+c, output.Spans[1].Path)
-	assert.Equal(t, "d-second", output.Spans[2].SpanName)
-	assert.Equal(t, d, output.Spans[2].Path)
-}
-
-func TestGetTraceTopologyHandler_Handle_ParentCycleDepthLimit(t *testing.T) {
-	spanConfigs := []spanConfig{
-		{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
-		{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
-	}
-	mock := newMockYieldingTraces(withEqualStartTimes(createTestTraceWithSpans(testTraceID, spanConfigs)))
-	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 20}
-
-	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{},
-		types.GetTraceTopologyInput{TraceID: testTraceID, Depth: 2})
-
-	require.NoError(t, err)
-	require.Len(t, output.Spans, 2)
-	// b's only child is a, which is already in the output, so the depth limit
-	// cut nothing.
-	assert.Equal(t, 0, output.Spans[1].TruncatedChildren)
-}
-
-// withEqualStartTimes gives every span the start time of the first span, so the
-// topology order depends only on span IDs.
-func withEqualStartTimes(td ptrace.Traces) ptrace.Traces {
-	start := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).StartTimestamp()
-	for _, rs := range td.ResourceSpans().All() {
-		for _, ss := range rs.ScopeSpans().All() {
-			for _, span := range ss.Spans().All() {
-				span.SetStartTimestamp(start)
-			}
-		}
-	}
-	return td
 }

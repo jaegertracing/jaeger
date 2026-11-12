@@ -3,7 +3,10 @@
 
 package headerforwarding
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 // NewHTTPClientRoundTripper returns an http.RoundTripper that forwards header values
 // captured in the request context (via HTTPServerMiddleware or the gRPC server
@@ -26,13 +29,21 @@ type httpClientRoundTripper struct {
 }
 
 func (rt *httpClientRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	captured := CapturedFromContext(req.Context())
-	if len(captured) == 0 {
+	if len(CapturedFromContext(req.Context())) == 0 {
 		return rt.base.RoundTrip(req)
 	}
 	// RoundTripper contract: do not mutate the inbound *http.Request.
 	cloned := req.Clone(req.Context())
-	for _, c := range captured {
+	SetForwardedHTTPHeaders(req.Context(), cloned.Header)
+	return rt.base.RoundTrip(cloned)
+}
+
+// SetForwardedHTTPHeaders sets the header values captured in ctx on header,
+// each under its outbound HTTP name. It is for an outbound HTTP request that
+// does not go through an http.RoundTripper, such as a WebSocket handshake;
+// NewHTTPClientRoundTripper applies the same rule to ordinary clients.
+func SetForwardedHTTPHeaders(ctx context.Context, header http.Header) {
+	for _, c := range CapturedFromContext(ctx) {
 		if c.Value == "" || c.Header == nil {
 			continue
 		}
@@ -40,7 +51,6 @@ func (rt *httpClientRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 		if name == "" {
 			continue
 		}
-		cloned.Header.Set(name, c.Value)
+		header.Set(name, c.Value)
 	}
-	return rt.base.RoundTrip(cloned)
 }

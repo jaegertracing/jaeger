@@ -1,0 +1,63 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This Compose file runs Jaeger with an AI agent: Jaeger with the AI gateway on,
+# Goose as the ACP agent, microsim sending a trickle of traces so there is
+# something to ask about, and an Apache httpd reverse proxy between Goose and
+# Jaeger's MCP endpoint whose access log prints the headers of every proxied
+# request, which is how run.sh checks that the agent sends the turn token and
+# the chat caller's identity on each MCP request. run.sh starts it; see
+# README.md, "Run the stack".
+#
+# Goose needs a model provider to chat; set OPENROUTER_API_KEY (or another
+# provider's variables together with GOOSE_PROVIDER and GOOSE_MODEL) in the
+# environment.
+
+services:
+  jaeger:
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:latest}
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - "./jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
+    environment:
+      # jaeger-config.yaml expands this into the X-Secret-Key header that
+      # Jaeger sends on every dial to Goose, which requires it on the upgrade.
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
+    ports: ["127.0.0.1:16686:16686"]
+
+  # microsim is the same trace generator the SPM example uses
+  # (docker-compose/monitor): a simulated microservice topology sending a
+  # steady trickle of traces over OTLP.
+  microsim:
+    image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
+    command: "-d 24h -s 500ms"
+    environment:
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on: [jaeger]
+
+  # The image turns Goose's own extensions off (see Dockerfile), so the agent
+  # has only the tools Jaeger announces; without that, Goose answers with its
+  # developer, apps and other built-in tools alongside them.
+  goose:
+    build:
+      context: .
+      args:
+        GOOSE_VERSION: ${GOOSE_VERSION:-v1.57.0}
+    environment:
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
+      # OpenRouter's free tier changes over time, so this slug may stop being
+      # free or disappear. When every prompt fails with a 404 that names a paid
+      # slug, pick another free tool-calling model; the website's AI Assistant
+      # page shows how to list them.
+      GOOSE_MODEL: ${GOOSE_MODEL:-nvidia/nemotron-3.5-lightning:free}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-goose-secret}
+
+  # mcp-proxy sits where a deployment's ingress would: Goose reaches Jaeger's
+  # MCP endpoint only through it, so its log shows what Goose sends.
+  mcp-proxy:
+    image: httpd:2.4.67
+    volumes:
+      - "./httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
+    ports: ["127.0.0.1:16690:80"]
+    depends_on: [jaeger]
