@@ -53,7 +53,9 @@ const (
 		SELECT trace_id
 		FROM duration_index
 		WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration >= ? AND duration <= ?
-		LIMIT ?`
+		AND start_time > ? AND start_time < ?
+		LIMIT ?
+		ALLOW FILTERING`
 
 	defaultNumTraces = 100
 	// limitMultiple exists because many spans that are returned from indices can have the same trace, limitMultiple increases
@@ -376,6 +378,8 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 			traceQuery.OperationName,
 			minDurationMicros,
 			maxDurationMicros,
+			model.TimeAsEpochMicroseconds(traceQuery.StartTimeMin),
+			model.TimeAsEpochMicroseconds(traceQuery.StartTimeMax),
 			traceQuery.SearchDepth*limitMultiple,
 		)
 		t, err := s.executeQuery(childSpan, query, s.metrics.queryDurationIndex)
