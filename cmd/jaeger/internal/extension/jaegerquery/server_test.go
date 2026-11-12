@@ -140,6 +140,7 @@ func TestServerPassesTenancyToStorage(t *testing.T) {
 	options := tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}
 	cfg := createDefaultConfig().(*Config)
 	cfg.Tenancy = options
+	cfg.Storage.TracesPrimary = "primary"
 	cfg.Storage.TracesArchive = "archive"
 	ext := &recordingStorageExt{}
 	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, ext)
@@ -151,7 +152,7 @@ func TestServerPassesTenancyToStorage(t *testing.T) {
 	err := s.Start(t.Context(), host)
 	require.ErrorContains(t, err, "tenancy rejected")
 	require.Equal(t, options, ext.options)
-	require.Equal(t, []string{"jaeger_storage", "archive"}, ext.storageNames)
+	require.Equal(t, []string{"primary", "archive"}, ext.storageNames)
 }
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)

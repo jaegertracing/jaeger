@@ -21,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var testTraceIDBytes = func() pcommon.TraceID {
@@ -349,7 +350,7 @@ func TestFindTracesHandler_Handle_Refusals(t *testing.T) {
 // TestFindTracesHandler_Handle_UsingMemoryStore runs statements of both shapes through the
 // query service against the memory backend and checks the traces they select.
 func TestFindTracesHandler_Handle_UsingMemoryStore(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace("trace111", "checkout", "/ok", false)))
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace("trace222", "checkout", "/error", true)))
@@ -426,7 +427,7 @@ func TestFindTracesHandler_Handle_UsingMemoryStore(t *testing.T) {
 // sentence exactly when the call is refused. When a result is shaped by the list, the refusal
 // in the compiler goes and this test fails until the sentence is removed from the schema.
 func TestFindTracesHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	handler := &findTracesHandler{
 		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),

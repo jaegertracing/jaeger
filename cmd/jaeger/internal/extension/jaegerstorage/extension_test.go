@@ -149,38 +149,67 @@ func TestStorageTenancyOptions(t *testing.T) {
 }
 
 func TestStorageTenancyOptionsAreScopedToConfiguredBackends(t *testing.T) {
-	newHost := func(t *testing.T) component.Host {
-		config := storageconfig.Config{
-			TraceBackends: map[string]storageconfig.TraceBackend{
-				"query":  {},
-				"remote": {Memory: &memory.Configuration{MaxTraces: 10000}},
-			},
-		}
-		ext := newStorageExt(&Config{Config: config}, noopTelemetrySettings())
-		return storagetest.NewStorageHost().WithExtension(ID, ext)
-	}
-
-	for _, remoteFirst := range []bool{false, true} {
-		t.Run(fmt.Sprintf("remote starts first=%t", remoteFirst), func(t *testing.T) {
-			host := newHost(t)
-			configureRemote := func() {
-				require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "remote"))
-				_, err := GetTraceStoreFactory("remote", host)
-				require.NoError(t, err)
-			}
-			configureQuery := func() {
-				require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
-			}
-
-			if remoteFirst {
-				configureRemote()
-				configureQuery()
-			} else {
-				configureQuery()
-				configureRemote()
-			}
+	newHost := func(t *testing.T, backends map[string]storageconfig.TraceBackend) component.Host {
+		ext := makeStorageExtension(t, storageconfig.Config{TraceBackends: backends})
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ext.Start(t.Context(), host))
+		t.Cleanup(func() {
+			require.NoError(t, ext.Shutdown(t.Context()))
 		})
+		return host
 	}
+
+	elasticsearch := storageconfig.TraceBackend{
+		Elasticsearch: &escfg.Configuration{Servers: []string{"http://localhost:9200"}},
+	}
+	memoryBackend := storageconfig.TraceBackend{
+		Memory: &memory.Configuration{MaxTraces: 10000},
+	}
+
+	t.Run("separate Elasticsearch and memory backends", func(t *testing.T) {
+		for _, remoteFirst := range []bool{false, true} {
+			t.Run(fmt.Sprintf("remote starts first=%t", remoteFirst), func(t *testing.T) {
+				host := newHost(t, map[string]storageconfig.TraceBackend{
+					"query":  elasticsearch,
+					"remote": memoryBackend,
+				})
+				configureQuery := func() {
+					require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
+				}
+				configureRemote := func() {
+					require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "remote"))
+					_, err := GetTraceStoreFactory("remote", host)
+					require.NoError(t, err)
+				}
+
+				if remoteFirst {
+					configureRemote()
+					configureQuery()
+				} else {
+					configureQuery()
+					configureRemote()
+				}
+			})
+		}
+	})
+
+	t.Run("different lists on Elasticsearch backends", func(t *testing.T) {
+		host := newHost(t, map[string]storageconfig.TraceBackend{
+			"query":  elasticsearch,
+			"remote": elasticsearch,
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "remote"))
+	})
+
+	t.Run("different lists on distinct memory backends", func(t *testing.T) {
+		host := newHost(t, map[string]storageconfig.TraceBackend{
+			"query":  memoryBackend,
+			"remote": memoryBackend,
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "query"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-b"}}, "remote"))
+	})
 }
 
 func TestStorageExtensionRejectsMultipleInstances(t *testing.T) {

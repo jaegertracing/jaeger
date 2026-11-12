@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const findSpansWindow = "WHERE between(start_time, now() - '1h', now())"
@@ -235,7 +236,7 @@ func TestFindSpansHandler_BuildQuery_Refusals(t *testing.T) {
 // service and a storage backend: the statement compiles into a search the memory store
 // serves, which is the exit criterion of RFC 0019 M1a.
 func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	require.NoError(t, store.WriteTraces(t.Context(), createTestTrace(
 		"trace111", "test", "/ok", false,
@@ -260,7 +261,7 @@ func TestFindSpansHandler_Handle_ServedByMemoryStore(t *testing.T) {
 // sentence exactly when the query service refuses the list. When sparse spans land, the
 // refusal stops and this test fails until the sentence is removed from the schema.
 func TestFindSpansHandler_ColumnListSchemaMatchesBehavior(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)
 	handler := &findSpansHandler{
 		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
