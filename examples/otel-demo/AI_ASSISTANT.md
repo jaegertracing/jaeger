@@ -2,7 +2,7 @@
 
 The public demo connects Jaeger Query to Goose over ACP. Goose uses OpenAI
 directly and calls Jaeger's MCP tools to inspect real services and traces.
-Provider credentials never reach the browser. Ordinary tracing remains
+Provider credentials never reach the Jaeger browser client. Ordinary tracing remains
 available if the agent is stopped or its OpenAI project exhausts its budget.
 
 ## Provision before deployment
@@ -10,6 +10,10 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
 1. In the OpenAI organization holding the API credits, create a `jaeger-demo`
    project and a dedicated service-account key. Confirm that the credit grant
    covers direct API usage and that the project can access `gpt-6-luna`.
+   Restrict the project to that model, and restrict the key to **List models:
+   Read** and **Responses: Write**. Other key permissions can remain disabled.
+   Set a key expiration no later than the grant's expiration and record the
+   rotation deadline; a 90-day key lifetime is suitable when the grant lasts longer.
 2. In the project's Limits settings, set a **$2,000 monthly spending limit**
    and enable **Enforce a hard limit**. Configure spending alerts at $1,000,
    $1,500, and $1,800. A notification-only budget does not stop requests.
@@ -45,21 +49,27 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
    extension. The deployment's init container copies that configuration into
    its writable runtime volume before Goose starts. Without the copy, mounting
    the volume over `/tmp` would hide the disabled-extension configuration.
-4. Prepare a private, untracked env file outside the repository containing
+4. Prepare a private env file outside the repository, or explicitly ignored by Git, containing
    `OPENAI_API_KEY` and a random `GOOSE_SERVER__SECRET_KEY`. Give the file mode
    `0600`. The latter authenticates Jaeger to Goose and must be distinct from
-   the provider key. Create the namespace if necessary, then install the Secret:
+   the provider key. Verify the intended cluster and its demo ingress before
+   installing the Secret. Create the namespace if necessary, then perform the
+   one-time installation using an explicit context:
 
    ```bash
-   kubectl -n jaeger create secret generic jaeger-demo-ai \
-     --from-env-file=/absolute/path/to/private-demo.env \
-     --dry-run=client -o yaml | kubectl apply -f -
+   kubectl --context YOUR_OKE_CONTEXT -n jaeger create secret generic jaeger-demo-ai \
+     --from-env-file=/absolute/path/to/private-demo.env
    ```
 
    Do not echo the env file, use shell tracing, or commit either credential.
    The deployment checks only the names of nonempty Secret entries. It cannot
    verify the OpenAI account's budget or grant; those checks are the operator's
    responsibility before creating the Secret.
+
+   If OKE access is available only in Oracle Cloud Shell, follow the
+   [Cloud Shell bootstrap procedure](CLOUD_SHELL.md). Install the Secret once;
+   subsequent CI deployments reuse it. The OpenAI and Goose credentials do not
+   need to be copied into GitHub Actions secrets.
 5. Use the existing Jaeger-only upgrade path:
 
    ```bash
@@ -154,4 +164,4 @@ cloning it during rendering tests.
   revoke the provider key to block accidental reuse.
 - **Rollback:** restore the previous Helm revision and review whether it still
   enables AI before restoring traffic. Never run a clean deployment as an AI
-  rollback; it also removes trace storage and the credential Secret.
+  rollback; clean mode deletes trace storage.
