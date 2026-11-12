@@ -172,14 +172,15 @@ if deploy_jaeger; then
 fi
 
 if deploy_monitoring; then
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm repo update prometheus-community
   echo "🟢 Deploying Prometheus..."
   kubectl apply -f prometheus-svc.yaml
-    helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
-      --version "$PROMETHEUS_STACK_CHART_VERSION" \
-      --set crds.upgradeJob.enabled=true \
-      --set crds.upgradeJob.forceConflicts=true \
-      -f monitoring-values.yaml
-
+  helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
+    --version "$PROMETHEUS_STACK_CHART_VERSION" \
+    --set crds.upgradeJob.enabled=true \
+    --set crds.upgradeJob.forceConflicts=true \
+    -f monitoring-values.yaml
 fi
 
 if deploy_jaeger; then
