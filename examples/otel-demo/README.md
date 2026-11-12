@@ -12,7 +12,7 @@ It is driven by `deploy-all.sh`, which supports both clean installs and upgrades
 - Kubernetes cluster reachable via `kubectl`
 - Installed CLIs: `bash`, `git`, `curl`, `kubectl`, `helm`
 - Network access to Helm repositories
-- The AI assistant's published agent image, project spending controls, and
+- The AI assistant's published CI image, project spending controls, and
   `jaeger-demo-ai` credential Secret, provisioned before a Jaeger upgrade as
   described in [AI_ASSISTANT.md](./AI_ASSISTANT.md).
 
@@ -36,6 +36,7 @@ namespace; all other clean-mode data deletion remains unchanged.
 ```
 
 Environment variables:
+- JAEGER_DEMO_GOOSE_IMAGE: verified Goose snapshot SHA image (set by CI), or an explicit image digest for a manual deployment
 - ROLLOUT_TIMEOUT: rollout wait timeout in seconds (default 600)
 - OPENSEARCH_DASHBOARDS_HELM_TIMEOUT: Helm wait timeout for OpenSearch Dashboards (default 60m)
 

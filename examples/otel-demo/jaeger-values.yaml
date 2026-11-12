@@ -87,8 +87,8 @@ esIndexCleaner:
     limits:
       memory: "128Mi"
 
-# Build scripts/ai-sidecar/goose/Dockerfile and publish it before deployment.
-# Keep the image digest here so a redeploy uses the same agent and extension list.
+# The deployment script supplies a verified snapshot SHA tag, or an operator's
+# explicit image digest, through JAEGER_DEMO_GOOSE_IMAGE.
 goose:
   image: ""
 

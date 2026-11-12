@@ -11,18 +11,20 @@
 # Manual workflow_dispatch runs use the requested tag (default MAIN_SHA), resolve
 # latest to a concrete SHA tag, and fail if the requested tag is missing.
 #
-# Jaeger and HotROD tags are resolved independently; each image is
+# Jaeger, HotROD, and (for the OTel stack) Goose tags are resolved independently; each image is
 # published to its own repository and may fall back to a different SHA.
 #
 # Exports (and appends to GITHUB_ENV when set):
 #   JAEGER_DEMO_JAEGER_IMAGE_TAG
 #   JAEGER_DEMO_HOTROD_IMAGE_TAG
 #   JAEGER_DEMO_IMAGE_TAG
+#   JAEGER_DEMO_GOOSE_IMAGE (only when deploying the OTel stack)
 
 set -euo pipefail
 
 : "${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY:=jaegertracing/jaeger-snapshot}"
 : "${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY:=jaegertracing/example-hotrod-snapshot}"
+: "${JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY:=jaegertracing/jaeger-goose-snapshot}"
 : "${MAIN_SHA:=${GITHUB_SHA:-}}"
 : "${GITHUB_EVENT_NAME:=workflow_dispatch}"
 
@@ -158,6 +160,8 @@ main() {
   local hotrod_preferred
   local jaeger_tag
   local hotrod_tag
+  local goose_preferred
+  local goose_tag
   local main_status
 
   jaeger_preferred="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-${JAEGER_DEMO_IMAGE_TAG:-$MAIN_SHA}}"
@@ -168,6 +172,16 @@ main() {
 
   verify_deploy_tag "$JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY" "$jaeger_tag" "Jaeger"
   verify_deploy_tag "$JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY" "$hotrod_tag" "HotROD"
+
+  # The workflow already skips this resolver for OTel app/storage-only upgrades.
+  # The original OCI stack has no AI agent and must not require a Goose image.
+  if [[ "${JAEGER_DEMO_STACK:-oci}" == "otel" || "${JAEGER_DEMO_STACK:-oci}" == "all" ]]; then
+    goose_preferred="${JAEGER_DEMO_GOOSE_IMAGE_TAG:-${JAEGER_DEMO_IMAGE_TAG:-$MAIN_SHA}}"
+    goose_tag=$(resolve_snapshot_tag "$JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY" "$goose_preferred" "Goose")
+    verify_deploy_tag "$JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY" "$goose_tag" "Goose"
+    set_github_env JAEGER_DEMO_GOOSE_IMAGE "${JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY}:${goose_tag}"
+    echo "Goose tag=$goose_tag"
+  fi
 
   if [[ "$GITHUB_EVENT_NAME" == "schedule" && "$jaeger_tag" != "$MAIN_SHA" ]]; then
     main_status=$(dockerhub_tag_status "$JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY" "$MAIN_SHA")

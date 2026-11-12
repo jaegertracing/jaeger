@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Snapshot image tag to deploy for both images. Defaults to the workflow SHA.'
+        description: 'Snapshot image tag for demo components. Defaults to the workflow SHA.'
         required: false
       jaeger_image_tag:
         description: 'Jaeger snapshot image tag override. Defaults to image_tag or the workflow SHA.'
@@ -79,6 +79,7 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY: jaegertracing/jaeger-snapshot
       JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
+      JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY: jaegertracing/jaeger-goose-snapshot
       JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}

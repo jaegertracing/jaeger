@@ -15,10 +15,15 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
    $1,500, and $1,800. A notification-only budget does not stop requests.
    Enforcement can lag slightly, so leave headroom below the available credits.
    See [OpenAI spending controls](https://developers.openai.com/api/docs/guides/spend-limits).
-3. Build the existing agent image for the cluster's architecture, publish it to
-   a registry the cluster can pull from, and set `goose.image` in
-   `jaeger-values.yaml` to its immutable digest. The empty default deliberately
-   prevents a deployment until an operator supplies a verified image.
+3. The existing Docker CI builds Goose on pull requests without publishing.
+   Trusted `main` runs publish amd64 and arm64 images to
+   `jaegertracing/jaeger-goose-snapshot` on Docker Hub and Quay. The demo workflow
+   verifies and resolves a published commit-SHA tag independently of Jaeger and
+   HotROD, then passes it as `JAEGER_DEMO_GOOSE_IMAGE`. Scheduled runs may use the
+   newest published SHA if the current commit's image is not available yet.
+
+   For a deployment outside CI, build and publish the same Dockerfile and set
+   `JAEGER_DEMO_GOOSE_IMAGE` to an explicit digest:
 
    ```bash
    docker buildx build --platform linux/arm64 \
@@ -49,9 +54,13 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
 5. Use the existing Jaeger-only upgrade path:
 
    ```bash
+   JAEGER_DEMO_GOOSE_IMAGE=YOUR_REGISTRY/jaeger-demo-goose@sha256:DIGEST \
    JAEGER_OTEL_DEMO_DEPLOY_SCOPE=jaeger \
      examples/otel-demo/deploy-all.sh upgrade IMAGE_TAG
    ```
+
+   The environment variable is set by the workflow automatically. An empty
+   image is rejected during chart rendering before any workloads are changed.
 
    The normal upgrade preserves the credential Secret. Clean mode saves only
    that Secret to a mode-0600 temporary file, recreates the namespace, and restores

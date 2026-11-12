@@ -17,6 +17,7 @@ JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
 # renovate: datasource=docker depName=jaegertracing/example-hotrod
 HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
+GOOSE_IMAGE="${JAEGER_DEMO_GOOSE_IMAGE:-}"
 PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 DEPLOY_SCOPE="${JAEGER_DEMO_DEPLOY_SCOPE:-${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}}"
@@ -609,6 +610,7 @@ main() {
     helm template jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
       --namespace jaeger \
       --set storage.type=elasticsearch \
+      --set-string goose.image="$GOOSE_IMAGE" \
       --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
       -f "$SCRIPT_DIR/jaeger-values.yaml" >/dev/null
   else
@@ -637,6 +639,7 @@ main() {
     if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
       --namespace jaeger --create-namespace \
       --set allInOne.enabled=true \
+      --set-string goose.image="$GOOSE_IMAGE" \
       --set storage.type=elasticsearch \
       --set storage.elasticsearch.anonymous=true \
       --set storage.elasticsearch.usePassword=false \
