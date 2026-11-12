@@ -13,6 +13,8 @@
 #
 # To add custom components, copy this file and append entries to the relevant
 # section (extensions, receivers, exporters, processors, connectors).
+# To retain Jaeger-specific CLI subcommands in custom distributions, use the
+# Workspace Overwrite pattern with cmd/jaeger/jaegercli/main.go.tmpl.
 #
 # Cross-compilation is supported via GOOS/GOARCH environment variables:
 #   GOOS=linux GOARCH=arm64 ocb --config cmd/jaeger/builder.yaml
