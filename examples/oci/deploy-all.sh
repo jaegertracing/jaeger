@@ -5,7 +5,19 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE="${1:-upgrade}"
+DEPLOY_SCOPE="${JAEGER_DEMO_DEPLOY_SCOPE:-${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-all}}"
+case "$DEPLOY_SCOPE" in
+  jaeger|monitoring|all) ;;
+  *) echo "Invalid OCI deploy scope: $DEPLOY_SCOPE" >&2; exit 1 ;;
+esac
+if [[ "$MODE" != "upgrade" ]]; then
+  DEPLOY_SCOPE=all
+fi
+
+deploy_jaeger() { [[ "$DEPLOY_SCOPE" == "jaeger" || "$DEPLOY_SCOPE" == "all" ]]; }
+deploy_monitoring() { [[ "$DEPLOY_SCOPE" == "monitoring" || "$DEPLOY_SCOPE" == "all" ]]; }
 IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-}}"
 LOCAL_IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-latest}}"
 JAEGER_IMAGE_REPOSITORY="${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY:-jaegertracing/jaeger}"
@@ -16,9 +28,9 @@ IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_BASE_URL="${JAEGER_DEMO_PUBLIC_BASE_URL:-https://demo.jaegertracing.io}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
+# renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
 PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
 CLEAN_UNINSTALL_TIMEOUT="${JAEGER_DEMO_CLEAN_UNINSTALL_TIMEOUT:-10m0s}"
-DEPLOY_PROMETHEUS=true
 
 uninstall_release() {
   local name=$1
@@ -81,22 +93,16 @@ case "$MODE" in
 esac
 
 if [[ "$MODE" == "upgrade" ]]; then
-  prepare_upgrade_release jaeger
-  PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
-  case "$PROMETHEUS_RELEASE_STATUS" in
-    deployed)
-      DEPLOY_PROMETHEUS=true
-      ;;
-    "")
-      DEPLOY_PROMETHEUS=false
-      echo "🟡 Prometheus Helm release is not installed. Skipping Prometheus in upgrade mode."
-      ;;
-    *)
-      DEPLOY_PROMETHEUS=false
-      echo "🟡 Prometheus Helm release is in '$PROMETHEUS_RELEASE_STATUS' state. Skipping Prometheus in upgrade mode."
-      echo "🟡 Use clean mode or repair the Prometheus release separately to reinstall monitoring."
-      ;;
-  esac
+  if deploy_jaeger; then
+    prepare_upgrade_release jaeger
+  fi
+  if deploy_monitoring; then
+    PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
+    if [[ "$PROMETHEUS_RELEASE_STATUS" != "deployed" ]]; then
+      echo "Prometheus is not deployed (status: ${PROMETHEUS_RELEASE_STATUS:-missing}); repair it separately before upgrading" >&2
+      exit 1
+    fi
+  fi
   HELM_JAEGER_CMD="upgrade --install --wait --atomic"
   HELM_PROM_CMD="upgrade --install --wait"
 else
@@ -108,100 +114,100 @@ else
 fi
 
 # Navigate to the script's directory (examples/oci)
-cd $(dirname $0)
+cd "$SCRIPT_DIR"
 
-# Clone Jaeger Helm Charts if not already present
-if [ ! -d "helm-charts" ]; then
-  echo "📥 Cloning Jaeger Helm Charts..."
-  git clone https://github.com/jaegertracing/helm-charts.git
-  cd helm-charts
-  echo "Using v2 branch for Jaeger v2..."
-  git checkout v2
-  echo "Adding required Helm repositories..."
-  helm repo add bitnami https://charts.bitnami.com/bitnami
+if deploy_jaeger; then
+  # shellcheck source=scripts/demo/jaeger-chart.sh
+  source "$SCRIPT_DIR/../../scripts/demo/jaeger-chart.sh"
+  prepare_jaeger_chart "$SCRIPT_DIR/helm-charts"
+fi
+
+if deploy_jaeger; then
+  # Set image repositories and deploy based on mode
+  if [[ "$MODE" == "local" ]]; then
+
+    echo "🟣 Deploying Jaeger with local registry images..."
+    helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
+      --set provisionDataStore.cassandra=false \
+      --set allInOne.enabled=true \
+      --set storage.type=memory \
+      --set hotrod.enabled=true \
+      --set global.imageRegistry="" \
+      --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
+      --set allInOne.image.tag="${LOCAL_IMAGE_TAG}"  \
+      --set allInOne.image.pullPolicy="Never" \
+      --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
+      --set hotrod.image.tag="${LOCAL_IMAGE_TAG}"  \
+      --set hotrod.image.pullPolicy="Never" \
+      --set-file userconfig="./config.yaml" \
+      --set-file uiconfig="./ui-config.json" \
+      -f ./jaeger-values.yaml
+  else
+    image_args=(
+      --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}"
+      --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}"
+      --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}"
+      --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}"
+    )
+    if [[ -n "$JAEGER_IMAGE_TAG" ]]; then
+      image_args+=(--set allInOne.image.tag="${JAEGER_IMAGE_TAG}")
+    fi
+    if [[ -n "$HOTROD_IMAGE_TAG" ]]; then
+      image_args+=(--set hotrod.image.tag="${HOTROD_IMAGE_TAG}")
+    fi
+
+    echo "🟣 Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG:-chart-default}"
+    echo "🟣 Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG:-values-default}"
+
+    helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
+      --set provisionDataStore.cassandra=false \
+      --set allInOne.enabled=true \
+      --set storage.type=memory \
+      "${image_args[@]}" \
+      --set-file userconfig="./config.yaml" \
+      --set-file uiconfig="./ui-config.json" \
+      -f ./jaeger-values.yaml
+  fi
+
+fi
+
+if deploy_monitoring; then
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-  helm repo add incubator https://charts.helm.sh/incubator
-  helm repo update
-  helm dependency build ./charts/jaeger
-  cd ..
-else
-  echo "📁 Jaeger Helm Charts already exist. Skipping clone."
-fi
-
-# Set image repositories and deploy based on mode
-if [[ "$MODE" == "local" ]]; then
-
-  echo "🟣 Deploying Jaeger with local registry images..."
-  helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
-    --set provisionDataStore.cassandra=false \
-    --set allInOne.enabled=true \
-    --set storage.type=memory \
-    --set hotrod.enabled=true \
-    --set global.imageRegistry="" \
-    --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
-    --set allInOne.image.tag="${LOCAL_IMAGE_TAG}"  \
-    --set allInOne.image.pullPolicy="Never" \
-    --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
-    --set hotrod.image.tag="${LOCAL_IMAGE_TAG}"  \
-    --set hotrod.image.pullPolicy="Never" \
-    --set-file userconfig="./config.yaml" \
-    --set-file uiconfig="./ui-config.json" \
-    -f ./jaeger-values.yaml
-else
-  image_args=(
-    --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}"
-    --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}"
-    --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}"
-    --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}"
-  )
-  if [[ -n "$JAEGER_IMAGE_TAG" ]]; then
-    image_args+=(--set allInOne.image.tag="${JAEGER_IMAGE_TAG}")
-  fi
-  if [[ -n "$HOTROD_IMAGE_TAG" ]]; then
-    image_args+=(--set hotrod.image.tag="${HOTROD_IMAGE_TAG}")
-  fi
-
-  echo "🟣 Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG:-chart-default}"
-  echo "🟣 Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG:-values-default}"
-
-  helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
-    --set provisionDataStore.cassandra=false \
-    --set allInOne.enabled=true \
-    --set storage.type=memory \
-    "${image_args[@]}" \
-    --set-file userconfig="./config.yaml" \
-    --set-file uiconfig="./ui-config.json" \
-    -f ./jaeger-values.yaml
-fi
-
-echo "🟢 Deploying Prometheus..."
-kubectl apply -f prometheus-svc.yaml
-if [[ "$DEPLOY_PROMETHEUS" == "true" ]]; then
+  helm repo update prometheus-community
+  echo "🟢 Deploying Prometheus..."
+  kubectl apply -f prometheus-svc.yaml
   helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
     --version "$PROMETHEUS_STACK_CHART_VERSION" \
     --set crds.upgradeJob.enabled=true \
     --set crds.upgradeJob.forceConflicts=true \
     -f monitoring-values.yaml
-else
-  echo "🟡 Skipped Prometheus Helm deployment."
 fi
 
-# Create ConfigMap for Trace Generator
-echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
-kubectl create configmap trace-script --from-file=./load-generator/generate_traces.py --dry-run=client -o yaml | kubectl apply -f -
+if deploy_jaeger; then
+  # Create ConfigMap for Trace Generator
+  echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
+  kubectl create configmap trace-script --from-file=./load-generator/generate_traces.py --from-file=./load-generator/requirements.txt --dry-run=client -o yaml | kubectl apply -f -
 
-# Deploy Trace Generator Pod
-echo "🟡 Step 4: Deploying Trace Generator Pod..."
-kubectl apply -f ./load-generator/load-generator.yaml
+  # Deploy Trace Generator Pod
+  echo "🟡 Step 4: Deploying Trace Generator Pod..."
+  kubectl apply -f ./load-generator/load-generator.yaml
 
-# Deploy ingress changes
-echo "🟡 Step 5: Deploying Ingress Resource..."
-kubectl apply -f ingress.yaml
+  # Deploy ingress changes
+  echo "🟡 Step 5: Deploying Ingress Resource..."
+  kubectl apply -f ingress.yaml
+
+fi
 
 echo "🔎 Step 6: Verifying rollout status..."
-kubectl rollout status deployment/jaeger --timeout=5m
-kubectl rollout status deployment/jaeger-hotrod --timeout=5m
-kubectl rollout status deployment/trace-generator --timeout=5m
+if deploy_jaeger; then
+  kubectl rollout status deployment/jaeger --timeout=5m
+  kubectl rollout status deployment/jaeger-hotrod --timeout=5m
+  kubectl rollout restart deployment/trace-generator
+  kubectl rollout status deployment/trace-generator --timeout=5m
+fi
+if deploy_monitoring; then
+  kubectl rollout status deployment/prometheus-grafana --timeout=5m
+fi
 kubectl get pods,svc,ingress
 
 smoke_expect() {
@@ -225,7 +231,7 @@ smoke_expect() {
   return 1
 }
 
-if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
+if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]] && deploy_jaeger; then
   echo "🔎 Step 7: Verifying public demo endpoints..."
   smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' /tmp/hotrod-smoke.json
   smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' /tmp/jaeger-services.json

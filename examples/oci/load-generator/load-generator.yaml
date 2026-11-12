@@ -17,12 +17,12 @@ spec:
     spec:
       containers:
       - name: trace-generator
-        image: python:3.11
+        image: python:3.11.14@sha256:3b3706a90cb23f04fabb0d255824f9a70ceb46177041898133dd5a35f3a50f0a
         command:
           - /bin/sh
           - -c
           - |
-            pip install requests && python /app/generate_traces.py
+            pip install --no-cache-dir -r /app/requirements.txt && python /app/generate_traces.py
         volumeMounts:
         - name: script-volume
           mountPath: /app

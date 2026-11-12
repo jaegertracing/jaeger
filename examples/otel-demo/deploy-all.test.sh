@@ -152,7 +152,7 @@ testMainIsGuardedWhenSourced() {
 
 testPinsCompatibleOtelDemoChart() {
   output=$(bash -c 'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' _ "$SCRIPT")
-  assertEquals "0.40.9" "$output"
+  assertTrue "OTel demo should pin an explicit chart release" "[[ '$output' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"
 }
 
 testPinnedChartRendersCollectorStartupProbe() {
@@ -256,7 +256,32 @@ testPinnedChartRendersCheckoutMemoryHeadroom() {
 
 testPinsCompatibleOpenSearchCharts() {
   output=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
-  assertEquals "3.7.0|3.7.0" "$output"
+  local opensearch=${output%%|*}
+  local dashboards=${output##*|}
+  assertTrue "OpenSearch should pin a 3.x chart" "[[ '$opensearch' =~ ^3\.[0-9]+\.[0-9]+$ ]]"
+  assertEquals "OpenSearch and Dashboards charts must match" "$opensearch" "$dashboards"
+}
+
+testPinnedOpenSearchChartsRenderMatchingImagesAndStorageIdentity() {
+  local chart_version
+  local rendered
+  chart_version=$(bash -c 'source "$1"; printf "%s" "$OPENSEARCH_CHART_VERSION"' _ "$SCRIPT")
+  rendered=$(helm template opensearch opensearch --repo https://opensearch-project.github.io/helm-charts \
+    --version "$chart_version" --namespace opensearch --values "$(dirname "$SCRIPT")/opensearch-values.yaml")
+  assertEquals "OpenSearch chart should render" 0 $?
+  assertContains "$rendered" "opensearchproject/opensearch:$chart_version"
+  assertContains "$rendered" "name: opensearch-cluster-single"
+  assertContains "$rendered" "replicas: 1"
+  assertContains "$rendered" 'storageClassName: "oci-bv"'
+  assertContains "$rendered" 'storage: "10Gi"'
+  assertContains "$rendered" "-Xms3g -Xmx3g"
+  assertContains "$rendered" "memory: 6Gi"
+  assertContains "$rendered" "cpu: 1000m"
+  rendered=$(helm template opensearch-dashboards opensearch-dashboards \
+    --repo https://opensearch-project.github.io/helm-charts --version "$chart_version" \
+    --namespace opensearch --values "$(dirname "$SCRIPT")/opensearch-dashboard-values.yaml")
+  assertEquals "Dashboards chart should render" 0 $?
+  assertContains "$rendered" "opensearchproject/opensearch-dashboards:$chart_version"
 }
 
 testDeploysPinnedOpenSearchChartsInOrder() {
@@ -271,10 +296,16 @@ testDeploysPinnedOpenSearchChartsInOrder() {
     deploy_opensearch_releases
   ' _ "$SCRIPT")
 
+  local chart_versions
+  local opensearch_version
+  local dashboards_version
+  chart_versions=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
+  opensearch_version=${chart_versions%%|*}
+  dashboards_version=${chart_versions##*|}
   expected="bash $(dirname "$SCRIPT")/opensearch-recovery.sh verify
-helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version $opensearch_version -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
 wait-for-statefulset opensearch opensearch-cluster-single 600s
-helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
+helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version $dashboards_version -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
   expected="$expected
 wait-for-dashboards 600s"
   assertEquals "$expected" "$output"

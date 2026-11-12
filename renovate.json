@@ -39,11 +39,64 @@
         "/\\.sh$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>helm) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s+[A-Z][A-Z0-9_]*_CHART_VERSION=\"(?<currentValue>[^\"]+)\""
+        "# renovate: datasource=(?<datasource>helm|docker) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[A-Z][A-Z0-9_]*=\"(?:\\$\\{[A-Z][A-Z0-9_]*:-)?(?<currentValue>[^\"}]+)\\}?\""
       ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/demo\\/jaeger-chart\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>git-refs) depName=(?<depName>\\S+)\\s+JAEGER_CHART_REF=\"(?<currentValue>[^\"]+)\"\\s+JAEGER_CHART_COMMIT=\"(?<currentDigest>[a-f0-9]+)\""
+      ],
+      "versioningTemplate": "git"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^examples\\/otel-demo\\/otel-demo-values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "imageOverride:\\s+repository: (?<depName>\\S+)\\s+tag: \"(?<currentValue>[^\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
+    {
+      "description": "Keep examples excluded except the two hosted demos",
+      "matchFileNames": [
+        "**/examples/**",
+        "!examples/oci/**",
+        "!examples/otel-demo/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Review hosted demo updates daily, independently of the monthly repository schedule",
+      "matchFileNames": [
+        "examples/oci/**",
+        "examples/otel-demo/**",
+        "scripts/demo/jaeger-chart.sh"
+      ],
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": false
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/**"
+      ],
+      "groupName": "OCI demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/**"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
     {
       "description": "Require review for OTel Demo Helm chart upgrades",
       "matchManagers": [
@@ -315,6 +368,106 @@
         "docker-compose/monitor/docker-compose-elasticsearch.yml"
       ],
       "allowedVersions": "9.x"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/monitoring-values.yaml"
+      ],
+      "groupName": "OCI demo monitoring"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "groupName": "OTel demo application"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/load-generator/**"
+      ],
+      "groupName": "OCI demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/load-generator*"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/jaeger-values.yaml"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
+    {
+      "matchPackageNames": [
+        "kube-prometheus-stack"
+      ],
+      "groupName": "OCI demo monitoring"
+    },
+    {
+      "matchPackageNames": [
+        "opentelemetry-demo"
+      ],
+      "matchDatasources": [
+        "helm"
+      ],
+      "groupName": "OTel demo application"
+    },
+    {
+      "matchPackageNames": [
+        "https://github.com/jaegertracing/helm-charts.git"
+      ],
+      "groupName": "Hosted demo Jaeger chart"
+    },
+    {
+      "description": "PostgreSQL major upgrades need an explicit migration before changing the supported line",
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "matchPackageNames": [
+        "docker.io/library/postgres"
+      ],
+      "allowedVersions": "/^17\\./"
+    },
+    {
+      "description": "Valkey major upgrades need an explicit compatibility review before changing the supported line",
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "matchPackageNames": [
+        "docker.io/valkey/valkey"
+      ],
+      "allowedVersions": "/^8\\./"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/**",
+        "examples/otel-demo/**"
+      ],
+      "matchDatasources": [
+        "kubernetes-api"
+      ],
+      "enabled": false
     }
-  ]
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^examples\\/(?:oci|otel-demo)\\/.*\\.ya?ml$/"
+    ]
+  },
+  "helm-values": {
+    "managerFilePatterns": [
+      "/^examples\\/(?:oci|otel-demo)\\/.*values\\.yaml$/"
+    ]
+  }
 }
