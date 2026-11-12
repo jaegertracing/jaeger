@@ -52,5 +52,9 @@ testJaegerWritesDailyIndicesWithDefaultDateLayout() {
   assertEquals "$(grep -c 'rollover_frequency:' "$CONFIG")" "$(grep -c 'rollover_frequency: "day"' "$CONFIG")"
 }
 
+testQueryReadsUIConfigFromChartMount() {
+  assertEquals "/etc/jaeger/ui-config/ui-config.json" "$(value_in_block extensions "      config_file" "$CONFIG")"
+}
+
 # shellcheck disable=SC1091
 source "$SHUNIT2/shunit2"
