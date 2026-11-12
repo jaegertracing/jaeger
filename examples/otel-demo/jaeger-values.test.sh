@@ -15,7 +15,11 @@ oneTimeSetUp() {
     CHART_TEMP=$(mktemp -d)
     git clone --quiet --depth 1 --branch v2 https://github.com/jaegertracing/helm-charts.git "$CHART_TEMP/helm-charts" || return 1
     CHART_DIR="$CHART_TEMP/helm-charts/charts/jaeger"
-    helm dependency build "$CHART_DIR" >/dev/null || return 1
+    export HELM_REPOSITORY_CONFIG="$CHART_TEMP/repositories.yaml"
+    export HELM_REPOSITORY_CACHE="$CHART_TEMP/repository"
+    helm repo add incubator https://charts.helm.sh/incubator >/dev/null || return 1
+    helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null || return 1
+    helm dependency build --skip-refresh "$CHART_DIR" >/dev/null || return 1
   fi
   RENDERED=$(helm template jaeger "$CHART_DIR" --namespace jaeger \
     --set storage.type=elasticsearch \
