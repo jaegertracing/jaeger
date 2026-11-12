@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
@@ -40,6 +41,7 @@ func createDefaultConfig() component.Config {
 	cfg.Enabled = false
 	return &Config{
 		RetryConfig: cfg,
+		QueueConfig: configoptional.Default(exporterhelper.NewDefaultQueueConfig()),
 	}
 }
 
