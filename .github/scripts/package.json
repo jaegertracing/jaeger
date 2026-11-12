@@ -25,6 +25,9 @@
   "devDependencies": {
     "jest": "30.5.2"
   },
+  "overrides": {
+    "minimatch": "11.0.1"
+  },
   "jest": {
     "testEnvironment": "node",
     "coveragePathIgnorePatterns": [
