@@ -16,6 +16,12 @@ controller. Trust only the load balancer's verified subnet CIDRs. Keep
 identity through HTTP headers. `externalTrafficPolicy: Local` alone does not
 recover the client address behind an OCI TCP load balancer.
 
+Set the Service's `oci.oraclecloud.com/ingress-ip-mode` annotation to `proxy`.
+With the default `VIP` mode, in-cluster calls to the public load-balancer IP can
+bypass OCI and reach NGINX without a PROXY header. Routing those calls through
+OCI preserves public-hostname access for pods, including certificate checks.
+See [OCI IP-mode routing](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengconfiguringloadbalancersnetworkloadbalancers-subtopic.htm).
+
 This is a one-time infrastructure prerequisite, separate from the Jaeger Helm
 release. It affects every hostname using this controller. Arrange a short
 maintenance window: the listener and controller changes are asynchronous, and
@@ -63,7 +69,8 @@ jq -n --arg cidrs "$demo_proxy_cidrs" '{data: {
   "proxy-real-ip-cidr": $cidrs
 }}' >"$demo_backup/controller-patch.json"
 jq -n '{metadata: {annotations: {
-  "service.beta.kubernetes.io/oci-load-balancer-connection-proxy-protocol-version": "2"
+  "service.beta.kubernetes.io/oci-load-balancer-connection-proxy-protocol-version": "2",
+  "oci.oraclecloud.com/ingress-ip-mode": "proxy"
 }}}' >"$demo_backup/service-patch.json"
 kubectl --context "$demo_context" -n ingress-nginx patch service ingress-nginx-controller \
   --type=merge --patch-file "$demo_backup/service-patch.json" --dry-run=server >/dev/null
@@ -92,6 +99,10 @@ configuration successfully. Inspect the running `/etc/nginx/nginx.conf` for
 PROXY-enabled listeners, `real_ip_header proxy_protocol`, and `set_real_ip_from`
 entries matching the verified subnet CIDRs. Keep the saved files until all
 public checks pass.
+
+The Service status must also report `ipMode: Proxy`. Test HTTPS to the public
+Jaeger hostname from a pod as well as from an external client; external success
+alone does not establish that in-cluster routing works.
 
 If one update fails, inspect both sides before recovering. Prefer completing
 the matching v2 configuration. Restore the original ConfigMap only when the
@@ -127,3 +138,26 @@ After the AI PR is approved, use the existing Jaeger-only upgrade path and
 repeat the public checks against the deployed configuration. Verify one bounded
 MCP-backed answer and project-attributed usage as described in
 [AI_ASSISTANT.md](../AI_ASSISTANT.md).
+
+## Public demo verification, 2026-11-12
+
+The shared controller was configured with PROXY protocol v2 on both OCI TCP
+listeners, `use-proxy-protocol: "true"`, `use-forwarded-headers: "false"`, and
+the OCI-verified trusted subnet `10.0.20.0/24`. The Service reports
+`ipMode: Proxy`; its public address remains `170.9.51.232`.
+
+Two external test clients appeared as distinct public IPs in the controller
+log. Forged forwarding headers did not change either client's identity.
+HTTPS to Jaeger's public hostname from the controller pod returned 200 after
+the IP-mode correction; with `VIP` mode it failed during the protocol migration.
+
+Public checks passed for Jaeger, HotROD, the shop, and OpenSearch Dashboards.
+Jaeger service discovery returned 24 services, and trace search, retrieval,
+and browser timeline rendering worked with a 24-hour lookback. The sampled
+retained trace contained 49 spans and was already marked incomplete before
+the infrastructure change. Service-discovery monitoring recorded 99 HTTP 200
+responses over four minutes covering the cutover; sampling cannot exclude a
+shorter interruption between probes.
+
+The assistant remained disabled during these checks. Live chat throttling and
+model-backed verification remain rollout steps after approval of the AI PR.
