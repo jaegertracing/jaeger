@@ -98,6 +98,8 @@ def deploy_component(component, env):
 
 def reconcile(env, root=ROOT):
     event = env.get("GITHUB_EVENT_NAME", "workflow_dispatch")
+    if event not in ("push", "schedule", "workflow_dispatch"):
+        raise ValueError("Unsupported demo deployment event")
     if event != "workflow_dispatch" and env.get("GITHUB_REF") != "refs/heads/main":
         raise ValueError("Automatic demo deployment requires main")
     mode = env.get("JAEGER_DEMO_DEPLOY_MODE", "upgrade")
@@ -105,6 +107,8 @@ def reconcile(env, root=ROOT):
     scope = env.get("JAEGER_OTEL_DEMO_DEPLOY_SCOPE", "jaeger")
     if stack not in ("oci", "otel", "all") or mode not in ("upgrade", "clean"):
         raise ValueError("Invalid demo stack or mode")
+    if event != "workflow_dispatch" and mode != "upgrade":
+        raise ValueError("Automatic demo deployments must use upgrade mode")
     if env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "waive" and (
             event != "workflow_dispatch" or env.get("GITHUB_REF") != "refs/heads/main"
             or stack != "otel" or scope != "opensearch" or mode != "upgrade"):

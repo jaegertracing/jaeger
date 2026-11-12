@@ -119,7 +119,8 @@ class DeploymentTests(unittest.TestCase):
 
     def test_rejects_invalid_or_automatic_unsafe_routes(self):
         cases = [{"GITHUB_REF": "refs/heads/other"}, {"JAEGER_DEMO_STACK": "invalid"},
-                 {"JAEGER_DEMO_DEPLOY_MODE": "invalid"}, {"JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY": "waive"}]
+                 {"JAEGER_DEMO_DEPLOY_MODE": "invalid"}, {"JAEGER_DEMO_DEPLOY_MODE": "clean"},
+                 {"GITHUB_EVENT_NAME": "pull_request"}, {"JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY": "waive"}]
         for case in cases:
             with self.subTest(case=case), self.assertRaises(ValueError):
                 deploy.reconcile(dict(self.env, **case))
