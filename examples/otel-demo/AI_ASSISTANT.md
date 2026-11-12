@@ -15,6 +15,15 @@ available if the agent is stopped or its OpenAI project exhausts its budget.
    $1,500, and $1,800. A notification-only budget does not stop requests.
    Enforcement can lag slightly, so leave headroom below the available credits.
    See [OpenAI spending controls](https://developers.openai.com/api/docs/guides/spend-limits).
+
+   For grant-funded operation, leave automatic credit reload disabled and verify
+   that the organization's billing page says requests stop when its credit
+   balance reaches zero. Remove saved payment methods if the organization must
+   not purchase credits. Keep the spending cap below the remaining grant and
+   review it before the grant expires or the monthly cap resets. A monthly cap
+   does not reserve a separate credit balance. OpenAI's approved monthly usage
+   limit and model rate limits still apply independently of that cap; a credit
+   grant does not necessarily raise them.
 3. The existing Docker CI builds Goose on pull requests without publishing.
    Trusted `main` runs publish amd64 and arm64 images to
    `jaegertracing/jaeger-goose-snapshot` on Docker Hub and Quay. The demo workflow
