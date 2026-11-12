@@ -83,11 +83,6 @@ connectors:
         flush_timeout: 200ms
         min_size: 1048576  # flush at 1 MiB, or when flush_timeout elapses
         max_size: 4194304
-        # exporterhelper v0.162 requires these to be positive. An omitted partition
-        # unmarshals as zeros, not the defaults below. metadata_keys stays empty.
-        partition:
-          idle_timeout: 90s
-          cache_size: 10000
 
 service:
   pipelines:
@@ -125,6 +120,6 @@ exporters:
       max_message_bytes: 8388608
 ```
 
-An omitted `queue` field takes its zero value, not the exporterhelper default, so a `queue` block must spell out its sizing as above.
+Inside a present `queue` or `batch` block, omitted fields take the exporterhelper defaults, so this example's omitted `partition` is `idle_timeout` 90s, `cache_size` 10000, and empty `metadata_keys`. Omitting the `batch` block itself leaves batching disabled. The example sets `sizer`, `queue_size`, and the batch sizes because those defaults count items.
 
 See [`config-kafka-ingester-dead-letter.yaml`](../../../config-kafka-ingester-dead-letter.yaml) for the complete ingester configuration the Kafka end-to-end tests run against.

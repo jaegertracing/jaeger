@@ -41,6 +41,10 @@ func createDefaultConfig() component.Config {
 	cfg.Enabled = false
 	return &Config{
 		RetryConfig: cfg,
+		// Default leaves the queue disabled until a queue section is present.
+		// A present section unmarshals onto the exporterhelper defaults, so an
+		// omitted field such as batch.partition keeps idle_timeout and cache_size
+		// instead of the zero value. An omitted batch section stays disabled.
 		QueueConfig: configoptional.Default(exporterhelper.NewDefaultQueueConfig()),
 	}
 }
