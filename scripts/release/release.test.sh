@@ -197,5 +197,26 @@ testStartContinuesWithoutExistingIssue() {
   assertNotContains "$out" "already exists"
 }
 
+testStartDashVSkipsPromptAndPrintsNoPrompt() {
+  setup_start_stubs
+  out=$(cd "$T" && EXISTING_ISSUE='' bash "$RELEASE_DIR/start.sh" -d -v 2.23.0 </dev/null 2>&1)
+  assertContains "$out" "Using new version: v2.23.0"
+  assertContains "$out" "wget called"
+}
+
+testStartDashVAcceptsLeadingV() {
+  setup_start_stubs
+  out=$(cd "$T" && EXISTING_ISSUE='' bash "$RELEASE_DIR/start.sh" -d -v v2.23.0 </dev/null 2>&1)
+  assertContains "$out" "Using new version: v2.23.0"
+}
+
+testStartDashVRejectsInvalidVersionBeforeAnyGhCall() {
+  setup_start_stubs
+  out=$(cd "$T" && bash "$RELEASE_DIR/start.sh" -v "2.23" </dev/null 2>&1)
+  assertEquals 1 $?
+  assertContains "$out" "invalid version"
+  assertFalse "gh was called" "[ -s '$GH_LOG' ]"
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"

@@ -7,22 +7,41 @@
 set -euo pipefail
 
 dry_run=false
+version_opt=""
 
-while getopts "dh" opt; do
+usage() {
+    echo "Usage: $0 [-d] [-v <version>]"
+}
+
+while getopts "dhv:" opt; do
     case "${opt}" in
         d)
             dry_run=true
             ;;
+        v)
+            version_opt="${OPTARG}"
+            ;;
         h)
-            echo "Usage: $0 [-d]"
+            usage
             exit 0
             ;;
         *)
-            echo "Usage: $0 [-d]"
+            usage
             exit 1
             ;;
     esac
 done
+
+# A version passed with -v is validated here, before any gh call, so a typo at the
+# command line fails fast instead of going into the tracking issue title.
+if [ -n "$version_opt" ]; then
+  clean_opt="${version_opt#v}"
+  if ! [[ "$clean_opt" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: invalid version \"${version_opt}\", expected the form 2.14.0 or v2.14.0."
+    exit 1
+  fi
+fi
+
 if ! current_version=$(make "echo-version"); then
   echo "Error: Failed to fetch current version from make echo-version."
   exit 1
@@ -37,7 +56,13 @@ minor=$((minor + 1))
 patch=0
 suggested_version="${major}.${minor}.${patch}"
 echo "Current version: ${current_version}"
-read -r -e -p "New version: v" -i "${suggested_version}" user_version
+
+if [ -n "$version_opt" ]; then
+  user_version="$clean_opt"
+  echo "New version: v${user_version}"
+else
+  read -r -e -p "New version: v" -i "${suggested_version}" user_version
+fi
 
 new_version="v${user_version}"
 echo "Using new version: ${new_version}"
