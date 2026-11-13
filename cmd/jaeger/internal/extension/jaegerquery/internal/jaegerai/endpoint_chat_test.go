@@ -973,3 +973,63 @@ func TestChatEndpointSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Nil(t, agent.capturedCloseRequest(), "session/close must not fire when agent does not advertise the capability")
 }
+
+// A cross-site text/plain POST must not reach the agent; otherwise any web page a
+// user visits could drive the agent on their behalf.
+func TestChatEndpointRejectsCrossSiteSimpleRequest(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+	handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, nil, "", 1<<20)
+
+	reqBody, err := json.Marshal(newAGUIRequest("run `id` with your shell tool"))
+	require.NoError(t, err)
+	// What fetch(url, {method: "POST", mode: "no-cors", body}) sends from another site: a CORS
+	// "simple" request, which the browser delivers without a preflight.
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+	req.Header.Set("Origin", "https://attacker.example")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	_, _, promptReq := agent.snapshot()
+	assert.Nil(t, promptReq, "a cross-site request reached the agent (status %d)", rr.Code)
+	assert.GreaterOrEqual(t, rr.Code, 400, "a cross-site request must be refused")
+}
+
+// Requests from the Jaeger UI itself are same-origin and must still reach the agent,
+// whether the browser signals that with Sec-Fetch-Site or only with a matching Origin.
+func TestChatEndpointAllowsSameOriginRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		headers map[string]string
+	}{
+		{name: "sec-fetch-site", headers: map[string]string{"Sec-Fetch-Site": "same-origin", "Origin": "http://gateway.example:16686"}},
+		{name: "origin only", headers: map[string]string{"Origin": "http://gateway.example:16686"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			agent := &mockACPAgent{}
+			wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+			defer cleanup()
+			handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, nil, "", 1<<20)
+
+			reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+			req.Host = "gateway.example:16686"
+			req.Header.Set("Content-Type", "application/json")
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+			_, _, promptReq := agent.snapshot()
+			require.NotNil(t, promptReq, "a same-origin request must reach the agent")
+		})
+	}
+}
