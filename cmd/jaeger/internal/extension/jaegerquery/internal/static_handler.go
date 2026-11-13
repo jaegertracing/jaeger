@@ -103,9 +103,10 @@ func newStaticAssetsHandler(
 	logger *zap.Logger,
 ) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
+	archiveFiles := 0
 	if qOpts.UIConfig.AssetsPath != "" {
 		var err error
-		assetsFS, err = openAssetsFS(qOpts.UIConfig.AssetsPath, logger)
+		assetsFS, archiveFiles, err = openAssetsFS(qOpts.UIConfig.AssetsPath)
 		if err != nil {
 			return nil, err
 		}
@@ -113,6 +114,10 @@ func newStaticAssetsHandler(
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
+	}
+	if archiveFiles > 0 {
+		logger.Info("Serving UI assets from archive",
+			zap.String("path", qOpts.UIConfig.AssetsPath), zap.Int("files", archiveFiles))
 	}
 	h := &staticAssetsHandler{
 		assetsFS:     assetsFS,
