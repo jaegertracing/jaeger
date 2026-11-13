@@ -210,6 +210,7 @@ The `__hdx_materialized_rum.sessionId` and `SampleRate` materialized columns and
 | Create schema on start | `create_schema: true` | `create_schema: true` (default) |
 | Bring your own schema | Supported by setting `create_schema: false` and creating compatible tables | Same, and documented as the recommended production mode |
 | Table engine | `table_engine` block, `merge_tree` or `replicated`, required with `create_schema: true` | `table_engine` config (name plus parameters), so `ReplicatedMergeTree` works |
+| Distributed tables | ✅ `table_engine.replicated.cluster`, a `_local` suffixed table per object plus a `Distributed` wrapper under the public name ([#9886](https://github.com/jaegertracing/jaeger/issues/9886)) | Not offered; the exporter writes to one table per node |
 | Cluster DDL | none | `cluster_name` adds `ON CLUSTER` to every statement |
 | Database creation | Assumed to exist | Created if missing |
 

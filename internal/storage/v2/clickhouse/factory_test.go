@@ -135,7 +135,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "services materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesMaterializedView: assert.AnError,
+				schemaQuery(t, "services materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create services materialized view",
 		},
@@ -149,7 +149,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "operations materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsMaterializedView: assert.AnError,
+				schemaQuery(t, "operations materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create operations materialized view",
 		},
@@ -163,7 +163,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsMaterializedView: assert.AnError,
+				schemaQuery(t, "trace id timestamps materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps materialized view",
 		},
@@ -177,21 +177,21 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create attribute metadata materialized view",
 		},
 		{
 			name: "event attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateEventAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "event attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create event attribute metadata materialized view",
 		},
 		{
 			name: "link attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateLinkAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "link attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create link attribute metadata materialized view",
 		},
@@ -371,11 +371,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		cfg           Configuration
 		mockFn        func(name, tmplBody string, data any) (string, error)
 		expectedError string
 	}{
 		{
 			name: "first loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
@@ -383,6 +385,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			name: "second loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -395,16 +398,36 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			}(),
 			expectedError: "mock template error",
 		},
+		{
+			// The second call under a distributed layout renders the first table's
+			// Distributed wrapper, a different template than the second call renders
+			// without one.
+			name: "distributed wrapper loadTemplate call fails",
+			cfg: Configuration{
+				CreateSchema: true,
+				Database:     "jaeger",
+				TableEngine: TableEngine{
+					Replicated: configoptional.Some(ReplicatedEngine{Cluster: "my_cluster"}),
+				},
+			},
+			mockFn: func() func(name, tmplBody string, data any) (string, error) {
+				calls := 0
+				return func(name, tmplBody string, data any) (string, error) {
+					calls++
+					if calls == 2 {
+						return "", errors.New("mock distributed template error")
+					}
+					return loadTemplateImpl(name, tmplBody, data)
+				}
+			}(),
+			expectedError: "mock distributed template error",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
-			_, err := NewFactory(
-				context.Background(),
-				Configuration{CreateSchema: true, TableEngine: localTableEngine},
-				telemetry.NoopSettings(),
-			)
+			_, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
@@ -549,6 +572,92 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	t.Run("unset engine is refused", func(t *testing.T) {
 		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
 		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
+	})
+}
+
+// TestSchemaBuilder_Distributed checks the layout table_engine.replicated.cluster adds on
+// top of the Replicated schema: every table's own CREATE moves to its "_local" name, every
+// materialized view reads from and writes to the "_local" tables, and a Distributed wrapper
+// is created under each table's plain name, with the sharding key issue #9886 specifies for
+// the three tables the application writes to directly and none for the three populated only
+// by a materialized view.
+func TestSchemaBuilder_Distributed(t *testing.T) {
+	cfg := Configuration{
+		CreateSchema: true,
+		Database:     "jaeger",
+		TableEngine: TableEngine{
+			Replicated: configoptional.Some(ReplicatedEngine{Cluster: "my_cluster"}),
+		},
+	}
+	builder, err := newSchemaBuilder(cfg)
+	require.NoError(t, err)
+
+	statements := map[string]string{}
+	for _, stmt := range builder.statements {
+		statements[stmt.name] = stmt.query
+	}
+
+	localTables := map[string]string{
+		"spans table":               "spans_local",
+		"services table":            "services_local",
+		"operations table":          "operations_local",
+		"trace id timestamps table": "trace_id_timestamps_local",
+		"attribute metadata table":  "attribute_metadata_local",
+		"dependencies table":        "dependencies_local",
+	}
+	for name, localName := range localTables {
+		require.Contains(t, statements, name)
+		assert.Contains(t, statements[name], "IF NOT EXISTS", name)
+		assert.Contains(t, statements[name], localName, name)
+	}
+
+	views := map[string][]string{
+		"services materialized view":                 {"spans_local", "services_local"},
+		"operations materialized view":               {"spans_local", "operations_local"},
+		"trace id timestamps materialized view":      {"spans_local", "trace_id_timestamps_local"},
+		"attribute metadata materialized view":       {"spans_local", "attribute_metadata_local"},
+		"event attribute metadata materialized view": {"spans_local", "attribute_metadata_local"},
+		"link attribute metadata materialized view":  {"spans_local", "attribute_metadata_local"},
+	}
+	for name, want := range views {
+		require.Contains(t, statements, name)
+		for _, w := range want {
+			assert.Contains(t, statements[name], w, name)
+		}
+	}
+
+	wrappers := []struct {
+		table       string
+		shardingKey string
+	}{
+		{"spans", "cityHash64(trace_id)"},
+		{"trace_id_timestamps", "cityHash64(trace_id)"},
+		{"dependencies", "cityHash64(timestamp)"},
+		{"services", ""},
+		{"operations", ""},
+		{"attribute_metadata", ""},
+	}
+	for _, tt := range wrappers {
+		query, ok := statements[tt.table+" distributed table"]
+		require.True(t, ok, tt.table)
+		assert.Contains(t, query, "IF NOT EXISTS "+tt.table+" AS "+tt.table+"_local ENGINE = Distributed(")
+		assert.Contains(t, query, "'my_cluster'")
+		assert.Contains(t, query, "'jaeger'")
+		assert.Contains(t, query, "'"+tt.table+"_local'")
+		if tt.shardingKey != "" {
+			assert.Contains(t, query, tt.shardingKey)
+		} else {
+			assert.NotContains(t, query, "cityHash64")
+		}
+	}
+
+	t.Run("without cluster, nothing is distributed", func(t *testing.T) {
+		builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
+		require.NoError(t, err)
+		for _, stmt := range builder.statements {
+			assert.NotContains(t, stmt.query, "_local", stmt.name)
+			assert.NotContains(t, stmt.query, "Distributed", stmt.name)
+		}
 	})
 }
 

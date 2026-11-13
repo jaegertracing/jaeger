@@ -1,9 +1,9 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS trace_id_timestamps_mv
-TO trace_id_timestamps
+TO trace_id_timestamps{{ .Suffix }}
 AS
 SELECT
     trace_id,
     min(start_time) AS start,
     max(start_time) AS end
-FROM spans
+FROM spans{{ .Suffix }}
 GROUP BY trace_id;

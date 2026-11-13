@@ -3,12 +3,12 @@
 -- of the span for every single link found because of the ARRAY JOIN operation.
 -- Example: A span with 10 attributes and 5 links would turn into 5 rows
 -- of 10 attributes each, forcing the database to process 50 items instead of 15.
-CREATE MATERIALIZED VIEW IF NOT EXISTS event_attribute_metadata_mv TO attribute_metadata AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS event_attribute_metadata_mv TO attribute_metadata{{ .Suffix }} AS
 SELECT
     tp.1 AS attribute_key,
     tp.2 AS type,
     'event' AS level
-FROM spans
+FROM spans{{ .Suffix }}
 ARRAY JOIN arrayConcat(
     arrayMap(k -> (k, 'bool'),   arrayFlatten(events.bool_attributes.key)),
     arrayMap(k -> (k, 'double'), arrayFlatten(events.double_attributes.key)),

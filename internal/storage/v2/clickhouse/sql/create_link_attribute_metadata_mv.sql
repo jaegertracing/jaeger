@@ -1,9 +1,9 @@
-CREATE MATERIALIZED VIEW IF NOT EXISTS link_attribute_metadata_mv TO attribute_metadata AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS link_attribute_metadata_mv TO attribute_metadata{{ .Suffix }} AS
 SELECT
     tp.1 AS attribute_key,
     tp.2 AS type,
     'link' AS level
-FROM spans
+FROM spans{{ .Suffix }}
 ARRAY JOIN arrayConcat(
     arrayMap(k -> (k, 'bool'),   arrayFlatten(links.bool_attributes.key)),
     arrayMap(k -> (k, 'double'), arrayFlatten(links.double_attributes.key)),

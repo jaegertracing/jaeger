@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS
-    operations (
+    operations{{ .Suffix }} (
         service_name String,
         name String,
         span_kind String
