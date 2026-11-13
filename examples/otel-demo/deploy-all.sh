@@ -5,6 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UI_CONFIG_FILE="$SCRIPT_DIR/../oci/ui-config.json"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 OPENSEARCH_DASHBOARDS_HELM_TIMEOUT="${OPENSEARCH_DASHBOARDS_HELM_TIMEOUT:-60m}"
 
@@ -103,6 +104,7 @@ check_required_files() {
     "$SCRIPT_DIR/opensearch-dashboard-values.yaml"
     "$SCRIPT_DIR/jaeger-values.yaml"
     "$SCRIPT_DIR/jaeger-config.yaml"
+    "$UI_CONFIG_FILE"
     "$SCRIPT_DIR/otel-demo-values.yaml"
     "$SCRIPT_DIR/jaeger-query-service.yaml"
   )
@@ -604,6 +606,7 @@ main() {
       --set hotrod.image.tag="${HOTROD_IMAGE_TAG}" \
       --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
       --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
+      --set-file uiconfig="$UI_CONFIG_FILE" \
       -f "$SCRIPT_DIR/jaeger-values.yaml" \
       --timeout 10m; then
       diagnose_deployment_failure jaeger jaeger
