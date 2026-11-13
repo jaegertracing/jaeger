@@ -86,6 +86,8 @@ processors:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/ext/processor/queuebatchprocessor
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/processor/memorylimiterprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/processor/tailsamplingprocessor

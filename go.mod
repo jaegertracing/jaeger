@@ -101,6 +101,7 @@ require (
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.164.0
 	go.opentelemetry.io/collector/processor/processorhelper v0.164.0
 	go.opentelemetry.io/collector/processor/processortest v0.164.0
+	go.opentelemetry.io/collector/processor/queuebatchprocessor v0.164.0
 	go.opentelemetry.io/collector/receiver v1.70.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.164.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.164.0
