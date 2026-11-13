@@ -120,6 +120,6 @@ exporters:
       max_message_bytes: 8388608
 ```
 
-Inside a present `queue` or `batch` block, omitted fields take the exporterhelper defaults, so this example's omitted `partition` is `idle_timeout` 90s, `cache_size` 10000, and empty `metadata_keys`. Omitting the `batch` block itself leaves batching disabled. The example sets `sizer`, `queue_size`, and the batch sizes because those defaults count items.
+Inside a present `queue` or `batch` block, omitted fields take the exporterhelper defaults, so this example's omitted `partition` is `idle_timeout` 90s, `cache_size` 10000, and empty `metadata_keys`. Omitting the `batch` block itself leaves batching disabled. The example sets `sizer`, `queue_size`, and the batch sizes because none of those defaults count bytes: the queue defaults to the `requests` sizer with a `queue_size` of 1000, and the batch to the `items` sizer with a `min_size` of 8192.
 
 See [`config-kafka-ingester-dead-letter.yaml`](../../../config-kafka-ingester-dead-letter.yaml) for the complete ingester configuration the Kafka end-to-end tests run against.
