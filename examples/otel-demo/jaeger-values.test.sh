@@ -32,7 +32,10 @@ testRetentionIs30Days() {
 
 testCleanerImageTagIsPinnedToPublishedRelease() {
   tag=$(awk '/^esIndexCleaner:/{b=1;next} b&&/^[^ #]/{b=0} b&&/^    tag:/{gsub(/"/,"",$2);print $2}' "$VALUES")
-  assertTrue "tag '$tag' should be a release version" "[[ '$tag' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"
+  local version=${tag%%@*}
+  local digest=${tag#*@}
+  assertTrue "tag '$tag' should contain a release version" "[[ '$version' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"
+  assertTrue "tag '$tag' should contain a sha256 digest" "[[ '$digest' =~ ^sha256:[a-f0-9]{64}$ ]]"
 }
 
 # Pinned es-index-cleaner 2.21.0 appends "-" to every nonempty prefix and

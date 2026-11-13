@@ -182,7 +182,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         author_login = author['login'] if author else 'unknown'
         author_url = commit['author']['html_url'] if author else ''
 
-        if exclude_dependabot and author == "dependabot[bot]":
+        if exclude_dependabot and author_login == "dependabot[bot]":
             skipped_dependabot += 1
             continue
 
