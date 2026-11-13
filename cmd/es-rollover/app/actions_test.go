@@ -214,6 +214,30 @@ func TestNewESClient_VersionDetectionError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to resolve backend version")
 }
 
+func TestNewESClient_RejectsMultipleAuthMethods(t *testing.T) {
+	tests := map[string][]string{
+		"basic and bearer":   {"--es.username=u", "--es.password=p", "--es.token-file=/token"},
+		"bearer and api key": {"--es.token-file=/token", "--es.api-key-file=/apikey"},
+		"all three":          {"--es.username=u", "--es.password=p", "--es.token-file=/token", "--es.api-key-file=/apikey"},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("no request should be sent for an invalid config")
+			}))
+			defer server.Close()
+
+			v, command := config.Viperize(AddFlags)
+			require.NoError(t, command.ParseFlags(args))
+			cfg := &Config{}
+			require.NoError(t, cfg.InitFromViper(v))
+
+			_, err := newESClient(context.Background(), server.URL, cfg, zap.NewNop())
+			require.ErrorContains(t, err, "at most one authentication method")
+		})
+	}
+}
+
 func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))

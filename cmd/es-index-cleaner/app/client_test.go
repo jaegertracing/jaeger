@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -86,6 +87,30 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			_, err = idx.GetJaegerIndices(context.Background(), "")
 			require.NoError(t, err)
 			assert.Equal(t, test.wantAuth, gotAuth)
+		})
+	}
+}
+
+func TestNewESClient_RejectsMultipleAuthMethods(t *testing.T) {
+	tests := map[string][]string{
+		"basic and bearer":   {"--es.username=u", "--es.password=p", "--es.token-file=/token"},
+		"bearer and api key": {"--es.token-file=/token", "--es.api-key-file=/apikey"},
+		"all three":          {"--es.username=u", "--es.password=p", "--es.token-file=/token", "--es.api-key-file=/apikey"},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("no request should be sent for an invalid config")
+			}))
+			defer server.Close()
+
+			cfg := &Config{}
+			v, command := config.Viperize(cfg.AddFlags)
+			require.NoError(t, command.ParseFlags(args))
+			require.NoError(t, cfg.InitFromViper(v))
+
+			_, err := NewESClient(context.Background(), server.URL, cfg, zap.NewNop())
+			require.ErrorContains(t, err, "at most one authentication method")
 		})
 	}
 }
