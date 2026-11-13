@@ -5,6 +5,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 )
@@ -30,6 +32,34 @@ func TestComponents(t *testing.T) {
 
 	_, jaegerReceiverFactoryExists := factories.Receivers[component.MustNewType("jaeger")]
 	assert.True(t, jaegerReceiverFactoryExists)
+}
+
+func TestBatchProcessorConfigs(t *testing.T) {
+	factories, err := Components()
+	require.NoError(t, err)
+	for _, name := range []string{"batch", "queue_batch"} {
+		t.Run(name, func(t *testing.T) {
+			config := fmt.Sprintf(`yaml:
+receivers:
+  nop: {}
+processors:
+  %s: {}
+exporters:
+  nop: {}
+service:
+  pipelines:
+    traces:
+      receivers: [nop]
+      processors: [%s]
+      exporters: [nop]
+`, name, name)
+			cfg := loadAndValidateConfig(t, factories, config)
+			id := component.MustNewID(name)
+			require.Contains(t, cfg.Processors, id)
+			assert.Equal(t, factories.Processors[id.Type()].CreateDefaultConfig(), cfg.Processors[id])
+			assert.Equal(t, []component.ID{id}, cfg.Service.Pipelines[pipeline.NewID(pipeline.SignalTraces)].Processors)
+		})
+	}
 }
 
 func TestGetOtelcolFactories(t *testing.T) {
