@@ -40,8 +40,6 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// SpanSearch is unsupported in ClickHouse for now.
-	tracestore.UnsupportedSpanSearch
 
 	conn          driver.Conn
 	config        ReaderConfig
@@ -72,6 +70,14 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		// FindSpans lowers a caller-selected order over the built-in span fields to the ORDER BY,
+		// the continuation predicate and the cursor alike (RFC 0016 §6.3).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindSpans pages with a keyset cursor over its sort key. The capability covers the
+		// trace searches as well, which do not page yet: they serve one page bounded by the
+		// page size and refuse a token (TraceQueryParams.ReplacePaginationWithDepth).
+		Paginated: true,
 	}, nil
 }
 
@@ -181,13 +187,18 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := query.ReplacePaginationWithDepth()
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		traceIDs, err := r.findBoundedTraceIDs(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 
-		// TODO: Populate NextPageToken when ClickHouse supports RFC 0014 pagination.
+		// The trace searches do not page yet, so the page is the last one (RFC 0014 M3).
 		for _, trace := range traceIDs {
 			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: []tracestore.FoundTraceID{trace}}, nil) {
 				return

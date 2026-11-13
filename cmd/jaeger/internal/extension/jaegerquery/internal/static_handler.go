@@ -287,7 +287,7 @@ func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	// The page carries capabilities decided for this caller, so a shared cache must
 	// not hand one caller's page to another. The assets under /static stay cacheable.
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(h.deriveIndexHTML(r))
+	_, _ = w.Write(h.deriveIndexHTML(r))
 }
 
 // Close is a no-op; the handler holds no resources that need explicit

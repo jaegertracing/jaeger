@@ -286,9 +286,9 @@ func TestFindSpans_RefusesATokenItDidNotReturnForThisQuery(t *testing.T) {
 	store, base := writeTwoTraceStore(t)
 	paged := tracestore.SpanQueryParams{
 		OrderBy: []tracestore.SpanSortOrder{
-			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "startTime"}, Direction: tracestore.SortDescending},
-			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
-			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "spanID"}, Direction: tracestore.SortAscending},
+			tracestore.OrderBySpanField("startTime", tracestore.SortDescending),
+			tracestore.OrderBySpanField("traceID", tracestore.SortAscending),
+			tracestore.OrderBySpanField("spanID", tracestore.SortAscending),
 		},
 		Pagination: tracestore.Pagination{PageSize: 1},
 	}

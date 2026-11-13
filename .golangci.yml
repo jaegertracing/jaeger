@@ -148,6 +148,12 @@ linters:
         - name: nested-structs
           disabled: true
         - name: deep-exit
+        # these writers document that they never return an error, so checking it adds only noise
+        - name: unhandled-error
+          arguments:
+            - '^fmt\.(Print|Fprint)(f|ln)?$'
+            - 'strings\.Builder\.Write.*'
+            - 'bytes\.Buffer\.Write.*'
         # existing packages conflict with stdlib names or use underscores; cannot rename
         - name: package-naming
           disabled: true

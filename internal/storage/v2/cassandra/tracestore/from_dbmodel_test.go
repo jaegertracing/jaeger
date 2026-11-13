@@ -22,7 +22,7 @@ import (
 )
 
 // Use timestamp with microsecond granularity to work well with jaeger thrift translation
-var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixMicro()
+var testSpanEventTimeMicroseconds = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixMicro()
 
 func TestZeroBatchLength(t *testing.T) {
 	trace := FromDBModel([]dbmodel.Span{})
@@ -86,15 +86,15 @@ func Test_dbLogsToSpanEvents(t *testing.T) {
 	span.Events().AppendEmpty().Attributes().PutStr(eventNameAttr, "testing")
 	logs := []dbmodel.Log{
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: testSpanEventTimeMicroseconds,
 		},
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: testSpanEventTimeMicroseconds,
 		},
 	}
 	dbLogsToSpanEvents(logs, span.Events())
 	for i := range logs {
-		assert.Equal(t, testSpanEventTime, int64(span.Events().At(i).Timestamp()/1000))
+		assert.Equal(t, testSpanEventTimeMicroseconds, int64(span.Events().At(i).Timestamp()/1000))
 	}
 	assert.Equal(t, 1, span.Events().At(2).Attributes().Len())
 	assert.Empty(t, span.Events().At(2).Name())

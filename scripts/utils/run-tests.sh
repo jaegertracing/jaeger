@@ -13,7 +13,9 @@ TEST_FILES=(
     "$UTILS_DIR/retry.test.sh"
     "$UTILS_DIR/resolve-demo-snapshot-tags.test.sh"
     "$REPO_ROOT/scripts/release/release.test.sh"
+    "$REPO_ROOT/scripts/release/verify-published.test.sh"
     "$REPO_ROOT/examples/otel-demo/deploy-all.test.sh"
+    "$REPO_ROOT/examples/otel-demo/jaeger-values.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-expand-volume.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-recovery.test.sh"
     "$REPO_ROOT/internal/storage/v1/cassandra/schema/create.test.sh"
@@ -42,6 +44,8 @@ main() {
         echo "Error: shunit2 not found at ${SHUNIT2}/shunit2"
         exit 1
     fi
+    python3 -m unittest discover -s "$REPO_ROOT/scripts/demo" -p "*_test.py" -v || return 1
+
     local failed=0
     local total=0
     local passed=0

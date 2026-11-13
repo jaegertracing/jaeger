@@ -245,9 +245,14 @@ func Cassandra() Capabilities {
 // fresh slice, so a caller may append to it.
 func clickHouseSkipList() []string {
 	return []string{
-		// The reader implements neither FindSpans nor continuation tokens.
-		spanOrderingTest,
-		paginationTest,
+		// The span search orders by the built-in span fields only; no backend orders by an
+		// attribute yet.
+		spanAttributeOrderingTest,
+		// The lowering maps five built-in fields; span.startTime is not among them yet.
+		"SpanOrdering/Basic/TimestampFilter",
+		// The trace searches do not page yet.
+		traceIDPaginationTest,
+		summaryPaginationTest,
 		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
 		filterEventNameTest,
 		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
@@ -259,6 +264,9 @@ func clickHouseSkipList() []string {
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
+		// The span ID is the span search's tie-breaker and is not unique in the spans table,
+		// so the search loses the later copies of a span stored twice at a page boundary.
+		pagingDropsTiedSpans: true,
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
 		skipList: append(
@@ -276,8 +284,9 @@ func ClickHouse() Capabilities {
 // through jaeger-query.
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
-		traceStateRefused: true,
-		skipList:          clickHouseSkipList(),
+		pagingDropsTiedSpans: true,
+		traceStateRefused:    true,
+		skipList:             clickHouseSkipList(),
 	}
 }
 

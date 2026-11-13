@@ -14,7 +14,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -25,14 +25,14 @@ jobs:
     - name: Print Jaeger version for no reason
       run: make echo-version
 
-    - run: make install-test-tools
+    - run: make install-lint-tools
 
     - run: make lint
 
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -47,14 +47,14 @@ jobs:
   dco-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '3.x'
 
@@ -71,7 +71,7 @@ jobs:
   idl-version-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -86,7 +86,7 @@ jobs:
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -100,9 +100,9 @@ jobs:
     # protoc from that package's uv environment, so this job needs uv to run it. uv
     # fetches its own interpreter, so no Python setup step is needed.
     - name: Install uv
-      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       with:
-        version: "0.12.7"
+        version: "0.13.6"
 
     - name: Verify Protobuf types are up to date
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit
 
@@ -152,7 +152,7 @@ jobs:
       # Reading the PR's labels is what lets a maintainer waive the size gate.
       pull-requests: read
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit
 
@@ -249,7 +249,7 @@ jobs:
   validate-renovate-config:
     runs-on: ubuntu-latest
     steps:
-    - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+    - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
       with:
         egress-policy: audit
 
@@ -264,3 +264,16 @@ jobs:
           -v $PWD/renovate.json:/usr/src/app/renovate.json \
           ghcr.io/renovatebot/renovate:latest \
           renovate-config-validator
+
+    - name: Verify hosted demo dependency discovery
+      run: |
+        docker run --rm \
+          -v "$PWD:/repo" -w /repo \
+          -e LOG_LEVEL=debug -e LOG_FORMAT=json \
+          -e RENOVATE_PLATFORM=local -e RENOVATE_DRY_RUN=extract \
+          -e RENOVATE_ONBOARDING=false -e RENOVATE_REQUIRE_CONFIG=required \
+          -e RENOVATE_ENABLED_MANAGERS=custom.regex,kubernetes,helm-values,pip_requirements \
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
+          ghcr.io/renovatebot/renovate:latest \
+          renovate > /tmp/renovate-extraction.jsonl
+        python3 scripts/demo/check-renovate-extraction.py /tmp/renovate-extraction.jsonl

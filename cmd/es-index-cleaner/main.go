@@ -38,6 +38,7 @@ func init() {
 			"es.index.relativeTimeIndexDeletion",
 			featuregate.StageBeta,
 			featuregate.WithRegisterFromVersion("v2.5.0"),
+			featuregate.WithRegisterToVersion("v2.24.0"),
 			featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.index.relativeTimeIndexDeletion."),
 			featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 		),

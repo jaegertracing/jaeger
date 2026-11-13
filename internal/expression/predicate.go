@@ -287,6 +287,10 @@ type Ref struct {
 	ref ast.Expression
 }
 
+// Term returns the reference itself, for a clause that lists references rather than predicates:
+// the projection of a span query, or an ordering.
+func (r Ref) Term() ast.Expression { return r.ref }
+
 func (r Ref) Eq(value any) *ast.Call  { return r.compare(ast.OpEq, value) }
 func (r Ref) Ne(value any) *ast.Call  { return r.compare(ast.OpNe, value) }
 func (r Ref) Gt(value any) *ast.Call  { return r.compare(ast.OpGt, value) }
