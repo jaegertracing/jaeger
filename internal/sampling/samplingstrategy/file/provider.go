@@ -175,11 +175,18 @@ func (h *samplingProvider) reloadSamplingStrategy(loadFn strategyLoader, lastVal
 }
 
 func (h *samplingProvider) updateSamplingStrategy(dataBytes []byte) error {
-	var strategies strategies
+	var strategies *strategies
 	if err := json.Unmarshal(dataBytes, &strategies); err != nil {
 		return fmt.Errorf("failed to unmarshal sampling strategies: %w", err)
 	}
-	h.parseStrategies(&strategies)
+	if strategies == nil {
+		// The source reported no strategies (e.g. a transient 503 from a URL source
+		// decodes to JSON null). Keep serving the last known good strategies instead
+		// of resetting everyone to the default.
+		h.logger.Warn("Sampling strategies source returned no data on reload, keeping previously loaded strategies")
+		return nil
+	}
+	h.parseStrategies(strategies)
 	h.logger.Info("Updated sampling strategies:" + string(dataBytes))
 	return nil
 }
