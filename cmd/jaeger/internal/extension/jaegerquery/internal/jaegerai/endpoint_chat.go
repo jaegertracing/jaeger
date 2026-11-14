@@ -55,6 +55,12 @@ type chatEndpoint struct {
 // it stable.
 const mcpServerName = "jaeger"
 
+// chatCrossOriginProtection rejects browser requests to the chat endpoint that
+// come from another origin, as signalled by Sec-Fetch-Site or, failing that, by
+// an Origin that does not match Host. Requests carrying neither header (non-browser
+// clients such as curl) are allowed through.
+var chatCrossOriginProtection = http.NewCrossOriginProtection()
+
 // announceMCP builds this turn's NewSessionRequest.mcpServers, pointing the sidecar
 // at the turn-scoped MCP endpoint. Without it the endpoint is dormant: it serves the
 // telemetry tools and the turn's UI tools, but no agent knows the URL to dial.
@@ -121,6 +127,15 @@ func newChatEndpoint(logger *zap.Logger, turns *turnRegistry, sidecarWSURL strin
 func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Refuse cross-origin browser requests before anything reaches the agent.
+	// Without this, any page a user visits could POST a prompt here as a CORS
+	// "simple" request (e.g. Content-Type: text/plain), which browsers send
+	// without a preflight, and drive the agent on the user's behalf.
+	if err := chatCrossOriginProtection.Check(r); err != nil {
+		http.Error(w, "Cross-origin request rejected", http.StatusForbidden)
 		return
 	}
 
