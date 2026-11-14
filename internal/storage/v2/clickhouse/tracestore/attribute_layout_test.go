@@ -19,3 +19,12 @@ func TestAttributeLayout_SelectSpans_Map(t *testing.T) {
 
 	clickhousetest.VerifyQuerySnapshot(t, query)
 }
+
+// TestAttributeLayout_GroupType snapshots the declaration of one attribute group in each
+// layout.
+func TestAttributeLayout_GroupType(t *testing.T) {
+	clickhousetest.VerifyQuerySnapshot(t,
+		"bool_attributes "+AttributeLayoutNested.GroupType("Bool"),
+		"bool_attributes "+AttributeLayoutMap.GroupType("Bool"),
+	)
+}

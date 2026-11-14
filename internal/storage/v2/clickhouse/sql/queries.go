@@ -78,6 +78,14 @@ SELECT
 FROM system.columns
 WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
 
+// SelectAttributeLayout returns one row when the spans table exists, which says whether the
+// table stores the str_attributes group as a Map. In the nested layout the server lists the
+// group as str_attributes.key, or as str_attributes when flatten_nested is off.
+const SelectAttributeLayout = `
+SELECT startsWith(type, 'Map(') AS is_map
+FROM system.columns
+WHERE database = currentDatabase() AND table = 'spans' AND name IN ('str_attributes', 'str_attributes.key')`
+
 // SelectSpansTable returns one row when the current database has a spans table.
 const SelectSpansTable = `SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = 'spans'`
 

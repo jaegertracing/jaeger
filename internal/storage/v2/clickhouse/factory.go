@@ -45,6 +45,8 @@ type schemaTemplateParams struct {
 	AggregatingMergeTree string
 	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
 	HoistedColumns []string
+	// Layout is the layout of the typed attribute groups of the spans table.
+	Layout chtracestore.AttributeLayout
 }
 
 type schemaStatement struct {
@@ -65,11 +67,12 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, cfg.attributeLayout())
 	if err != nil {
 		return nil, err
 	}
 	params := schemaTemplateParams{
+		Layout:               cfg.attributeLayout(),
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
@@ -78,7 +81,8 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
 	// The materialized views carry no engine of their own, because each writes TO its
-	// target table, so only the tables are templates.
+	// target table. The attribute metadata views are templates because they read the
+	// attribute groups, whose layout is configured.
 	schema := []struct {
 		name     string
 		query    string
@@ -92,9 +96,9 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
 		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
 		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
-		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
-		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
-		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, false},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, true},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, true},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, true},
 		{"dependencies table", sql.CreateDependenciesTable, true},
 	}
 	builder := &schemaBuilder{}
@@ -130,7 +134,7 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, cfg.attributeLayout())
 	if err != nil {
 		return nil, err
 	}
@@ -188,8 +192,11 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		}
 	}
 
-	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the check runs whether
+	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the checks run whether
 	// or not the schema was just built.
+	if err := checkAttributeLayout(ctx, conn, cfg.attributeLayout()); err != nil {
+		return nil, err
+	}
 	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
 		return nil, err
 	}
@@ -203,6 +210,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
 		HoistedColumns:                f.hoistedColumns,
+		AttributeLayout:               f.config.attributeLayout(),
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
 		AttributeMetadataCacheTTL:     f.config.AttributeMetadataCacheTTL,
@@ -211,7 +219,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return chtracestore.NewWriter(f.conn, chtracestore.NestedLayout{}), nil
+	return chtracestore.NewWriter(f.conn, f.config.attributeLayout()), nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
