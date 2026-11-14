@@ -114,7 +114,7 @@ is insufficient. Do not delete the load balancer or its Service as a shortcut.
 ## Verify through the public endpoint
 
 1. Search for a service and open a trace in the browser. Verify `/search`,
-   `/api/services`, `/api/v3/services`, trace search, and trace retrieval return
+   `/api/v3/services`, trace search, and trace retrieval return
    successful responses. Check the other hostnames on the shared controller.
 2. Send two service-list requests with distinct test user agents, one with
    forged `X-Forwarded-For`, `X-Real-IP`, and `Forwarded` values. Inspect only
@@ -134,30 +134,7 @@ is insufficient. Do not delete the load balancer or its Service as a shortcut.
    They must remain available through their separate ingress location.
 
 Keep the assistant disabled if source-IP handling or either limit fails.
-After the AI PR is approved, use the existing Jaeger-only upgrade path and
-repeat the public checks against the deployed configuration. Verify one bounded
+Use the Jaeger-only upgrade path and repeat the public checks against each
+deployed configuration. Verify one bounded
 MCP-backed answer and project-attributed usage as described in
 [AI_ASSISTANT.md](../AI_ASSISTANT.md).
-
-## Public demo verification, 2026-11-12
-
-The shared controller was configured with PROXY protocol v2 on both OCI TCP
-listeners, `use-proxy-protocol: "true"`, `use-forwarded-headers: "false"`, and
-the OCI-verified trusted subnet `10.0.20.0/24`. The Service reports
-`ipMode: Proxy`; its public address remains `170.9.51.232`.
-
-Two external test clients appeared as distinct public IPs in the controller
-log. Forged forwarding headers did not change either client's identity.
-HTTPS to Jaeger's public hostname from the controller pod returned 200 after
-the IP-mode correction; with `VIP` mode it failed during the protocol migration.
-
-Public checks passed for Jaeger, HotROD, the shop, and OpenSearch Dashboards.
-Jaeger service discovery returned 24 services, and trace search, retrieval,
-and browser timeline rendering worked with a 24-hour lookback. The sampled
-retained trace contained 49 spans and was already marked incomplete before
-the infrastructure change. Service-discovery monitoring recorded 99 HTTP 200
-responses over four minutes covering the cutover; sampling cannot exclude a
-shorter interruption between probes.
-
-The assistant remained disabled during these checks. Live chat throttling and
-model-backed verification remain rollout steps after approval of the AI PR.

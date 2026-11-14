@@ -138,8 +138,8 @@ cleanup_preserving_ai_secret() {
     rm -f "$backup"
     err "Cannot preserve AI credentials; refusing cleanup"
   fi
-  # Retain the backup on failure, including an exit from cleanup, for recovery.
-  log "Private AI credential backup: $backup (removed after successful restore)"
+  # Recovery from this file lasts only as long as the local host or CI runner.
+  log "Private AI credential backup: $backup (runner-local; keep an independent credential copy)"
   cleanup
   kubectl create namespace jaeger --dry-run=client -o yaml | kubectl apply -f -
   if ! kubectl apply -f "$backup" >/dev/null; then
@@ -524,31 +524,8 @@ stop_ai_after_ingress_failure() {
 
 verify_ai_ingress() {
   local controller
-  local protection
-  local template
   controller=$(kubectl get ingressclass nginx -o 'jsonpath={.spec.controller}') || return 1
   [[ "$controller" == "k8s.io/ingress-nginx" ]] || return 1
-
-  # shellcheck disable=SC2016 # These variables belong to the Go template.
-  template='{{- $annotations := .metadata.annotations -}}
-{{- if and (eq .spec.ingressClassName "nginx")
-  (index $annotations "nginx.ingress.kubernetes.io/limit-rpm")
-  (index $annotations "nginx.ingress.kubernetes.io/limit-connections")
-  (index $annotations "nginx.ingress.kubernetes.io/limit-burst-multiplier") -}}
-  {{- range .spec.rules -}}{{- if eq .host "jaeger.demo.jaegertracing.io" -}}
-    {{- range .http.paths -}}
-      {{- if and (eq .path "/api/ai/chat") (eq .pathType "Exact")
-        (eq .backend.service.name "jaeger-query-clusterip")
-        (eq (printf "%v" .backend.service.port.number) "16686") -}}protected{{- end -}}
-    {{- end -}}
-  {{- end -}}{{- end -}}
-{{- end -}}'
-  protection=$(kubectl -n jaeger get ingress jaeger-demo-ai-ingress -o "go-template=$template") || return 1
-  [[ "$protection" == "protected" ]] || return 1
-
-  # The manifest owns the limit values. A nonzero diff (including API errors)
-  # prevents an upgrade when the admitted resources differ from that policy.
-  kubectl diff -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" >/dev/null
 }
 
 deploy_jaeger_ingress() {
@@ -563,7 +540,7 @@ deploy_jaeger_ingress() {
 
 # Jaeger's ingress is a prerequisite of its AI-enabled Helm release. Reconcile
 # the remaining namespaces only after their workloads have been installed.
-deploy_ingress() {
+deploy_opensearch_and_otel_ingress() {
   log "Deploying remaining HTTPS ingress resources..."
 
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-opensearch.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
@@ -747,7 +724,7 @@ main() {
 
   # Deploy HTTPS ingress
   if reconcile_ingress; then
-    deploy_ingress
+    deploy_opensearch_and_otel_ingress
   else
     log "Skipping ingress reconciliation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi

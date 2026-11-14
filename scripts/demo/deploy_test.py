@@ -44,7 +44,9 @@ class DeploymentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             shutil.copytree(deploy.ROOT / "examples/otel-demo", root / "examples/otel-demo")
+            shutil.copytree(deploy.ROOT / "examples/oci", root / "examples/oci")
             shutil.copytree(deploy.ROOT / "scripts/demo", root / "scripts/demo")
+            shutil.copytree(deploy.ROOT / "scripts/ai-sidecar/goose", root / "scripts/ai-sidecar/goose")
             script = root / "examples/otel-demo/deploy-all.sh"
             script.write_text(re.sub(r'OPENSEARCH_CHART_VERSION="[^\"]+"', 'OPENSEARCH_CHART_VERSION="99.99.99"', script.read_text()))
             self.assertNotEqual(self.desired["opensearch"], deploy.fingerprint("opensearch", root))
@@ -53,6 +55,24 @@ class DeploymentTests(unittest.TestCase):
             values = root / "examples/otel-demo/otel-demo-values.yaml"
             values.write_text(values.read_text() + "\n# revised application\n")
             self.assertNotEqual(self.desired["otel-demo"], deploy.fingerprint("otel-demo", root))
+            dockerfile = root / deploy.DOCKERFILE
+            dockerfile.write_text(dockerfile.read_text() + "\n# revised agent\n")
+            self.assertNotEqual(self.desired["otel-jaeger"], deploy.fingerprint("otel-jaeger", root))
+            self.assertEqual(self.desired["oci-jaeger"], deploy.fingerprint("oci-jaeger", root))
+
+    @patch("deploy.ensure_image", return_value="example/goose:v1-cache")
+    @patch("deploy.run")
+    def test_only_otel_jaeger_prepares_and_receives_goose_image(self, run, image):
+        for name in deploy.COMPONENTS:
+            with self.subTest(component=name):
+                run.reset_mock()
+                image.reset_mock()
+                deploy.deploy_component(name, self.env)
+                if name == "otel-jaeger":
+                    image.assert_called_once_with(self.env)
+                    self.assertEqual("example/goose:v1-cache", run.call_args.kwargs["env"]["JAEGER_DEMO_GOOSE_IMAGE"])
+                else:
+                    image.assert_not_called()
 
     @patch("deploy.run")
     def test_recovery_precedes_upgrade_and_fresh_trace(self, run):
@@ -109,13 +129,36 @@ class DeploymentTests(unittest.TestCase):
         resolve.assert_not_called()
         self.assertEqual(self.desired, json.loads(run.call_args.kwargs["input"])["data"])
 
+    @patch("deploy.ensure_image", return_value="example/goose:v1-cache")
     @patch("deploy.resolve_snapshots")
     @patch("deploy.run")
-    def test_clean_is_dispatched_once_per_stack(self, run, resolve):
+    def test_clean_is_dispatched_once_per_stack(self, run, resolve, image):
         env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="all", JAEGER_DEMO_DEPLOY_MODE="clean")
         self.assertEqual(0, deploy.reconcile(env))
         self.assertEqual(2, run.call_count)
         self.assertTrue(all(call.args[0][-1] == "clean" for call in run.call_args_list))
+        image.assert_called_once_with(env, deploy.ROOT)
+        self.assertNotIn("JAEGER_DEMO_GOOSE_IMAGE", run.call_args_list[0].kwargs["env"])
+        self.assertEqual("example/goose:v1-cache", run.call_args_list[1].kwargs["env"]["JAEGER_DEMO_GOOSE_IMAGE"])
+
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.ensure_image", side_effect=RuntimeError("registry lookup failed"))
+    @patch("deploy.run")
+    def test_image_failure_blocks_otel_jaeger_without_recording_success(self, run, image, resolve):
+        previous = dict(self.desired, **{"otel-jaeger": "old"})
+        run.return_value.stdout = json.dumps({"data": previous})
+        self.assertEqual(1, deploy.reconcile(self.env))
+        image.assert_called_once_with(self.env)
+        self.assertEqual(1, run.call_count)
+
+    @patch("deploy.ensure_image")
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.run")
+    def test_oci_clean_does_not_prepare_goose(self, run, resolve, image):
+        env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="oci", JAEGER_DEMO_DEPLOY_MODE="clean")
+        self.assertEqual(0, deploy.reconcile(env))
+        image.assert_not_called()
+        self.assertEqual(1, run.call_count)
 
     def test_rejects_invalid_or_automatic_unsafe_routes(self):
         cases = [{"GITHUB_REF": "refs/heads/other"}, {"JAEGER_DEMO_STACK": "invalid"},

@@ -10,6 +10,7 @@ on:
       - 'examples/oci/**'
       - 'examples/otel-demo/**'
       - 'scripts/demo/**'
+      - 'scripts/ai-sidecar/goose/**'
       - '.github/workflows/ci-deploy-demo.yml'
   schedule:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
@@ -70,6 +71,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Jaeger to OKE Cluster
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
@@ -126,8 +128,19 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+    - name: Set up QEMU for Goose
+      if: github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all'))
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+    - name: Set up buildx for Goose
+      if: github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all'))
+      run: docker buildx create --use --name jaeger-demo
+
     - name: Reconcile demo components
       run: python3 scripts/demo/deploy.py
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Send detailed Slack notification on failure
       if: failure()

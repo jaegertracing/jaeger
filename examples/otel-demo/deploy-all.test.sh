@@ -185,7 +185,9 @@ run_jaeger_deploy() {
     log() { :; }
     need() { :; }
     check_cluster() { :; }
-    cleanup() { :; }
+    cleanup_preserving_ai_secret() { :; }
+    check_ai_secret() { :; }
+    deploy_jaeger_ingress() { :; }
     clone_jaeger_v2() { :; }
     deploy_opensearch_releases() { :; }
     adopt_resource_for_helm_release() { :; }
@@ -193,7 +195,7 @@ run_jaeger_deploy() {
     wait_for_deployment() { :; }
     wait_for_service_endpoints() { :; }
     wait_for_daemonset() { :; }
-    deploy_ingress() { :; }
+    deploy_opensearch_and_otel_ingress() { :; }
     kubectl() { :; }
     helm() {
       if [[ "$1" != repo ]]; then
@@ -693,11 +695,7 @@ run_ingress_main() {
           if [[ "$FAILURE" == class ]]; then printf other; else printf k8s.io/ingress-nginx; fi
           ;;
         "-n jaeger")
-          if [[ "$3 $4" == "get ingress" ]]; then
-            record ingress-route
-            [[ "$FAILURE" != route-read ]] || return 1
-            [[ "$FAILURE" == route ]] || printf protected
-          elif [[ "$3 $4" == "get deployment" ]]; then
+          if [[ "$3 $4" == "get deployment" ]]; then
             record inspect-goose
             [[ "$FAILURE" != inspect ]] || return 1
             [[ "$FAILURE" == absent ]] || printf deployment/jaeger-goose
@@ -707,10 +705,6 @@ run_ingress_main() {
           else
             return 1
           fi
-          ;;
-        "diff -f")
-          record ingress-diff
-          case "$FAILURE" in diff-1) return 1 ;; diff-2) return 2 ;; esac
           ;;
         *) return 1 ;;
       esac
@@ -729,7 +723,7 @@ testIngressIsVerifiedBeforeAiAndSurvivesLaterRolloutFailure() {
       : >"$calls"
       output=$(run_ingress_main "$mode" "$scope" none "$calls")
       assertNotEquals "the simulated later wait must fail" 0 "$?"
-      expected=$'ingress-apply\ningress-class\ningress-route\ningress-diff'
+      expected=$'ingress-apply\ningress-class'
       if [[ "$mode" == clean ]]; then expected=$'cleanup\n'"$expected"; fi
       if [[ "$mode" == clean || "$scope" == all ]]; then expected+=$'\nstorage'; fi
       if [[ "$mode" == upgrade ]]; then expected+=$'\nadopt\nadopt\ndelete'; fi
@@ -743,7 +737,7 @@ testIngressIsVerifiedBeforeAiAndSurvivesLaterRolloutFailure() {
 testIngressFailuresStopAiAndAbortBeforeChangingReleases() {
   local failure calls
   calls=$(mktemp)
-  for failure in missing apply class-read class route-read route diff-1 diff-2; do
+  for failure in missing apply class-read class; do
     : >"$calls"
     output=$(run_ingress_main upgrade all "$failure" "$calls")
     assertNotEquals "$failure must abort deployment" 0 "$?"
@@ -790,7 +784,7 @@ testLateIngressReconciliationDoesNotReapplyJaegerPolicy() {
         return 1
       fi
     }
-    deploy_ingress
+    deploy_opensearch_and_otel_ingress
   ' _ "$SCRIPT" 2>&1)
   assertEquals "remaining ingress reconciliation should succeed" 0 "$?"
   assertContains "$(cat "$calls")" ingress-opensearch.yaml

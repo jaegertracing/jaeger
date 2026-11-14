@@ -12,6 +12,7 @@ allInOne:
         secretKeyRef:
           name: jaeger-demo-ai
           key: GOOSE_SERVER__SECRET_KEY
+          optional: true
   resources:
     requests:
       memory: "1Gi"
@@ -87,7 +88,7 @@ esIndexCleaner:
     limits:
       memory: "128Mi"
 
-# The deployment script supplies a verified snapshot SHA tag, or an operator's
+# The deployment script supplies a versioned Goose image tag, or an operator's
 # explicit image digest, through JAEGER_DEMO_GOOSE_IMAGE.
 goose:
   image: ""

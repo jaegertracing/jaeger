@@ -13,6 +13,7 @@ import re
 import subprocess
 import tempfile
 
+from goose_image import DOCKERFILE, ensure_image
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = "jaeger-demo-deployment-revisions"
@@ -58,6 +59,8 @@ def fingerprint(component, root=ROOT):
     inputs += [name + "\n" + (directory / name).read_text() for name in files]
     if scope == "jaeger":
         inputs.append((root / "scripts/demo/jaeger-chart.sh").read_text())
+    if component == "otel-jaeger":
+        inputs.append((root / DOCKERFILE).read_text())
     return hashlib.sha256("\0".join(inputs).encode()).hexdigest()
 
 
@@ -88,6 +91,8 @@ def deploy_component(component, env):
     child_env = dict(env, JAEGER_DEMO_STACK=stack, JAEGER_DEMO_DEPLOY_SCOPE=scope,
                      JAEGER_OTEL_DEMO_DEPLOY_SCOPE=scope)
     mode = env.get("JAEGER_DEMO_DEPLOY_MODE", "upgrade")
+    if component == "otel-jaeger":
+        child_env["JAEGER_DEMO_GOOSE_IMAGE"] = ensure_image(env)
     if scope == "opensearch" and mode == "upgrade" and env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "required":
         run(["bash", str(directory / "opensearch-recovery.sh"), "backup-test"], env=child_env)
     run(["bash", str(directory / "deploy-all.sh"), mode], env=child_env)
@@ -119,6 +124,8 @@ def reconcile(env, root=ROOT):
         for target in ("oci", "otel"):
             if stack in (target, "all"):
                 child = dict(env, JAEGER_DEMO_STACK=target, JAEGER_DEMO_DEPLOY_SCOPE="all")
+                if target == "otel":
+                    child["JAEGER_DEMO_GOOSE_IMAGE"] = ensure_image(env, root)
                 directory = root / "examples" / ("otel-demo" if target == "otel" else "oci")
                 run(["bash", str(directory / "deploy-all.sh"), "clean"], env=child)
         return 0
@@ -149,8 +156,9 @@ def reconcile(env, root=ROOT):
             run(["kubectl", "apply", "-f", "-"], input=json.dumps(state))
             previous = updated
             print(f"{name}: deployed successfully", flush=True)
-        except subprocess.CalledProcessError as error:
-            print(f"::error::{name}: deployment failed ({error.returncode})", flush=True)
+        except (subprocess.CalledProcessError, RuntimeError, ValueError) as error:
+            reason = error.returncode if isinstance(error, subprocess.CalledProcessError) else str(error)
+            print(f"::error::{name}: deployment failed ({reason})", flush=True)
             failures.append(name)
         finally:
             print("::endgroup::", flush=True)

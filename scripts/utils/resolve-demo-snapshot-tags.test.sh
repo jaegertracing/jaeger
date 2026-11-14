@@ -146,45 +146,5 @@ testManualDispatchFailsWhenTagMissing() {
   assertContains "$out" "Snapshot image tag not found"
 }
 
-testOtelResolvesGooseIndependentlyAndExportsImage() {
-  local env_file="$TMPDIR_TEST/goose-env"
-  out=$(run_script GITHUB_EVENT_NAME=schedule JAEGER_DEMO_STACK=otel \
-    JAEGER_DEMO_JAEGER_IMAGE_TAG="$PREFERRED" \
-    JAEGER_DEMO_HOTROD_IMAGE_TAG="$PREFERRED" \
-    JAEGER_DEMO_GOOSE_IMAGE_TAG="$PUBLISHED" GITHUB_ENV="$env_file" 2>&1)
-  assertEquals "all three published images should resolve" 0 "$?"
-  assertContains "$out" "Jaeger tag=$NEWEST"
-  assertContains "$out" "HotROD tag=$NEWEST"
-  assertContains "$out" "Goose tag=$PUBLISHED"
-  assertContains "$(cat "$env_file")" "JAEGER_DEMO_GOOSE_IMAGE=jaegertracing/jaeger-goose-snapshot:$PUBLISHED"
-}
-
-testAllStackResolvesLatestGooseToSha() {
-  out=$(run_script GITHUB_EVENT_NAME=workflow_dispatch JAEGER_DEMO_STACK=all \
-    JAEGER_DEMO_JAEGER_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_HOTROD_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_GOOSE_IMAGE_TAG=latest 2>&1)
-  assertEquals "latest should resolve to a published SHA" 0 "$?"
-  assertContains "$out" "Goose tag=$NEWEST"
-}
-
-testMissingGooseStopsManualOtelDeployment() {
-  out=$(run_script GITHUB_EVENT_NAME=workflow_dispatch JAEGER_DEMO_STACK=otel \
-    JAEGER_DEMO_JAEGER_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_HOTROD_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_GOOSE_IMAGE_TAG="$PREFERRED" 2>&1)
-  assertNotEquals "an unpublished Goose image must stop the rollout" 0 "$?"
-  assertContains "$out" "(Goose)"
-}
-
-testOriginalStackDoesNotRequireGoose() {
-  out=$(run_script GITHUB_EVENT_NAME=workflow_dispatch JAEGER_DEMO_STACK=oci \
-    JAEGER_DEMO_JAEGER_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_HOTROD_IMAGE_TAG="$PUBLISHED" \
-    JAEGER_DEMO_GOOSE_IMAGE_TAG="$PREFERRED" 2>&1)
-  assertEquals "the original stack does not deploy an AI agent" 0 "$?"
-  assertNotContains "$out" "Goose tag="
-}
-
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"

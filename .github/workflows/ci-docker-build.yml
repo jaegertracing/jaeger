@@ -45,14 +45,3 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-    - name: Build Goose image (PR and merge queue)
-      if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-      run: bash scripts/build/build-upload-a-docker-image.sh -c jaeger-goose -d scripts/ai-sidecar/goose -p linux/amd64
-
-    - name: Build and upload Goose images
-      if: github.event_name == 'push' && github.ref_name == 'main'
-      run: bash scripts/build/build-upload-a-docker-image.sh -c jaeger-goose -d scripts/ai-sidecar/goose -p linux/amd64,linux/arm64
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
