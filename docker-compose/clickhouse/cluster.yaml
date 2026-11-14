@@ -1,0 +1,23 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# One shard with two replicas. Jaeger connects to either server through the Distributed wrappers
+# created by schema-multi-node.sql; internal_replication makes each Distributed write go to one
+# replica per shard and leaves replication to the Replicated* local tables.
+remote_servers:
+  jaeger_cluster:
+    shard:
+      internal_replication: true
+      replica:
+        - host: clickhouse-01
+          port: 9000
+          user: default
+          password: password
+        - host: clickhouse-02
+          port: 9000
+          user: default
+          password: password
+zookeeper:
+  node:
+    host: clickhouse-keeper
+    port: 9181

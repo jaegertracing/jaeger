@@ -1,0 +1,58 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Two ClickHouse servers behind a Keeper, with one shard and two replicas. The schema is applied
+# by scripts/e2e/clickhouse.sh from schema-multi-node.sql, not by Jaeger's create_schema.
+services:
+  clickhouse-keeper:
+    image: clickhouse/clickhouse-server:26.3.57@sha256:aebd3c39b3d6b72168a600a7f6f3cb1c6856e2ba4fe112b85eaaea55c622cc7e
+    container_name: clickhouse-keeper
+    volumes:
+      - ./keeper-multi-node.yaml:/etc/clickhouse-server/config.d/keeper.yaml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-keeper-client", "--host=localhost", "--port=9181", "--query=stat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse-01:
+    image: clickhouse/clickhouse-server:26.3.57@sha256:aebd3c39b3d6b72168a600a7f6f3cb1c6856e2ba4fe112b85eaaea55c622cc7e
+    container_name: clickhouse-01
+    depends_on:
+      - clickhouse-keeper
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=jaeger
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./cluster.yaml:/etc/clickhouse-server/config.d/cluster.yaml:ro
+      - ./macros-01.yaml:/etc/clickhouse-server/config.d/macros.yaml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse-02:
+    image: clickhouse/clickhouse-server:26.3.57@sha256:aebd3c39b3d6b72168a600a7f6f3cb1c6856e2ba4fe112b85eaaea55c622cc7e
+    container_name: clickhouse-02
+    depends_on:
+      - clickhouse-keeper
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=jaeger
+    ports:
+      - "8124:8123"
+      - "9001:9000"
+    volumes:
+      - ./cluster.yaml:/etc/clickhouse-server/config.d/cluster.yaml:ro
+      - ./macros-02.yaml:/etc/clickhouse-server/config.d/macros.yaml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
