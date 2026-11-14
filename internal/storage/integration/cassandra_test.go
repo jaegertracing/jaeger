@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
 
 	casconfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	caslock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
@@ -42,7 +44,7 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+func cassandraTestConfig() casconfig.Configuration {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
 	cfg := casconfig.DefaultConfiguration()
@@ -54,8 +56,12 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		AllowedAuthenticators: []string{"org.apache.cassandra.auth.PasswordAuthenticator"},
 	}
 	cfg.Connection.TLS = configtls.ClientConfig{Insecure: true}
+	return cfg
+}
+
+func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	opts := cassandrav1.Options{
-		Configuration: cfg,
+		Configuration: cassandraTestConfig(),
 		Index: cassandrav1.IndexConfig{
 			Logs:        true,
 			Tags:        true,
@@ -101,4 +107,54 @@ func TestCassandraStorage(t *testing.T) {
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)
+}
+
+func TestCassandraDistributedLock(t *testing.T) {
+	SkipUnlessEnv(t, StorageCassandra)
+	cfg := cassandraTestConfig()
+	session, err := cassandrav1.NewSession(&cfg)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+	first := caslock.NewLock(session, "first")
+	second := caslock.NewLock(session, "second")
+
+	t.Run("forfeit", func(t *testing.T) {
+		resource := uuid.NewString()
+		acquired, err := first.Acquire(resource, time.Minute)
+		require.NoError(t, err)
+		require.True(t, acquired)
+
+		_, err = second.Forfeit(resource)
+		require.ErrorContains(t, err, "this host does not own the resource lock")
+		acquired, err = second.Acquire(resource, time.Minute)
+		require.NoError(t, err)
+		require.False(t, acquired)
+
+		forfeited, err := first.Forfeit(resource)
+		require.NoError(t, err)
+		require.True(t, forfeited)
+		acquired, err = second.Acquire(resource, time.Minute)
+		require.NoError(t, err)
+		require.True(t, acquired)
+	})
+
+	t.Run("renewal and expiry", func(t *testing.T) {
+		resource := uuid.NewString()
+		acquired, err := first.Acquire(resource, time.Minute)
+		require.NoError(t, err)
+		require.True(t, acquired)
+
+		// Renew with a shorter TTL so the handoff can only succeed if Cassandra applied the renewal.
+		acquired, err = first.Acquire(resource, 3*time.Second)
+		require.NoError(t, err)
+		require.True(t, acquired)
+		acquired, err = second.Acquire(resource, time.Minute)
+		require.NoError(t, err)
+		require.False(t, acquired)
+
+		require.Eventually(t, func() bool {
+			acquired, err := second.Acquire(resource, time.Minute)
+			return err == nil && acquired
+		}, 20*time.Second, 250*time.Millisecond)
+	})
 }
