@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
 
 // validConfig returns an Config that passes Validate; tests mutate the
@@ -324,4 +326,75 @@ func TestConfigAcceptsAgentHeaders(t *testing.T) {
 		},
 	}
 	require.NoError(t, cfg.Validate())
+}
+
+func TestMCPConfigValidateAcceptsTunablesInRange(t *testing.T) {
+	// Zero means "keep the default", and the documented maxima are inclusive.
+	for _, c := range []MCPConfig{
+		{},
+		{ServerName: "jaeger", MaxSpanDetailsPerRequest: 20, MaxSearchResults: 100, MaxReadFileSize: 512 * 1024},
+		{MaxSpanDetailsPerRequest: mcptools.MaxSpanDetailsPerRequestLimit, MaxSearchResults: mcptools.MaxSearchResultsLimit, MaxReadFileSize: mcptools.MaxReadFileSizeLimit},
+	} {
+		require.NoError(t, c.Validate(), "config %+v must be accepted", c)
+	}
+}
+
+func TestMCPConfigValidateRejectsTunablesOutOfRange(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  MCPConfig
+		want string
+	}{
+		{
+			name: "negative span details",
+			cfg:  MCPConfig{MaxSpanDetailsPerRequest: -1},
+			want: "ai.mcp.max_span_details_per_request must be between 1 and 100, or 0 to keep the default of 20",
+		},
+		{
+			name: "oversized span details",
+			cfg:  MCPConfig{MaxSpanDetailsPerRequest: 101},
+			want: "ai.mcp.max_span_details_per_request must be between 1 and 100, or 0 to keep the default of 20",
+		},
+		{
+			name: "oversized search results",
+			cfg:  MCPConfig{MaxSearchResults: 1001},
+			want: "ai.mcp.max_search_results must be between 1 and 1000, or 0 to keep the default of 100",
+		},
+		{
+			name: "negative read file size",
+			cfg:  MCPConfig{MaxReadFileSize: -1},
+			want: "ai.mcp.max_read_file_size must be between 1 and 10485760, or 0 to keep the default of 524288",
+		},
+		{
+			name: "oversized read file size",
+			cfg:  MCPConfig{MaxReadFileSize: 10*1024*1024 + 1},
+			want: "ai.mcp.max_read_file_size must be between 1 and 10485760, or 0 to keep the default of 524288",
+		},
+	}
+	for _, tc := range tests {
+		require.EqualError(t, tc.cfg.Validate(), tc.want, tc.name)
+	}
+}
+
+func TestMCPConfigApplyTo(t *testing.T) {
+	// An unset field must keep the default rather than become a zero value,
+	// because a zero limit would make the matching tool refuse every call.
+	zero := mcptools.DefaultServerParams()
+	(&MCPConfig{}).applyTo(&zero)
+	require.Equal(t, mcptools.DefaultServerParams(), zero)
+
+	set := mcptools.DefaultServerParams()
+	(&MCPConfig{
+		ServerName:               "custom",
+		MaxSpanDetailsPerRequest: 50,
+		MaxSearchResults:         500,
+		MaxReadFileSize:          1024,
+	}).applyTo(&set)
+	assert.Equal(t, "custom", set.ServerName)
+	assert.Equal(t, 50, set.MaxSpanDetailsPerRequest)
+	assert.Equal(t, uint32(500), set.MaxSearchResults)
+	assert.Equal(t, int64(1024), set.MaxReadFileSize)
+	// Fields applyTo does not own are left as DefaultServerParams set them.
+	assert.Equal(t, mcptools.DefaultServerParams().ServerVersion, set.ServerVersion)
+	assert.Nil(t, set.CustomSkillsFS)
 }
