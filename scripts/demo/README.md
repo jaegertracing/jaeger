@@ -29,6 +29,10 @@ upgrades OpenSearch before Dashboards. A version check and a fresh collector-to-
 query trace check must pass before recording the revision. Recovery failure stops
 the update. Automated runs never waive recovery or perform a clean reinstall.
 
+The deployment job has a time limit sized for a full-stack run that includes the
+restore test, and it removes that run's disposable restore pod when it ends,
+including after a failure or cancellation.
+
 The manual `demo_stack`, `otel_deploy_scope`, image overrides, `deploy_mode`, and
 recovery inputs are preserved. The historical `otel_deploy_scope` input also
 accepts `monitoring` for an isolated OCI monitoring upgrade. Invalid stack/scope
