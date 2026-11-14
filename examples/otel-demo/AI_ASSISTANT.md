@@ -4,8 +4,10 @@ The public demo connects Jaeger Query to Goose over ACP. Goose uses OpenAI
 directly and calls Jaeger's MCP tools to inspect real services and traces.
 Provider credentials never reach the Jaeger browser client. Once deployed, ordinary
 tracing remains available if the agent stops or OpenAI rejects its requests. A new
-Helm rollout still waits for Goose: an image-pull or startup failure blocks the
-release and can trigger its atomic rollback.
+Helm rollout with Goose enabled still waits for it: an image-pull or startup
+failure blocks the release and can trigger its atomic rollback. The source
+starts Goose scaled to zero, so scheduled reconciliation cannot activate paid
+chat before the rollout prerequisites are verified.
 
 ## Provision before deployment
 
@@ -103,6 +105,12 @@ release and can trigger its atomic rollback.
    secure copy and be prepared to repeat bootstrap. Clean mode deletes trace
    storage. OpenSearch-only and application-only upgrade scopes are unaffected.
 
+   Keep Goose's existing Deployment `replicas` at zero while validating the
+   account, ingress limits, real client identity, and CNI enforcement. Malformed
+   JSON chat requests exercise ingress without invoking a model. Once these
+   checks pass, change that replica count to one in reviewed deployment source
+   and use the same upgrade path to activate the assistant deliberately.
+
 ## Limits and access
 
 The provider, model, reasoning, token, and turn settings are defined in
@@ -118,11 +126,20 @@ verify it before public rollout. Goose runs without a Kubernetes service-account
 token, with a read-only root filesystem and bounded writable volume. It receives
 only Jaeger's tools, including browser navigation tools.
 
+For OKE VCN-native pod networking, Oracle documents a separate Calico policy
+engine alongside the existing CNI. Follow the
+[OKE network-policy procedure](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengsettingupcalico.htm)
+and its Kubernetes-version compatibility table. Installing the policy engine
+affects shared cluster networking and needs its own reviewed rollout. Do not
+enable Goose when the negative connectivity probe still succeeds.
+
 The separate chat ingress and its current request, connection, burst, and timeout
 limits are defined in [`ingress-jaeger.yaml`](ingress/ingress-jaeger.yaml).
 These annotations apply only to the exact chat path. Normal tracing UI, REST
 queries, HotROD, and internal MCP callbacks have separate routes. SSE buffering
 is disabled.
+Both the current allowlist annotation and its legacy whitelist alias are
+explicitly empty so a previous unmanaged rate-limit exemption is overwritten.
 
 Ingress-nginx enforces these limits **per controller replica**. Multiple
 replicas multiply the effective allowance, and a distributed client can use

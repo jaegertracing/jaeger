@@ -47,6 +47,8 @@ metadata:
     nginx.ingress.kubernetes.io/limit-rpm: "10"
     nginx.ingress.kubernetes.io/limit-connections: "2"
     nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"
+    nginx.ingress.kubernetes.io/limit-allowlist: ""
+    nginx.ingress.kubernetes.io/limit-whitelist: ""
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "180"

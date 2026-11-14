@@ -153,6 +153,10 @@ testGooseUsesBoundedDirectOpenAiRequests() {
   assertNotContains "$RENDERED" "OPENROUTER_API_KEY"
 }
 
+testGooseStartsDisabledUntilRolloutPrerequisitesPass() {
+  assertContains "$(rendered_object Deployment jaeger-goose)" 'replicas: 0'
+}
+
 testBothProcessesReadTheAgentSecret() {
   assertEquals "Jaeger and Goose need the same agent credential" 2 \
     "$(printf '%s\n' "$RENDERED" | grep -c 'key: GOOSE_SERVER__SECRET_KEY')"
@@ -179,6 +183,8 @@ testChatLimitsDoNotCoverBrowsingOrMcp() {
   assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-rpm: "10"'
   assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-connections: "2"'
   assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"'
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-allowlist: ""'
+  assertContains "$chat" 'nginx.ingress.kubernetes.io/limit-whitelist: ""'
   assertContains "$chat" 'nginx.ingress.kubernetes.io/proxy-buffering: "off"'
   assertContains "$chat" "path: /api/ai/chat"
   assertContains "$chat" "pathType: Exact"

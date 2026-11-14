@@ -99,7 +99,8 @@ extraObjects:
     metadata:
       name: jaeger-goose
     spec:
-      replicas: 1
+      # Activate deliberately after account, ingress, and CNI checks pass.
+      replicas: 0
       selector:
         matchLabels:
           app.kubernetes.io/name: jaeger-goose
