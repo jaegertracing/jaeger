@@ -56,9 +56,17 @@ func newHoistedColumnReader() *Reader {
 	return NewReader(driver, config)
 }
 
+// nestedSelectSpans and nestedSelectSpansByTraceID are the statements that read spans from
+// a table in the nested layout, which the test driver matches its responses by.
+var (
+	nestedSelectSpans          = AttributeLayoutNested.selectSpans()
+	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
+)
+
 func TestAttributeBuilder_AppendEquals(t *testing.T) {
 	tests := []struct {
 		name           string
+		layout         AttributeLayout
 		hoistedColumns []HoistedColumn
 		level          expression.Level
 		tav            typedAttributeValue
@@ -129,11 +137,56 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 			},
 			wantArgs: []any{"model", "x"},
 		},
+		{
+			name:   "map layout span attribute",
+			layout: AttributeLayoutMap,
+			level:  expression.LevelSpan,
+			tav: typedAttributeValue{
+				key:       "model",
+				value:     "x",
+				valueType: pcommon.ValueTypeStr,
+			},
+			wantArgs: []any{"model", "model", "x"},
+		},
+		{
+			name:   "map layout resource attribute",
+			layout: AttributeLayoutMap,
+			level:  expression.LevelResource,
+			tav: typedAttributeValue{
+				key:       "shard",
+				value:     int64(0),
+				valueType: pcommon.ValueTypeInt,
+			},
+			wantArgs: []any{"shard", "shard", int64(0)},
+		},
+		{
+			name:   "map layout link attribute",
+			layout: AttributeLayoutMap,
+			level:  expression.LevelLink,
+			tav: typedAttributeValue{
+				key:       "retry",
+				value:     true,
+				valueType: pcommon.ValueTypeBool,
+			},
+			wantArgs: []any{"retry", "retry", true},
+		},
+		{
+			name:           "map layout hoisted span attribute",
+			layout:         AttributeLayoutMap,
+			hoistedColumns: testHoistedColumns,
+			level:          expression.LevelSpan,
+			tav: typedAttributeValue{
+				key:       "model",
+				value:     "x",
+				valueType: pcommon.ValueTypeStr,
+			},
+			wantArgs: []any{"x"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q sqlBuilder
-			args := newAttributeBuilder(tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
+			args := newAttributeBuilder(tt.layout, tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
 			clickhousetest.VerifyQuerySnapshot(t, q.String())
 			assert.Equal(t, tt.wantArgs, args)
 		})

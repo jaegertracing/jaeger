@@ -12,7 +12,7 @@ import (
 // attributeBuilder writes the conditions that search attributes, so that the way the spans
 // table stores an attribute is decided here and not at each place that builds a query. A
 // Reader owns one and hands it to every sqlBuilder it creates. The zero value writes
-// conditions for a table without hoisted columns.
+// conditions for a table in the nested layout without hoisted columns.
 //
 // TODO: equality is the only attribute condition today. Two additions are expected, and both
 // read the hoisted column of an attribute that has one, as appendEquals does:
@@ -25,6 +25,8 @@ import (
 //     column must not be rebuilt on that method: arrayExists matches every value of a key
 //     that a span carries more than once, and a single-value expression does not.
 type attributeBuilder struct {
+	// layout is the layout of the typed attribute groups.
+	layout AttributeLayout
 	// columnBySource maps a hoisted attribute to the name of its column.
 	columnBySource map[hoistedSource]string
 }
@@ -37,8 +39,11 @@ type hoistedSource struct {
 	valueType pcommon.ValueType
 }
 
-func newAttributeBuilder(columns []HoistedColumn) attributeBuilder {
-	builder := attributeBuilder{columnBySource: make(map[hoistedSource]string, len(columns))}
+func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attributeBuilder {
+	builder := attributeBuilder{
+		layout:         layout,
+		columnBySource: make(map[hoistedSource]string, len(columns)),
+	}
 	for _, column := range columns {
 		source := hoistedSource{
 			level:     column.Level,
@@ -122,9 +127,25 @@ func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, le
 		q.WriteString("(" + column + " IS NOT NULL AND " + column + " = ?)")
 		return append(args, tav.value)
 	}
-	if prefix, nested := levelColumns(level); nested {
-		// Events and links are arrays inside the span row, so the condition searches the
-		// attributes of every item.
+	// Events and links are arrays inside the span row, so their condition searches the
+	// attributes of every item.
+	prefix, nested := levelColumns(level)
+	if b.layout == AttributeLayoutMap {
+		// The subscript of a key that the map does not hold returns the default value of the
+		// type, which would match a search for zero, false or an empty string, so the
+		// condition tests that the key is there. The subscript returns the first value of a
+		// key that a span carries more than once, so a search for a later value does not
+		// match, unlike the array condition of the nested layout.
+		if nested {
+			group := "x." + attributeColumnType(tav.valueType) + "_attributes"
+			q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + "[?] = ?, s." + prefix + ")")
+		} else {
+			group := "s." + attributeGroup(level, tav.valueType)
+			q.WriteString("(mapContains(" + group + ", ?) AND " + group + "[?] = ?)")
+		}
+		return append(args, tav.key, tav.key, tav.value)
+	}
+	if nested {
 		columnType := attributeColumnType(tav.valueType)
 		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
 	} else {

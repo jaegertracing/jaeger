@@ -82,17 +82,22 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 	return args
 }
 
-func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
-	var q sqlBuilder
-	q.WriteString(sql.SelectSpansByTraceID)
+// appendSelectSpans writes the statement that reads spans, without the newline that ends it.
+func (q *sqlBuilder) appendSelectSpans() {
+	q.WriteString(strings.TrimRight(q.attrBuilder.layout.selectSpans(), "\n"))
+}
+
+func (r *Reader) buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
+	q := r.newSQLBuilder()
+	q.WriteString(r.attrBuilder.layout.selectSpans() + " WHERE s.trace_id = ?")
 	args := []any{params.TraceID}
 	args = q.appendTimeRange(args, params.Start, params.End)
 	return q.String(), args
 }
 
-func buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
-	var q sqlBuilder
-	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
+func (r *Reader) buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
+	q := r.newSQLBuilder()
+	q.appendSelectSpans()
 	q.WriteString("\nWHERE ")
 	args := make([]any, 0, 3*len(traceIDs))
 	for i, trace := range traceIDs {
