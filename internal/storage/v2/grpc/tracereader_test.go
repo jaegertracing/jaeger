@@ -1203,6 +1203,84 @@ func TestSpanQueryConversion(t *testing.T) {
 	}
 }
 
+func TestGetTracesRemoteEarlyExit(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	canceled := make(chan struct{})
+	var rpcCtx context.Context
+	reader.On("GetTraces", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+			<-rpcCtx.Done()
+			close(canceled)
+		})).Once()
+	count := 0
+	for _, err := range spanRemote(t, reader).GetTraces(t.Context(), tracestore.GetTraceParams{}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the remote reader did not receive cancellation")
+	}
+	reader.AssertExpectations(t)
+}
+
+func TestFindTracesRemoteEarlyExit(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	canceled := make(chan struct{})
+	var rpcCtx context.Context
+	reader.On("FindTraces", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+			<-rpcCtx.Done()
+			close(canceled)
+		})).Once()
+	count := 0
+	for _, err := range spanRemote(t, reader).FindTraces(t.Context(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the remote reader did not receive cancellation")
+	}
+	reader.AssertExpectations(t)
+}
+
+func TestFindTraceSummariesRemoteEarlyExit(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	canceled := make(chan struct{})
+	var rpcCtx context.Context
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+		Return(iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{}}}, nil)
+			<-rpcCtx.Done()
+			close(canceled)
+		})).Once()
+	count := 0
+	for _, err := range spanRemote(t, reader).FindTraceSummaries(t.Context(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the remote reader did not receive cancellation")
+	}
+	reader.AssertExpectations(t)
+}
+
 func TestSpanRemoteEarlyExit(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	canceled := make(chan struct{})
