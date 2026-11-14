@@ -220,6 +220,25 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	}
 }
 
+func TestStaticHandlerSetsContentSecurityPolicy(t *testing.T) {
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r,
+		zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}},
+		noBackendCaps,
+	)
+	defer closer.Close()
+
+	uiResponse := httptest.NewRecorder()
+	r.ServeHTTP(uiResponse, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+	assert.Equal(t, uiContentSecurityPolicy, uiResponse.Header().Get("Content-Security-Policy"))
+
+	assetResponse := httptest.NewRecorder()
+	r.ServeHTTP(assetResponse, httptest.NewRequest(http.MethodGet, "/static/asset.txt", http.NoBody))
+	assert.Empty(t, assetResponse.Header().Get("Content-Security-Policy"))
+}
+
 func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 	var available atomic.Bool
 	r := http.NewServeMux()
