@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -9,10 +7,6 @@
  * This script implements a "Waiting Room" system that limits concurrent open PRs
  * from contributors based on their merge history, automatically unlocking queued PRs
  * when quota becomes available.
- *
- * Usage:
- *   - Via GitHub Actions (integrated with actions/github-script)
- *   - Manual execution: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]
  */
 
 const LABEL_NAME = 'pr-quota-reached';
@@ -336,45 +330,6 @@ Thank you for your patience.`;
 }
 
 
-/**
- * Main execution function for manual CLI usage
- */
-async function main() {
-  const args = process.argv.slice(2);
-
-  if (args.length < 1) {
-    console.error('Usage: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]');
-    process.exit(1);
-  }
-
-  const username = args[0];
-  const owner = args[1] || process.env.GITHUB_REPOSITORY?.split('/')[0] || 'jaegertracing';
-  const repo = args[2] || process.env.GITHUB_REPOSITORY?.split('/')[1] || 'jaeger';
-  const dryRun = process.env.DRY_RUN === 'true' || args.includes('--dry-run');
-
-  if (!process.env.GITHUB_TOKEN) {
-    console.error('Error: GITHUB_TOKEN environment variable is required');
-    process.exit(1);
-  }
-
-  // Import @octokit/rest dynamically for CLI usage
-  const { Octokit } = await import('@octokit/rest');
-  const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN
-  });
-
-  try {
-    const result = await processQuotaForAuthor(octokit, owner, repo, username, console, dryRun);
-    console.log('\n📋 Summary:');
-    console.log(`  - Blocked: ${result.results.blocked.length} PRs`);
-    console.log(`  - Unblocked: ${result.results.unblocked.length} PRs`);
-    console.log(`  - Unchanged: ${result.results.unchanged.length} PRs`);
-  } catch (error) {
-    console.error('Error:', error.message);
-    process.exit(1);
-  }
-}
-
 // GitHub Actions wrapper function
 async function githubActionHandler({ github, core, username, owner, repo, dryRun = false }) {
   if (!owner || !repo) {
@@ -417,12 +372,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports.postUnblockingComment = postUnblockingComment;
   module.exports.LABEL_NAME = LABEL_NAME;
   module.exports.LABEL_COLOR = LABEL_COLOR;
-}
-
-// Run main function if executed directly
-if (require.main === module) {
-  main().catch(error => {
-    console.error('Fatal error:', error);
-    process.exit(1);
-  });
 }
