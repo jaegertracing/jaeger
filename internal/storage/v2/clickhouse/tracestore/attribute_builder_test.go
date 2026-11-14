@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -137,51 +138,6 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 			},
 			wantArgs: []any{"model", "x"},
 		},
-		{
-			name:   "map layout span attribute",
-			layout: MapLayout{},
-			level:  expression.LevelSpan,
-			tav: typedAttributeValue{
-				key:       "model",
-				value:     "x",
-				valueType: pcommon.ValueTypeStr,
-			},
-			wantArgs: []any{"model", "model", "x"},
-		},
-		{
-			name:   "map layout resource attribute",
-			layout: MapLayout{},
-			level:  expression.LevelResource,
-			tav: typedAttributeValue{
-				key:       "shard",
-				value:     int64(0),
-				valueType: pcommon.ValueTypeInt,
-			},
-			wantArgs: []any{"shard", "shard", int64(0)},
-		},
-		{
-			name:   "map layout link attribute",
-			layout: MapLayout{},
-			level:  expression.LevelLink,
-			tav: typedAttributeValue{
-				key:       "retry",
-				value:     true,
-				valueType: pcommon.ValueTypeBool,
-			},
-			wantArgs: []any{"retry", "retry", true},
-		},
-		{
-			name:           "map layout hoisted span attribute",
-			layout:         MapLayout{},
-			hoistedColumns: testHoistedColumns,
-			level:          expression.LevelSpan,
-			tav: typedAttributeValue{
-				key:       "model",
-				value:     "x",
-				valueType: pcommon.ValueTypeStr,
-			},
-			wantArgs: []any{"x"},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -191,6 +147,51 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 			assert.Equal(t, tt.wantArgs, args)
 		})
 	}
+}
+
+// TestAttributeBuilder_AppendEquals_MapLayout snapshots the condition for every level and
+// value type in one file. The span attribute "model" and the resource attribute "shard" are
+// hoisted, and each condition is followed by the values that it binds.
+func TestAttributeBuilder_AppendEquals_MapLayout(t *testing.T) {
+	levels := []expression.Level{
+		expression.LevelSpan,
+		expression.LevelResource,
+		expression.LevelScope,
+		expression.LevelEvent,
+		expression.LevelLink,
+	}
+	attributes := []typedAttributeValue{
+		{
+			key:       "model",
+			value:     "x",
+			valueType: pcommon.ValueTypeStr,
+		},
+		{
+			key:       "shard",
+			value:     int64(0),
+			valueType: pcommon.ValueTypeInt,
+		},
+		{
+			key:       "ratio",
+			value:     0.5,
+			valueType: pcommon.ValueTypeDouble,
+		},
+		{
+			key:       "retry",
+			value:     true,
+			valueType: pcommon.ValueTypeBool,
+		},
+	}
+	builder := newAttributeBuilder(MapLayout{}, testHoistedColumns)
+	var q sqlBuilder
+	for _, level := range levels {
+		for _, tav := range attributes {
+			fmt.Fprintf(&q, "\n-- %s attribute %q", level, tav.key)
+			args := builder.appendEquals(&q, 0, nil, level, tav)
+			fmt.Fprintf(&q, " -- binds %v", args)
+		}
+	}
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 }
 
 func TestAttributeColumnType(t *testing.T) {
