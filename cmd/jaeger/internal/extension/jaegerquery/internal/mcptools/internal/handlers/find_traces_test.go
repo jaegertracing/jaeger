@@ -59,7 +59,9 @@ func TestToMCPTraceSummary_Basic(t *testing.T) {
 	assert.Equal(t, []string{"frontend"}, out.Services)
 	assert.False(t, out.HasErrors)
 	assert.NotEmpty(t, out.StartTime)
-	assert.Positive(t, out.DurationUs)
+	d, err := time.ParseDuration(out.Duration)
+	require.NoError(t, err)
+	assert.Positive(t, d)
 }
 
 func TestToMCPTraceSummary_WithErrors(t *testing.T) {

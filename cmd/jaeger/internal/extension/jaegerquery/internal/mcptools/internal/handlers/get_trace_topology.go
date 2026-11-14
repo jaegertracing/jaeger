@@ -156,7 +156,7 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 		Service:           serviceName,
 		SpanName:          rs.span.Name(),
 		StartTime:         rs.span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		DurationUs:        duration.Microseconds(),
+		Duration:          duration.String(),
 		Status:            rs.span.Status().Code().String(),
 		TruncatedChildren: truncatedChildren,
 	}

@@ -28,7 +28,7 @@ type SpanDetail struct {
 	Service      string         `json:"service" jsonschema:"Service name from resource attributes"`
 	SpanName     string         `json:"span_name" jsonschema:"Span name"`
 	StartTime    string         `json:"start_time" jsonschema:"Span start time in RFC3339 format"`
-	DurationUs   int64          `json:"duration_us" jsonschema:"Span duration in microseconds"`
+	Duration     string         `json:"duration" jsonschema:"Span duration (e.g. 1.25s, 250ms)"`
 	Status       SpanStatus     `json:"status" jsonschema:"Span status information"`
 	Attributes   map[string]any `json:"attributes,omitempty" jsonschema:"Span attributes"`
 	Events       []SpanEvent    `json:"events,omitempty" jsonschema:"Span events"`

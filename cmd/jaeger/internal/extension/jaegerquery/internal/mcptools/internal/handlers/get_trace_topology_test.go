@@ -8,6 +8,7 @@ import (
 	"errors"
 	"iter"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -613,7 +614,9 @@ func TestGetTraceTopologyHandler_Handle_PreservesTimingInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Spans, 1)
 	assert.NotEmpty(t, output.Spans[0].StartTime)
-	assert.NotZero(t, output.Spans[0].DurationUs)
+	d, err := time.ParseDuration(output.Spans[0].Duration)
+	require.NoError(t, err)
+	assert.Positive(t, d)
 }
 
 func TestGetTraceTopologyHandler_Handle_DFSOrder(t *testing.T) {
