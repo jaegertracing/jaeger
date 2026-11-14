@@ -55,7 +55,7 @@ graph TD
     end
 ```
 
-Jaeger is a distributed tracing platform created by [Uber Technologies](https://eng.uber.com/distributed-tracing/) and donated to [Cloud Native Computing Foundation](https://cncf.io).
+Jaeger is a distributed tracing platform created by Uber Technologies and donated to [Cloud Native Computing Foundation](https://cncf.io).
 
 See Jaeger [documentation][doc] for getting started, operational details, and other information.
 
