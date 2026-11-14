@@ -99,8 +99,8 @@ extraObjects:
     metadata:
       name: jaeger-goose
     spec:
-      # Activate deliberately after account, ingress, and CNI checks pass.
-      replicas: 0
+      # Account, ingress, and CNI prerequisites must pass before activation.
+      replicas: 1
       selector:
         matchLabels:
           app.kubernetes.io/name: jaeger-goose

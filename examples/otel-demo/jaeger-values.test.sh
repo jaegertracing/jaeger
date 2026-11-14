@@ -153,8 +153,13 @@ testGooseUsesBoundedDirectOpenAiRequests() {
   assertNotContains "$RENDERED" "OPENROUTER_API_KEY"
 }
 
-testGooseStartsDisabledUntilRolloutPrerequisitesPass() {
-  assertContains "$(rendered_object Deployment jaeger-goose)" 'replicas: 0'
+testGooseSupportsDisabledOrSingleAgentOperation() {
+  local replicas
+  replicas=$(rendered_object Deployment jaeger-goose | awk '/^  replicas:/{print $2}')
+  case "$replicas" in
+    0|1) ;;
+    *) fail "Goose supports only disabled or single-agent operation; got '$replicas'" ;;
+  esac
 }
 
 testBothProcessesReadTheAgentSecret() {

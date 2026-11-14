@@ -5,9 +5,9 @@ directly and calls Jaeger's MCP tools to inspect real services and traces.
 Provider credentials never reach the Jaeger browser client. Once deployed, ordinary
 tracing remains available if the agent stops or OpenAI rejects its requests. A new
 Helm rollout with Goose enabled still waits for it: an image-pull or startup
-failure blocks the release and can trigger its atomic rollback. The source
-starts Goose scaled to zero, so scheduled reconciliation cannot activate paid
-chat before the rollout prerequisites are verified.
+failure blocks the release and can trigger its atomic rollback. The Deployment's
+declared replica count controls activation, including push and scheduled
+reconciliation. Complete the preactivation checks before enabling it.
 
 ## Provision before deployment
 
