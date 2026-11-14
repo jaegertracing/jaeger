@@ -98,6 +98,10 @@ if [[ "$MODE" == "upgrade" ]]; then
   fi
   if deploy_monitoring; then
     PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
+    # Unlike Jaeger, a failed Prometheus release is upgraded in place instead of
+    # being reinstalled: its pods usually recover after the readiness timeout
+    # that failed the release, and an upgrade leaves them running. Helm refuses
+    # to upgrade while another operation is pending.
     case "$PROMETHEUS_RELEASE_STATUS" in
       deployed|failed) ;;
       *)

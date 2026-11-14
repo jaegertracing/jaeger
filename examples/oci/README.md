@@ -38,10 +38,17 @@ JAEGER_DEMO_DEPLOY_SCOPE=monitoring bash examples/oci/deploy-all.sh upgrade
 ```
 
 The script upgrades `deployed` and `failed` Prometheus releases in place. A
-missing release or a pending Helm operation requires separate repair. The
-monitoring upgrade waits up to 20 minutes, and Grafana's liveness checks start
-after 10 minutes to allow index creation and plugin installation to finish.
-Readiness checks gate traffic while Grafana initializes.
+missing release or a pending Helm operation requires separate repair.
+
+Helm waits up to 20 minutes for the monitoring upgrade. With Helm 4 the wait
+for Grafana ends earlier if its Deployment exceeds the Kubernetes default
+10-minute progress deadline, which a cold image pull can use up. Helm then
+marks the release `failed`, and the next upgrade retries it in place once the
+pod is ready.
+
+Grafana's liveness checks start after 10 minutes to allow index creation and
+plugin installation to finish. Readiness checks gate traffic while Grafana
+initializes.
 
 ## Access the Deployment
 
