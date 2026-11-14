@@ -109,10 +109,8 @@ def reconcile(env, root=ROOT):
         raise ValueError("Invalid demo stack or mode")
     if event != "workflow_dispatch" and mode != "upgrade":
         raise ValueError("Automatic demo deployments must use upgrade mode")
-    if env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "waive" and (
-            event != "workflow_dispatch" or env.get("GITHUB_REF") != "refs/heads/main"
-            or stack != "otel" or scope != "opensearch" or mode != "upgrade"):
-        raise ValueError("Recovery waiver requires a manual main/otel/upgrade/opensearch deployment")
+    if env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") not in ("required", "waive"):
+        raise ValueError("Invalid OpenSearch recovery policy")
     if event == "workflow_dispatch" and mode == "clean":
         # Clean is an explicit whole-stack operation, not a per-component loop.
         resolve_snapshots(env)
