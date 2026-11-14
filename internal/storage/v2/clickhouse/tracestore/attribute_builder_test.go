@@ -134,7 +134,7 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var q sqlBuilder
 			args := newAttributeBuilder(tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
-			verifyQuerySnapshot(t, q.String())
+			clickhousetest.VerifyQuerySnapshot(t, q.String())
 			assert.Equal(t, tt.wantArgs, args)
 		})
 	}

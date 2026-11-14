@@ -304,7 +304,7 @@ func TestBuildSimpleAttributeCondition_HoistedColumn(t *testing.T) {
 
 	args := q.buildSimpleAttributeCondition(nil, "model", pcommon.ValueTypeStr, "x")
 
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{"x", "model", "x", "model", "x", "model", "x", "model", "x"}, args)
 }
 
@@ -320,6 +320,6 @@ func TestBuildStringAttributeCondition_HoistedColumn(t *testing.T) {
 
 	args := q.buildStringAttributeCondition(nil, "shard", pcommon.NewValueStr("7"), metadata)
 
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{int64(7)}, args)
 }

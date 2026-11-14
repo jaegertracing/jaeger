@@ -857,7 +857,7 @@ func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
 		q := reader.newSQLBuilder()
 		args, err := lowerFilter(t, reader, q, p.Not(p.Span().Attr("model").Eq(p.String("x"))))
 		require.NoError(t, err)
-		verifyQuerySnapshot(t, q.String())
+		clickhousetest.VerifyQuerySnapshot(t, q.String())
 		assert.Equal(t, []any{"x"}, args)
 	})
 
@@ -865,7 +865,7 @@ func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
 		q := reader.newSQLBuilder()
 		args, err := lowerFilter(t, reader, q, p.Attr("model").Eq(p.String("x")))
 		require.NoError(t, err)
-		verifyQuerySnapshot(t, q.String())
+		clickhousetest.VerifyQuerySnapshot(t, q.String())
 		assert.Equal(t, []any{"x", "model", "x"}, args)
 	})
 }
@@ -879,6 +879,6 @@ func TestBuildUntypedAttributeEq_HoistedColumn(t *testing.T) {
 	args, err := lowerFilter(t, reader, q, p.Resource().Attr("shard").Eq("7"))
 
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{int64(7)}, args)
 }
