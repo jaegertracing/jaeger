@@ -4,6 +4,8 @@
 
 package cassandra
 
+import "context"
+
 // Consistency is Cassandra's consistency level for queries.
 type Consistency uint16
 
@@ -50,6 +52,7 @@ type UpdateQuery interface {
 type Query interface {
 	UpdateQuery
 	Iter() Iterator
+	IterContext(context.Context) Iterator
 	Bind(v ...any) Query
 	Consistency(level Consistency) Query
 	PageSize(int) Query
