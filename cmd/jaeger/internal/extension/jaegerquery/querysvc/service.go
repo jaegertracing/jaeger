@@ -64,6 +64,10 @@ type GetTraceParams struct {
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
+	// OnTraceTruncated is called before yielding an adjusted trace whose spans were
+	// dropped by MaxTraceSize in this request. Stored warnings do not trigger it.
+	// It is not called when RawTraces is true.
+	OnTraceTruncated func(pcommon.TraceID)
 }
 
 // Pagination asks for one page of a search result and, on continuation, says where the previous
@@ -168,7 +172,7 @@ func (qs QueryService) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
-		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
+		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces, params.OnTraceTruncated)
 		if proceed && qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
 			for _, id := range params.TraceIDs {
@@ -180,7 +184,7 @@ func (qs QueryService) GetTraces(
 				getArchiveTracesIter := qs.interceptTraceResults(
 					ctx, qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...),
 				)
-				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces)
+				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces, params.OnTraceTruncated)
 			}
 		}
 	}
@@ -246,7 +250,7 @@ func (qs QueryService) FindTraces(
 			return
 		}
 		tracesIter := qs.interceptTraceResults(ctx, qs.traceReader.FindTraces(ctx, readerQuery))
-		qs.receiveTraces(tracesIter, yield, query.RawTraces)
+		qs.receiveTraces(tracesIter, yield, query.RawTraces, nil)
 	}
 }
 
@@ -585,6 +589,7 @@ func (qs QueryService) receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	yield func([]ptrace.Traces, error) bool,
 	rawTraces bool,
+	onTraceTruncated func(pcommon.TraceID),
 ) (map[pcommon.TraceID]struct{}, bool) {
 	foundTraceIDs := make(map[pcommon.TraceID]struct{})
 	proceed := true
@@ -610,8 +615,11 @@ func (qs QueryService) receiveTraces(
 	if rawTraces {
 		seq(processTraces)
 	} else {
-		jptrace.AggregateTracesWithLimit(seq, qs.options.MaxTraceSize)(func(trace ptrace.Traces, err error) bool {
-			return processTraces([]ptrace.Traces{trace}, err)
+		jptrace.AggregateTracesWithLimitAndMetadata(seq, qs.options.MaxTraceSize)(func(result jptrace.AggregatedTrace, err error) bool {
+			if result.Truncated && onTraceTruncated != nil {
+				onTraceTruncated(jptrace.GetTraceID(result.Traces))
+			}
+			return processTraces([]ptrace.Traces{result.Traces}, err)
 		})
 	}
 
