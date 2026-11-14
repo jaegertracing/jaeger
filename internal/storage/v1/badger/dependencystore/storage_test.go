@@ -78,3 +78,44 @@ func TestDependencyReader(t *testing.T) {
 		assert.Equal(t, uint64(traces), links[0].CallCount) // Each trace calls the same services
 	})
 }
+
+func TestDependencyReaderReadsAllTracesInWindow(t *testing.T) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
+		start := time.Now().Add(-time.Minute)
+		// More traces than the default trace search limit of 100. The oldest
+		// trace is the only one that calls payments.
+		traces := 150
+		for i := range traces {
+			child := "database"
+			if i == 0 {
+				child = "payments"
+			}
+			traceID := model.TraceID{Low: uint64(i), High: 1}
+			parent := model.Span{
+				TraceID:       traceID,
+				SpanID:        model.SpanID(1),
+				OperationName: "request",
+				Process:       &model.Process{ServiceName: "frontend"},
+				StartTime:     start.Add(time.Duration(i) * time.Millisecond),
+				Duration:      time.Millisecond,
+			}
+			span := parent
+			span.SpanID = model.SpanID(2)
+			span.Process = &model.Process{ServiceName: child}
+			span.References = []model.SpanRef{model.NewChildOfRef(traceID, parent.SpanID)}
+			require.NoError(t, sw.WriteSpan(context.Background(), &parent))
+			require.NoError(t, sw.WriteSpan(context.Background(), &span))
+		}
+
+		links, err := dr.GetDependencies(context.Background(), time.Now(), time.Hour)
+		require.NoError(t, err)
+		callCounts := map[string]uint64{}
+		for _, link := range links {
+			callCounts[link.Parent+"->"+link.Child] = link.CallCount
+		}
+		assert.Equal(t, map[string]uint64{
+			"frontend->database": uint64(traces - 1),
+			"frontend->payments": 1,
+		}, callCounts)
+	})
+}
