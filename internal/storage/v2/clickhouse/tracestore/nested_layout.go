@@ -11,7 +11,7 @@ type NestedLayout struct{}
 
 var _ AttributeLayout = NestedLayout{}
 
-func (NestedLayout) insertColumns(group string) []string {
+func (NestedLayout) columnNames(group string) []string {
 	return []string{group + ".key", group + ".value"}
 }
 

@@ -15,12 +15,13 @@ import (
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
 // statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
 type AttributeLayout interface {
-	// insertColumns returns the column names that the INSERT statement lists for one attribute
-	// group of a span, a resource or a scope. For str_attributes the nested layout lists
-	// str_attributes.key and str_attributes.value, and the map layout lists str_attributes.
-	insertColumns(group string) []string
+	// columnNames returns the names of the columns that store one attribute group of a span,
+	// a resource or a scope, as the INSERT statement lists them. For str_attributes they are
+	// str_attributes.key and str_attributes.value in the nested layout, and str_attributes in
+	// the map layout.
+	columnNames(group string) []string
 	// appendAttributes appends the values that the INSERT statement binds to the columns
-	// of insertColumns, for the five typed groups of a span, a resource or a scope.
+	// that columnNames returns, for the five typed groups of a span, a resource or a scope.
 	appendAttributes(values []any, attributes dbmodel.Attributes) []any
 	// appendAttributes2D appends the values that the INSERT statement binds for the five
 	// typed groups of the events or of the links. Such a group is one column in every layout,
@@ -107,7 +108,7 @@ func insertSpan(layout AttributeLayout) string {
 	var names []string
 	for _, column := range spanColumns() {
 		if column.kind == attributesColumn {
-			names = append(names, layout.insertColumns(column.name)...)
+			names = append(names, layout.columnNames(column.name)...)
 		} else {
 			names = append(names, column.name)
 		}
