@@ -130,6 +130,14 @@ func insertSpan(layout AttributeLayout) string {
 	return fmt.Sprintf(insertSpanFormat, indentedList(names, 2), indentedList(placeholders, 2))
 }
 
+// selectSpansFormat takes the list of the expressions to select.
+const selectSpansFormat = `
+SELECT
+    %s
+FROM
+    spans s
+`
+
 // selectSpans returns the statement that reads spans from a table of the given layout, up to
 // and including its FROM clause. Every layout yields a group as its keys and its values, so
 // a span is scanned the same way from any of them.
@@ -145,10 +153,5 @@ func selectSpans(layout AttributeLayout) string {
 			expressions = append(expressions, column.name)
 		}
 	}
-	var q sqlBuilder
-	q.WriteString("SELECT")
-	q.appendCommaSeparated(1, expressions)
-	q.appendNewlineAndIndent(0)
-	q.WriteString("FROM spans s")
-	return q.String()
+	return fmt.Sprintf(selectSpansFormat, indentedList(expressions, 1))
 }

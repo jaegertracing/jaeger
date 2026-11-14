@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -290,7 +291,7 @@ func TestBuildFindTracesQuery(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q, args := (&Reader{}).buildFindTracesQuery(tc.bounds)
-			require.Equal(t, nestedSelectSpans+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
+			require.Equal(t, strings.TrimRight(nestedSelectSpans, "\n")+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
 			require.Equal(t, tc.args, args)
 		})
 	}
