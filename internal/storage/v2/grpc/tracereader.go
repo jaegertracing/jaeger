@@ -186,11 +186,8 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
 		for i, foundTraceID := range resp.TraceIds {
-			var sizedTraceID [16]byte
-			copy(sizedTraceID[:], foundTraceID.TraceId)
-
 			foundTraceIDs[i] = tracestore.FoundTraceID{
-				TraceID: pcommon.TraceID(sizedTraceID),
+				TraceID: traceIDFromBytes(foundTraceID.TraceId),
 				Start:   foundTraceID.Start,
 				End:     foundTraceID.End,
 			}
@@ -293,8 +290,6 @@ func (tr *TraceReader) FindTraceSummaries(
 func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSummary {
 	batch := make([]tracestore.TraceSummary, len(protos))
 	for i, ps := range protos {
-		var traceID [16]byte
-		copy(traceID[:], ps.GetTraceId())
 		svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
 		for j, ss := range ps.GetServices() {
 			svcs[j] = tracestore.ServiceSummary{
@@ -304,7 +299,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 			}
 		}
 		batch[i] = tracestore.TraceSummary{
-			TraceID:           pcommon.TraceID(traceID),
+			TraceID:           traceIDFromBytes(ps.GetTraceId()),
 			RootServiceName:   ps.GetRootServiceName(),
 			RootOperationName: ps.GetRootOperationName(),
 			MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
@@ -316,6 +311,19 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 		}
 	}
 	return batch
+}
+
+// traceIDFromBytes converts a byte slice into a pcommon.TraceID.
+// If the input is 8 bytes (a 64-bit trace ID), it is placed in the low 64-bit half,
+// matching model.TraceIDFromBytes semantics.
+func traceIDFromBytes(b []byte) pcommon.TraceID {
+	var sizedTraceID [16]byte
+	if len(b) == 8 {
+		copy(sizedTraceID[8:], b)
+	} else {
+		copy(sizedTraceID[:], b)
+	}
+	return pcommon.TraceID(sizedTraceID)
 }
 
 // toProtoQueryParameters encodes a query for the remote server. Encoding the filter can fail, for
