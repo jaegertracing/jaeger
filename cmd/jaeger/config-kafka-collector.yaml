@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp, jaeger]
-      processors: [batch]
+      processors: []
       exporters: [kafka]
   telemetry:
     resource:
@@ -38,7 +38,6 @@ receivers:
       thrift_http:
 
 processors:
-  batch:
 
 exporters:
   kafka:
@@ -47,3 +46,10 @@ exporters:
     traces:
       topic: ${env:KAFKA_TOPIC:-jaeger-spans}
       encoding: ${env:KAFKA_ENCODING:-otlp_proto}
+    sending_queue:
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms

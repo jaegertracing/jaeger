@@ -16,18 +16,24 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
+    sending_queue:
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms
 
 connectors:
   spanmetrics:
 
 processors:
-  batch:
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [spanmetrics, otlp]
 
     # The metrics pipeline receives generated span metrics from 'spanmetrics' connector
