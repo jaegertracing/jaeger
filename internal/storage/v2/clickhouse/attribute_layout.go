@@ -18,31 +18,30 @@ import (
 // configuration, and the statements of one layout fail on a table of the other only when the
 // first span is written or read. A table that does not exist passes the check.
 func checkAttributeLayout(ctx context.Context, conn driver.Conn, configured chtracestore.AttributeLayout) error {
-	rows, err := conn.Query(ctx, sql.SelectAttributeLayout)
+	rows, err := conn.Query(ctx, sql.SelectAttributeGroupType)
 	if err != nil {
 		return fmt.Errorf("failed to read the attribute layout of the spans table: %w", err)
 	}
 	defer rows.Close()
 	// The rows are read to the end, because the driver reports an error of the result stream
 	// only after the last row.
-	var stored chtracestore.AttributeLayout
+	var columnTypes []string
 	for rows.Next() {
-		var isMap uint8
-		if err := rows.Scan(&isMap); err != nil {
+		var columnType string
+		if err := rows.Scan(&columnType); err != nil {
 			return fmt.Errorf("failed to read the attribute layout of the spans table: %w", err)
 		}
-		stored = chtracestore.AttributeLayoutNested
-		if isMap != 0 {
-			stored = chtracestore.AttributeLayoutMap
-		}
+		columnTypes = append(columnTypes, columnType)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("failed to read the attribute layout of the spans table: %w", err)
 	}
-	if stored != "" && stored != configured {
-		return fmt.Errorf("the spans table stores attributes in the %s layout, and attribute_layout is %s; "+
-			"an existing table is not converted, so set attribute_layout to %s or create the tables in a new database",
-			stored, configured, stored)
+	for _, columnType := range columnTypes {
+		if !configured.Declares(columnType) {
+			return fmt.Errorf("the spans table declares its string attributes as %s, which is not the %s layout that attribute_layout selects; "+
+				"an existing table is not converted, so change attribute_layout or create the tables in a new database",
+				columnType, configured.Name())
+		}
 	}
 	return nil
 }

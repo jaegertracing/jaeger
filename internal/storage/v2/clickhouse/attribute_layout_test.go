@@ -17,56 +17,61 @@ func TestCheckAttributeLayout(t *testing.T) {
 	tests := []struct {
 		name       string
 		configured chtracestore.AttributeLayout
-		// isMap is the rows of the lookup: none when the spans table does not exist.
-		isMap    []uint8
-		queryErr error
-		scanErr  error
-		rowsErr  error
-		wantErr  string
+		// columnTypes is the rows of the lookup: none when the spans table does not exist.
+		columnTypes []string
+		queryErr    error
+		scanErr     error
+		rowsErr     error
+		wantErr     string
 	}{
 		{
-			name:       "nested table and nested configuration",
-			configured: chtracestore.AttributeLayoutNested,
-			isMap:      []uint8{0},
+			name:        "nested table and nested configuration",
+			configured:  chtracestore.NestedLayout{},
+			columnTypes: []string{"Array(String)"},
 		},
 		{
-			name:       "map table and map configuration",
-			configured: chtracestore.AttributeLayoutMap,
-			isMap:      []uint8{1},
+			name:        "nested table without flatten_nested",
+			configured:  chtracestore.NestedLayout{},
+			columnTypes: []string{"Nested(key String, value String)"},
+		},
+		{
+			name:        "map table and map configuration",
+			configured:  chtracestore.MapLayout{},
+			columnTypes: []string{"Map(String, String)"},
 		},
 		{
 			name:       "no table",
-			configured: chtracestore.AttributeLayoutMap,
+			configured: chtracestore.MapLayout{},
 		},
 		{
-			name:       "map table and nested configuration",
-			configured: chtracestore.AttributeLayoutNested,
-			isMap:      []uint8{1},
-			wantErr: "the spans table stores attributes in the map layout, and attribute_layout is nested; " +
-				"an existing table is not converted, so set attribute_layout to map or create the tables in a new database",
+			name:        "map table and nested configuration",
+			configured:  chtracestore.NestedLayout{},
+			columnTypes: []string{"Map(String, String)"},
+			wantErr: "the spans table declares its string attributes as Map(String, String), which is not the nested layout that attribute_layout selects; " +
+				"an existing table is not converted, so change attribute_layout or create the tables in a new database",
 		},
 		{
-			name:       "nested table and map configuration",
-			configured: chtracestore.AttributeLayoutMap,
-			isMap:      []uint8{0},
-			wantErr:    "the spans table stores attributes in the nested layout, and attribute_layout is map",
+			name:        "nested table and map configuration",
+			configured:  chtracestore.MapLayout{},
+			columnTypes: []string{"Array(String)"},
+			wantErr:     "the spans table declares its string attributes as Array(String), which is not the map layout",
 		},
 		{
 			name:       "query fails",
-			configured: chtracestore.AttributeLayoutNested,
+			configured: chtracestore.NestedLayout{},
 			queryErr:   assert.AnError,
 			wantErr:    "failed to read the attribute layout of the spans table",
 		},
 		{
-			name:       "scan fails",
-			configured: chtracestore.AttributeLayoutNested,
-			isMap:      []uint8{0},
-			scanErr:    assert.AnError,
-			wantErr:    "failed to read the attribute layout of the spans table",
+			name:        "scan fails",
+			configured:  chtracestore.NestedLayout{},
+			columnTypes: []string{"Array(String)"},
+			scanErr:     assert.AnError,
+			wantErr:     "failed to read the attribute layout of the spans table",
 		},
 		{
 			name:       "rows fail",
-			configured: chtracestore.AttributeLayoutNested,
+			configured: chtracestore.NestedLayout{},
 			rowsErr:    assert.AnError,
 			wantErr:    "failed to read the attribute layout of the spans table",
 		},
@@ -76,12 +81,12 @@ func TestCheckAttributeLayout(t *testing.T) {
 			conn := &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					"FROM system.columns": {
-						Rows: &clickhousetest.Rows[uint8]{
-							Data:    tt.isMap,
+						Rows: &clickhousetest.Rows[string]{
+							Data:    tt.columnTypes,
 							ScanErr: tt.scanErr,
 							RowsErr: tt.rowsErr,
-							ScanFn: func(dest any, src uint8) error {
-								*dest.([]any)[0].(*uint8) = src
+							ScanFn: func(dest any, src string) error {
+								*dest.([]any)[0].(*string) = src
 								return nil
 							},
 						},
