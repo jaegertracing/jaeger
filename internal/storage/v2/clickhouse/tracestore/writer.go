@@ -42,7 +42,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
 				sr := dbmodel.ToRow(rs.Resource(), ss.Scope(), span)
-				// The values follow the order of spanColumns.
+				// The values follow the order of the columns in the insert statement.
 				values := []any{
 					sr.ID,
 					sr.TraceID,
