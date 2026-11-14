@@ -15,7 +15,7 @@ func (NestedLayout) insertColumns(group string) []string {
 	return []string{group + ".key", group + ".value"}
 }
 
-func (NestedLayout) appendRowAttributes(values []any, attributes dbmodel.Attributes) []any {
+func (NestedLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		attributes.BoolKeys,
 		attributes.BoolValues,
@@ -30,7 +30,7 @@ func (NestedLayout) appendRowAttributes(values []any, attributes dbmodel.Attribu
 	)
 }
 
-func (NestedLayout) appendItemAttributes(values []any, attributes dbmodel.Attributes2D) []any {
+func (NestedLayout) appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any {
 	return append(values,
 		toTuple(attributes.BoolKeys, attributes.BoolValues),
 		toTuple(attributes.DoubleKeys, attributes.DoubleValues),

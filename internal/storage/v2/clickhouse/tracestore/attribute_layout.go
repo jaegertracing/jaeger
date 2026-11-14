@@ -19,13 +19,13 @@ type AttributeLayout interface {
 	// group of a span, a resource or a scope. For str_attributes the nested layout lists
 	// str_attributes.key and str_attributes.value, and the map layout lists str_attributes.
 	insertColumns(group string) []string
-	// appendRowAttributes appends the values that the INSERT statement binds to the columns
+	// appendAttributes appends the values that the INSERT statement binds to the columns
 	// of insertColumns, for the five typed groups of a span, a resource or a scope.
-	appendRowAttributes(values []any, attributes dbmodel.Attributes) []any
-	// appendItemAttributes appends the values that the INSERT statement binds for the five
+	appendAttributes(values []any, attributes dbmodel.Attributes) []any
+	// appendAttributes2D appends the values that the INSERT statement binds for the five
 	// typed groups of the events or of the links. Such a group is one column in every layout,
 	// and its value holds the attributes of every event or link of the span.
-	appendItemAttributes(values []any, attributes dbmodel.Attributes2D) []any
+	appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
 }
 
 type spanColumnKind int
@@ -33,10 +33,10 @@ type spanColumnKind int
 const (
 	// plainColumn is a column that is not an attribute group.
 	plainColumn spanColumnKind = iota
-	// rowAttributes is an attribute group of the span row: span, resource or scope.
-	rowAttributes
-	// itemAttributes is an attribute group that every event or every link has.
-	itemAttributes
+	// attributesColumn is an attribute group of the span row: span, resource or scope.
+	attributesColumn
+	// attributes2DColumn is an attribute group that every event or every link has.
+	attributes2DColumn
 )
 
 type spanColumn struct {
@@ -72,15 +72,15 @@ func spanColumns() []spanColumn {
 		"status_message",
 		"duration",
 	)
-	groups(rowAttributes, "")
+	groups(attributesColumn, "")
 	plain("events.name", "events.timestamp")
-	groups(itemAttributes, "events.")
+	groups(attributes2DColumn, "events.")
 	plain("links.trace_id", "links.span_id", "links.trace_state")
-	groups(itemAttributes, "links.")
+	groups(attributes2DColumn, "links.")
 	plain("service_name")
-	groups(rowAttributes, "resource_")
+	groups(attributesColumn, "resource_")
 	plain("scope_name", "scope_version")
-	groups(rowAttributes, "scope_")
+	groups(attributesColumn, "scope_")
 	return columns
 }
 
@@ -106,7 +106,7 @@ func indentedList(items []string, depth int) string {
 func insertSpan(layout AttributeLayout) string {
 	var names []string
 	for _, column := range spanColumns() {
-		if column.kind == rowAttributes {
+		if column.kind == attributesColumn {
 			names = append(names, layout.insertColumns(column.name)...)
 		} else {
 			names = append(names, column.name)
