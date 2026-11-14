@@ -28,12 +28,14 @@ type AttributeLayout interface {
 	// typed groups of the events or of the links. Such a group is one column in every layout,
 	// and its value holds the attributes of every event or link of the span.
 	appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
-	// Keys returns the expression for the keys of a group of the span row, and values the
-	// expression for its values, in the same order.
+	// Keys returns the expression that selects the keys of one attribute group of a span, a
+	// resource or a scope, and values the expression that selects its values in the same
+	// order.
 	Keys(group string) string
 	values(group string) string
-	// Keys2D returns the expression for the keys of a group of the events or of the links,
-	// which is one array of keys per item, and values2D the expression for its values.
+	// Keys2D returns the expression that selects the keys of one attribute group of the
+	// events or of the links, as one array of keys per event or link, and values2D the
+	// expression that selects its values.
 	Keys2D(group string) string
 	values2D(group string) string
 	// appendEquals writes to q the condition that the attributes of one level hold the key
@@ -46,7 +48,8 @@ type spanColumnKind int
 const (
 	// plainColumn is a column that is not an attribute group.
 	plainColumn spanColumnKind = iota
-	// attributesColumn is an attribute group of the span row: span, resource or scope.
+	// attributesColumn is an attribute group of a span, a resource or a scope, which the row
+	// stores once.
 	attributesColumn
 	// attributes2DColumn is an attribute group that every event or every link has.
 	attributes2DColumn
