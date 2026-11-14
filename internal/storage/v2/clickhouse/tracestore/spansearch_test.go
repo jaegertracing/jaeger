@@ -108,7 +108,7 @@ func TestFindSpans_Query(t *testing.T) {
 	assert.Empty(t, token)
 
 	require.Len(t, conn.RecordedQueries, 2)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{
 		now.Add(-time.Hour).UnixNano(), now.UnixNano(), "cart", uint64(3),
 	}, conn.RecordedArgs[0], "the first page fetches one row beyond the page")
@@ -149,7 +149,7 @@ func TestFindSpans_ExplicitOrder(t *testing.T) {
 	assert.Empty(t, token)
 
 	require.Len(t, conn.RecordedQueries, 2)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{
 		now.Add(-time.Hour).UnixNano(), now.UnixNano(), "cart",
 		int64(2000), int64(2000), now.UnixNano(), now.UnixNano(), traceIDHex1, traceIDHex1, "0000000000000002",
@@ -167,7 +167,7 @@ func TestFindSpans_TimeRangeOnly(t *testing.T) {
 	assert.Equal(t, []string{"a"}, names)
 	assert.Empty(t, token)
 	require.Len(t, conn.RecordedQueries, 1)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{now.Add(-time.Hour).UnixNano(), now.UnixNano(), uint64(6)}, conn.RecordedArgs[0])
 }
 

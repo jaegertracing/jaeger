@@ -464,6 +464,72 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 }
 
+// TestCreateSpansTable_HoistedColumns snapshots the spans table with one hoisted column per
+// stored type and level, a key that needs escaping, a column name that is a keyword, and a
+// codec that ClickHouse stores in another spelling.
+func TestCreateSpansTable_HoistedColumns(t *testing.T) {
+	builder, err := newSchemaBuilder(Configuration{
+		CreateSchema: true,
+		TableEngine:  localTableEngine,
+		HoistedAttributes: []HoistedAttribute{
+			{
+				Key:    "gen_ai.request.model",
+				Level:  "span",
+				Type:   "string",
+				Column: "span_str",
+			},
+			{
+				Key:    "gen_ai.usage.input_tokens",
+				Level:  "span",
+				Type:   "int",
+				Column: "span_int",
+			},
+			{
+				Key:    "ratio",
+				Level:  "span",
+				Type:   "double",
+				Column: "span_double",
+			},
+			{
+				Key:    "cached",
+				Level:  "span",
+				Type:   "bool",
+				Column: "span_bool",
+			},
+			{
+				Key:    "gen_ai.request.model",
+				Level:  "resource",
+				Type:   "string",
+				Column: "resource_str",
+			},
+			{
+				Key:    "shard",
+				Level:  "resource",
+				Type:   "int",
+				Column: "resource_int",
+				Codec:  "ZSTD(03)",
+			},
+			{
+				Key:    `it's a \key`,
+				Level:  "resource",
+				Type:   "string",
+				Column: "index",
+			},
+		},
+	})
+	require.NoError(t, err)
+	clickhousetest.VerifyQuerySnapshot(t, builder.statements[0].query)
+}
+
+func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
+	_, err := newSchemaBuilder(Configuration{
+		CreateSchema:      true,
+		TableEngine:       localTableEngine,
+		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
+	})
+	require.ErrorContains(t, err, "hoisted_attributes[0]")
+}
+
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
 		queryWithoutTTL := schemaQuery(t, "trace id timestamps table")

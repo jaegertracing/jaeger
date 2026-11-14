@@ -46,6 +46,13 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid hoisted attribute",
+			mutate: func(cfg *Configuration) {
+				cfg.HoistedAttributes = []HoistedAttribute{{Key: "k"}}
+			},
+			wantErr: "hoisted_attributes[0]",
+		},
+		{
 			name:    "unsupported protocol",
 			mutate:  func(cfg *Configuration) { cfg.Protocol = "grpc" },
 			wantErr: "Protocol",
@@ -200,6 +207,31 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHoistedAttributes_Unmarshal(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"hoisted_attributes": []any{
+			map[string]any{
+				"key":    "gen_ai.usage.input_tokens",
+				"level":  "span",
+				"type":   "int",
+				"column": "input_tokens",
+				"codec":  "ZSTD(3)",
+			},
+		},
+	})
+	cfg := DefaultConfiguration()
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Equal(t, []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+			Codec:  "ZSTD(3)",
+		},
+	}, cfg.HoistedAttributes)
 }
 
 // TestTableEngine_Unmarshal checks that each variant is selected by its key the way the

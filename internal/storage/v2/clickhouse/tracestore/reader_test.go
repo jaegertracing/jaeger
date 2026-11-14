@@ -283,7 +283,7 @@ func TestGetTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.RecordedQueries, 1)
-			verifyQuerySnapshot(t, conn.RecordedQueries...)
+			clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -552,7 +552,7 @@ func TestGetServices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.RecordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
+				clickhousetest.VerifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -706,7 +706,7 @@ func TestGetOperations(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.RecordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
+				clickhousetest.VerifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -751,7 +751,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.RecordedQueries, 3)
-			verifyQuerySnapshot(t, conn.RecordedQueries...)
+			clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -793,7 +793,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
 	require.Len(t, conn.RecordedQueries, 4)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
@@ -1026,7 +1026,7 @@ func TestFindTraceIDs(t *testing.T) {
 	ids, err := flattenPageChunks(iter)
 	require.NoError(t, err)
 	require.Len(t, driver.RecordedQueries, 3)
-	verifyQuerySnapshot(t, driver.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, driver.RecordedQueries...)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),

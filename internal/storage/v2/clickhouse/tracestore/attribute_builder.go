@@ -64,23 +64,30 @@ func levelColumns(level expression.Level) (prefix string, nested bool) {
 	}
 }
 
+// attributeGroup names the column group that stores the attributes of valueType at a level
+// whose attributes are columns of the span row: span, resource or scope.
+func attributeGroup(level expression.Level, valueType pcommon.ValueType) string {
+	prefix, _ := levelColumns(level)
+	if prefix != "" {
+		prefix += "_"
+	}
+	return prefix + attributeColumnType(valueType) + "_attributes"
+}
+
 // appendEquals writes to q the condition that the attributes of one level hold the key and
 // value of tav, and returns args extended with the values that the condition binds. It is the
 // only place that writes the placeholders of an attribute condition, so they and their bind
 // values cannot drift apart between callers.
 func (attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
-	columnType := attributeColumnType(tav.valueType)
-	prefix, nested := levelColumns(level)
 	q.appendNewlineAndIndent(indent)
-	if nested {
+	if prefix, nested := levelColumns(level); nested {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every item.
+		columnType := attributeColumnType(tav.valueType)
 		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
 	} else {
-		if prefix != "" {
-			prefix += "_"
-		}
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + columnType + "_attributes.key, s." + prefix + columnType + "_attributes.value)")
+		group := attributeGroup(level, tav.valueType)
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
 	}
 	return append(args, tav.key, tav.value)
 }
