@@ -60,7 +60,7 @@ func zstdCodec(codec string) (string, bool) {
 // newHoistedColumns validates attributes and returns the columns they describe, in the
 // configured order. Validation and conversion share one function so that no column can be
 // rendered from an entry that was not checked.
-func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedColumn, error) {
+func newHoistedColumns(attributes []HoistedAttribute, layout chtracestore.AttributeLayout) ([]chtracestore.HoistedColumn, error) {
 	type source struct {
 		level     expression.Level
 		key       string
@@ -111,11 +111,12 @@ func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedCol
 			}
 		}
 		columns = append(columns, chtracestore.HoistedColumn{
-			Name:  attribute.Column,
-			Level: level,
-			Key:   attribute.Key,
-			Type:  valueType,
-			Codec: codec,
+			Name:   attribute.Column,
+			Level:  level,
+			Key:    attribute.Key,
+			Type:   valueType,
+			Codec:  codec,
+			Layout: layout,
 		})
 	}
 	return columns, nil

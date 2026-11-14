@@ -14,7 +14,8 @@ import (
 )
 
 // TestHoistedColumn_Definition snapshots the column definitions that CREATE TABLE gets, one
-// per stored type and level, plus a key that needs escaping and a name that is a keyword.
+// per stored type and level, plus a key that needs escaping, a name that is a keyword, and two
+// columns of a table in the map layout.
 func TestHoistedColumn_Definition(t *testing.T) {
 	columns := []HoistedColumn{
 		{
@@ -58,6 +59,22 @@ func TestHoistedColumn_Definition(t *testing.T) {
 			Key:   `it's a \key`,
 			Type:  pcommon.ValueTypeStr,
 			Codec: "ZSTD(1)",
+		},
+		{
+			Name:   "map_span_int",
+			Level:  expression.LevelSpan,
+			Key:    "gen_ai.usage.input_tokens",
+			Type:   pcommon.ValueTypeInt,
+			Codec:  "ZSTD(1)",
+			Layout: AttributeLayoutMap,
+		},
+		{
+			Name:   "map_resource_str",
+			Level:  expression.LevelResource,
+			Key:    `it's a \key`,
+			Type:   pcommon.ValueTypeStr,
+			Codec:  "ZSTD(1)",
+			Layout: AttributeLayoutMap,
 		},
 	}
 	definitions := make([]string, 0, len(columns))
