@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -34,12 +33,12 @@ func TestWriter_Success(t *testing.T) {
 	b := &clickhousetest.Batch{}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, AttributeLayoutNested)
 
 	td := tracesFromSpanRows(multipleSpans)
 
@@ -155,16 +154,72 @@ func TestWriter_Success(t *testing.T) {
 	}
 }
 
+func TestWriter_Success_MapLayout(t *testing.T) {
+	b := &clickhousetest.Batch{}
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
+			"INSERT INTO spans": {
+				Batch: b,
+			},
+		},
+	}
+	w := NewWriter(conn, AttributeLayoutMap)
+
+	require.NoError(t, w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans)))
+
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries[0])
+	require.True(t, b.SendCalled)
+	require.Len(t, b.Appended, len(multipleSpans))
+	for i, expected := range multipleSpans {
+		row := b.Appended[i]
+		// A group of the span row is one value, and the columns after it move up.
+		require.Len(t, row, 43)
+		require.Equal(t, expected.Duration, row[9])
+		require.Equal(t, orderedMap[bool]{keys: expected.Attributes.BoolKeys, values: expected.Attributes.BoolValues}, row[10])
+		require.Equal(t, orderedMap[string]{keys: expected.Attributes.ComplexKeys, values: expected.Attributes.ComplexValues}, row[14])
+		require.Equal(t, expected.EventNames, row[15])
+		eventInts := row[19].([]orderedMap[int64])
+		require.Len(t, eventInts, len(expected.EventNames))
+		for j, eventInt := range eventInts {
+			require.Equal(t, orderedMap[int64]{keys: expected.EventAttributes.IntKeys[j], values: expected.EventAttributes.IntValues[j]}, eventInt)
+		}
+		require.Equal(t, expected.ServiceName, row[30])
+		require.Equal(t, orderedMap[string]{keys: expected.ResourceAttributes.StrKeys, values: expected.ResourceAttributes.StrValues}, row[34])
+		require.Equal(t, orderedMap[string]{keys: expected.ScopeAttributes.ComplexKeys, values: expected.ScopeAttributes.ComplexValues}, row[42])
+	}
+}
+
+// TestOrderedMap_Iterator pins what the driver reads from an orderedMap: the entries in their
+// order, with a key that repeats kept.
+func TestOrderedMap_Iterator(t *testing.T) {
+	m := orderedMap[int64]{
+		keys:   []string{"z", "a", "z"},
+		values: []int64{1, 2, 3},
+	}
+	m.Put("ignored", int64(4))
+
+	var keys []string
+	var values []int64
+	for it := m.Iterator(); it.Next(); {
+		keys = append(keys, it.Key().(string))
+		values = append(values, it.Value().(int64))
+	}
+
+	require.Equal(t, m.keys, keys)
+	require.Equal(t, m.values, values)
+	require.False(t, orderedMap[string]{}.Iterator().Next())
+}
+
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: nil,
 				Err:   assert.AnError,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, AttributeLayoutNested)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -174,12 +229,12 @@ func TestWriter_AppendBatchError(t *testing.T) {
 	b := &clickhousetest.Batch{AppendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, AttributeLayoutNested)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -190,12 +245,12 @@ func TestWriter_SendError(t *testing.T) {
 	b := &clickhousetest.Batch{SendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, AttributeLayoutNested)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
