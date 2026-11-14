@@ -13,7 +13,7 @@ import (
 // TestAttributeLayout_SelectSpans_Map snapshots the statement that reads spans from a table in
 // the map layout. The statement of the nested layout is in the snapshots of the reader tests.
 func TestAttributeLayout_SelectSpans_Map(t *testing.T) {
-	reader := NewReader(&clickhousetest.Driver{}, ReaderConfig{AttributeLayout: AttributeLayoutMap})
+	reader := NewReader(&clickhousetest.Driver{}, ReaderConfig{AttributeLayout: MapLayout{}})
 
 	query, _ := reader.buildGetTracesQuery(tracestore.GetTraceParams{})
 

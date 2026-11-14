@@ -39,6 +39,15 @@ type hoistedSource struct {
 	valueType pcommon.ValueType
 }
 
+// attributeLayout returns the layout of the typed groups, which is the nested layout in the
+// zero value.
+func (b attributeBuilder) attributeLayout() AttributeLayout {
+	if b.layout == nil {
+		return NestedLayout{}
+	}
+	return b.layout
+}
+
 func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attributeBuilder {
 	builder := attributeBuilder{
 		layout:         layout,
@@ -109,7 +118,7 @@ func attributeGroup(level expression.Level, valueType pcommon.ValueType) string 
 // only place that writes the placeholders of an attribute condition, so they and their bind
 // values cannot drift apart between callers. A hoisted attribute is compared in its dedicated
 // column; every other attribute, and the same key at another level or type, is searched in
-// the typed groups.
+// the typed groups by the condition of the layout.
 func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
 	q.appendNewlineAndIndent(indent)
 	source := hoistedSource{
@@ -127,30 +136,5 @@ func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, le
 		q.WriteString("(" + column + " IS NOT NULL AND " + column + " = ?)")
 		return append(args, tav.value)
 	}
-	// Events and links are arrays inside the span row, so their condition searches the
-	// attributes of every item.
-	prefix, nested := levelColumns(level)
-	if b.layout == AttributeLayoutMap {
-		// The subscript of a key that the map does not hold returns the default value of the
-		// type, which would match a search for zero, false or an empty string, so the
-		// condition tests that the key is there. The subscript returns the first value of a
-		// key that a span carries more than once, so a search for a later value does not
-		// match, unlike the array condition of the nested layout.
-		if nested {
-			group := "x." + attributeColumnType(tav.valueType) + "_attributes"
-			q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + "[?] = ?, s." + prefix + ")")
-		} else {
-			group := "s." + attributeGroup(level, tav.valueType)
-			q.WriteString("(mapContains(" + group + ", ?) AND " + group + "[?] = ?)")
-		}
-		return append(args, tav.key, tav.key, tav.value)
-	}
-	if nested {
-		columnType := attributeColumnType(tav.valueType)
-		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
-	} else {
-		group := attributeGroup(level, tav.valueType)
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
-	}
-	return append(args, tav.key, tav.value)
+	return b.attributeLayout().appendEquals(q, args, level, tav)
 }
