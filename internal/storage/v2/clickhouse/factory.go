@@ -43,7 +43,7 @@ type schemaTemplateParams struct {
 	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
 	// collapse on their sort key.
 	AggregatingMergeTree string
-	// HoistedColumns is the column definitions of the hoisted attributes of the spans table.
+	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
 	HoistedColumns []string
 }
 
@@ -65,7 +65,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	hoisted, err := cfg.hoistedColumns()
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +74,8 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
 	}
-	for _, column := range hoisted {
-		params.HoistedColumns = append(params.HoistedColumns, column.definition())
+	for _, column := range hoistedColumns {
+		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
 	// The materialized views carry no engine of their own, because each writes TO its
 	// target table, so only the tables are templates.

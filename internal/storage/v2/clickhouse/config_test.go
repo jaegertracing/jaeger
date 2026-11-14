@@ -46,6 +46,13 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid hoisted attribute",
+			mutate: func(cfg *Configuration) {
+				cfg.HoistedAttributes = []HoistedAttribute{{Key: "k"}}
+			},
+			wantErr: "hoisted_attributes[0]",
+		},
+		{
 			name:    "unsupported protocol",
 			mutate:  func(cfg *Configuration) { cfg.Protocol = "grpc" },
 			wantErr: "Protocol",
@@ -202,8 +209,6 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-// TestHoistedAttributes_Unmarshal checks the keys of a hoisted_attributes entry as the
-// collector's confmap reads them.
 func TestHoistedAttributes_Unmarshal(t *testing.T) {
 	conf := confmap.NewFromStringMap(map[string]any{
 		"hoisted_attributes": []any{

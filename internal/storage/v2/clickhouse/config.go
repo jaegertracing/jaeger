@@ -81,7 +81,7 @@ type HoistedAttribute struct {
 	// the typed group to copy from and is not a conversion: a value stored under the same key
 	// with another type is not copied.
 	Type string `mapstructure:"type"`
-	// Column is the name of the dedicated column. It must match [a-z_][a-z0-9_]* and must not
+	// Column is the name of the dedicated column. It must match [a-z][a-z0-9_]* and must not
 	// be a column the spans table already has.
 	Column string `mapstructure:"column"`
 	// Codec is the compression codec of the column, in the form ZSTD(level) with a level from
@@ -211,7 +211,7 @@ func (cfg *Configuration) Validate() error {
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
 	}
-	if _, err := cfg.hoistedColumns(); err != nil {
+	if _, err := newHoistedColumns(cfg.HoistedAttributes); err != nil {
 		return err
 	}
 	// The table_engine block is ignored without create_schema, because the operator then

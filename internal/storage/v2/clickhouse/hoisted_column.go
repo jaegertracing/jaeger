@@ -18,7 +18,7 @@ import (
 const defaultHoistedCodec = "ZSTD(1)"
 
 var (
-	hoistedColumnNamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+	hoistedColumnNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	hoistedCodecPattern      = regexp.MustCompile(`^ZSTD\((\d{1,2})\)$`)
 	// spansColumnPattern matches the name of a top-level column in the spans table template,
 	// which is how a hoisted column is checked against the columns the table already has.
@@ -36,93 +36,82 @@ var (
 	}
 )
 
-// hoistedColumn is a validated HoistedAttribute.
-type hoistedColumn struct {
-	attribute chtracestore.HoistedAttribute
-	codec     string
-}
-
-// definition returns the column definition as it appears in CREATE TABLE. The name is quoted
-// because a name such as index is a keyword at that position.
-func (c hoistedColumn) definition() string {
-	return "`" + c.attribute.Column + "` " + fmt.Sprintf("%s MATERIALIZED %s CODEC(%s)",
-		c.attribute.ColumnType(), c.attribute.SourceExpression(), c.codec)
-}
-
-// zstdCodec returns codec as ClickHouse reports it, and false unless codec is ZSTD(level) with
-// a level that ClickHouse accepts. No other codec is accepted, so the value can be rendered
-// into DDL without being arbitrary SQL. The level is rendered from its number because
-// ClickHouse stores ZSTD(01) as ZSTD(1), and the startup check compares the stored text.
+// zstdCodec returns codec as ClickHouse stores it, and false unless codec is ZSTD(level) with
+// a level that ClickHouse accepts. No other codec is accepted, so that the value can be
+// rendered into DDL without being arbitrary SQL. The level is rendered from its number
+// because ClickHouse stores ZSTD(01) as ZSTD(1).
 func zstdCodec(codec string) (string, bool) {
-	m := hoistedCodecPattern.FindStringSubmatch(codec)
-	if m == nil {
+	match := hoistedCodecPattern.FindStringSubmatch(codec)
+	if match == nil {
 		return "", false
 	}
 	// The pattern admits one or two digits, so the conversion cannot fail.
-	level, _ := strconv.Atoi(m[1])
+	level, _ := strconv.Atoi(match[1])
 	if level < 1 || level > 22 {
 		return "", false
 	}
 	return fmt.Sprintf("ZSTD(%d)", level), true
 }
 
-// hoistedColumns validates HoistedAttributes and returns the columns they describe, in the
+// newHoistedColumns validates attributes and returns the columns they describe, in the
 // configured order. Validation and conversion share one function so that no column can be
 // rendered from an entry that was not checked.
-func (cfg *Configuration) hoistedColumns() ([]hoistedColumn, error) {
+func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedColumn, error) {
 	type source struct {
-		level expression.Level
-		key   string
-		typ   pcommon.ValueType
+		level     expression.Level
+		key       string
+		valueType pcommon.ValueType
 	}
-	sources := make(map[source]struct{}, len(cfg.HoistedAttributes))
-	names := make(map[string]struct{})
+	sources := make(map[source]struct{}, len(attributes))
+	takenNames := make(map[string]struct{})
 	for _, match := range spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1) {
-		names[match[1]] = struct{}{}
+		takenNames[match[1]] = struct{}{}
 	}
-	columns := make([]hoistedColumn, 0, len(cfg.HoistedAttributes))
-	for i, h := range cfg.HoistedAttributes {
-		fail := func(format string, args ...any) ([]hoistedColumn, error) {
+	columns := make([]chtracestore.HoistedColumn, 0, len(attributes))
+	for i, attribute := range attributes {
+		entryError := func(format string, args ...any) ([]chtracestore.HoistedColumn, error) {
 			return nil, fmt.Errorf("hoisted_attributes[%d]: %s", i, fmt.Sprintf(format, args...))
 		}
-		if h.Key == "" {
-			return fail("key must not be empty")
+		if attribute.Key == "" {
+			return entryError("key must not be empty")
 		}
-		level, ok := hoistedLevels[h.Level]
+		level, ok := hoistedLevels[attribute.Level]
 		if !ok {
-			return fail("level must be span or resource, not %q", h.Level)
+			return entryError("level must be span or resource, not %q", attribute.Level)
 		}
-		typ, ok := hoistedTypes[h.Type]
+		valueType, ok := hoistedTypes[attribute.Type]
 		if !ok {
-			return fail("type must be string, int, double or bool, not %q", h.Type)
+			return entryError("type must be string, int, double or bool, not %q", attribute.Type)
 		}
-		if !hoistedColumnNamePattern.MatchString(h.Column) {
-			return fail("column %q must match [a-z_][a-z0-9_]*", h.Column)
+		if !hoistedColumnNamePattern.MatchString(attribute.Column) {
+			return entryError("column %q must match [a-z][a-z0-9_]*", attribute.Column)
 		}
-		if _, taken := names[h.Column]; taken {
-			return fail("column %q is already a column of the spans table or of another entry", h.Column)
+		if _, exists := takenNames[attribute.Column]; exists {
+			return entryError("column %q is already a column of the spans table or of another entry", attribute.Column)
 		}
-		names[h.Column] = struct{}{}
-		src := source{level: level, key: h.Key, typ: typ}
-		if _, dup := sources[src]; dup {
-			return fail("the %s attribute %q of type %s is listed twice", h.Level, h.Key, h.Type)
+		takenNames[attribute.Column] = struct{}{}
+		attributeSource := source{
+			level:     level,
+			key:       attribute.Key,
+			valueType: valueType,
 		}
-		sources[src] = struct{}{}
+		if _, exists := sources[attributeSource]; exists {
+			return entryError("the %s attribute %q of type %s is listed twice", attribute.Level, attribute.Key, attribute.Type)
+		}
+		sources[attributeSource] = struct{}{}
 		codec := defaultHoistedCodec
-		if h.Codec != "" {
-			codec, ok = zstdCodec(h.Codec)
+		if attribute.Codec != "" {
+			codec, ok = zstdCodec(attribute.Codec)
+			if !ok {
+				return entryError("codec %q must be ZSTD(level) with a level from 1 through 22", attribute.Codec)
+			}
 		}
-		if !ok {
-			return fail("codec %q must be ZSTD(level) with a level from 1 through 22", h.Codec)
-		}
-		columns = append(columns, hoistedColumn{
-			attribute: chtracestore.HoistedAttribute{
-				Level:  level,
-				Key:    h.Key,
-				Type:   typ,
-				Column: h.Column,
-			},
-			codec: codec,
+		columns = append(columns, chtracestore.HoistedColumn{
+			Name:  attribute.Column,
+			Level: level,
+			Key:   attribute.Key,
+			Type:  valueType,
+			Codec: codec,
 		})
 	}
 	return columns, nil
