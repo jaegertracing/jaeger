@@ -83,7 +83,7 @@ ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_tokens Nullable(Int64)
     CODEC(ZSTD(3));
 ```
 
-At startup the backend reads every configured column from `system.columns` and refuses to start when a column is missing or its type, expression or codec differs from what the configuration renders. The error for a missing column contains the exact `ALTER TABLE` statement to run.
+At startup the backend reads every configured column from `system.columns` and refuses to start when a column is missing or its type, expression or codec differs from what the configuration renders. The error for a missing column contains the exact `ALTER TABLE` statement to run. The check runs at startup and does not validate every configured server. The backend assumes that every server listed under `addresses` holds the same schema, the hoisted columns included, so the operator runs the `ALTER` on each of them; after a failover to a server without the column, searches for the attribute fail.
 
 Parts written before the `ALTER` do not store the column, and ClickHouse computes it from the attribute groups each time such a part is read, which returns correct results at the old cost. To store the column in existing parts, run the mutation and wait for it to finish:
 
@@ -96,4 +96,12 @@ The backend never starts this mutation itself.
 
 #### Removing or changing a hoisted attribute
 
-Removing an entry from the configuration makes searches use the typed groups again. The column stays in the table until the operator drops it. Changing the key, level, type or codec of an entry is a schema change: drop the column and add it again with the new definition, or the startup check refuses the mismatch.
+Removing an entry from the configuration makes searches use the typed groups again. The column stays in the table until the operator drops it, and the drop comes after every Jaeger instance whose configuration lists the entry has restarted without it. An instance checks its columns only at startup, so one that still runs with the entry keeps searching the column, and its searches for that attribute fail once the column is gone.
+
+Changing the key, level, type or codec of an entry is a schema change, and the startup check refuses a column that does not match its entry. A running instance does not repeat the check, so the steps go in this order:
+
+1. Remove the entry and restart every instance whose configuration lists it.
+2. Drop the column and add it again with the new definition.
+3. Restore the entry with the new definition and restart the instances.
+
+An instance that kept the old entry while the column was reassigned to another key or level would search the new attribute under the old key and return wrong results without an error. Adding the changed attribute under a new column name is the safer path: an instance with the old entry keeps searching the old column and stays correct, and the old column is dropped once no instance lists it.
