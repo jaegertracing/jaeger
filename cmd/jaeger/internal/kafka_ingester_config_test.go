@@ -17,10 +17,9 @@ import (
 )
 
 // TestKafkaIngesterConfigsAcceptQueueBatchPartition loads the Kafka ingester
-// configs the e2e suite runs and rejects a queue.batch whose partition is the
-// zero value. exporterhelper v0.162 requires partition.idle_timeout and
-// partition.cache_size to be positive even when metadata_keys is empty, and an
-// omitted partition unmarshals as zeros rather than NewDefaultPartitionConfig.
+// configs the e2e suite runs. Those configs omit queue.batch.partition, and a
+// present batch fills it from exporterhelper's NewDefaultPartitionConfig
+// (idle_timeout 90s, cache_size 10000) with metadata_keys empty.
 func TestKafkaIngesterConfigsAcceptQueueBatchPartition(t *testing.T) {
 	// The dead-letter sink endpoint has no default; validation only requires
 	// it to be non-empty. The e2e suite sets the same variable.
