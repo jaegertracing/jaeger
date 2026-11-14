@@ -32,6 +32,9 @@ events, on the `allow-multiple-prs` issue-label override, and in a daily sweep.
 The stale workflow uses `GITHUB_TOKEN`, so its label changes cannot trigger
 another workflow; the daily sweep observes those changes.
 
+Pull request and issue events do not label anything themselves: they dispatch
+the workflow on the default branch, for the reason stated in the workflow file.
+
 ## The policy
 
 The action reads GitHub's
