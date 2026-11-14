@@ -38,7 +38,7 @@ func TestWriter_Success_NestedLayout(t *testing.T) {
 			},
 		},
 	}
-	w := NewWriter(conn, AttributeLayoutNested)
+	w := NewWriter(conn, NestedLayout{})
 
 	td := tracesFromSpanRows(multipleSpans)
 
@@ -163,7 +163,7 @@ func TestWriter_Success_MapLayout(t *testing.T) {
 			},
 		},
 	}
-	w := NewWriter(conn, AttributeLayoutMap)
+	w := NewWriter(conn, MapLayout{})
 
 	require.NoError(t, w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans)))
 
@@ -219,7 +219,7 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 			},
 		},
 	}
-	w := NewWriter(conn, AttributeLayoutNested)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -234,7 +234,7 @@ func TestWriter_AppendBatchError(t *testing.T) {
 			},
 		},
 	}
-	w := NewWriter(conn, AttributeLayoutNested)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -250,7 +250,7 @@ func TestWriter_SendError(t *testing.T) {
 			},
 		},
 	}
-	w := NewWriter(conn, AttributeLayoutNested)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
