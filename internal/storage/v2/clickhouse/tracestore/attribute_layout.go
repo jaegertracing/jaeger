@@ -3,21 +3,27 @@
 
 package tracestore
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+)
 
 // AttributeLayout is the way the spans table stores a typed attribute group, such as
-// str_attributes. The statements that name a group are written by its methods, so the layout
-// is decided here and not at each place that builds a statement. The zero value is the
-// nested layout.
-type AttributeLayout string
-
-const (
-	// AttributeLayoutNested stores a group as Nested(key String, value T), which is two
-	// parallel arrays.
-	AttributeLayoutNested AttributeLayout = "nested"
-	// AttributeLayoutMap stores a group as Map(String, T).
-	AttributeLayoutMap AttributeLayout = "map"
-)
+// str_attributes. Everything that depends on that choice is a method of the layout, so no
+// statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
+type AttributeLayout interface {
+	// insertColumns returns the columns that the insert statement names for a group of the
+	// span row.
+	insertColumns(group string) []string
+	// appendRowAttributes appends the values that the insert statement binds for the attribute
+	// groups of the span row.
+	appendRowAttributes(values []any, attributes dbmodel.Attributes) []any
+	// appendItemAttributes appends the values that the insert statement binds for the
+	// attribute groups of the events or of the links. A group there is one column in every
+	// layout, and its value holds the attributes of every item.
+	appendItemAttributes(values []any, attributes dbmodel.Attributes2D) []any
+}
 
 type spanColumnKind int
 
@@ -75,14 +81,12 @@ func spanColumns() []spanColumn {
 	return columns
 }
 
-// insertSpan returns the statement that inserts a span. A group of the span row takes two
-// values in the nested layout, its keys and its values, and one value in the map layout. A
-// group of the events or of the links takes one value in both layouts.
-func (l AttributeLayout) insertSpan() string {
+// insertSpan returns the statement that inserts a span into a table of the given layout.
+func insertSpan(layout AttributeLayout) string {
 	var names []string
 	for _, column := range spanColumns() {
-		if column.kind == rowAttributes && l != AttributeLayoutMap {
-			names = append(names, column.name+".key", column.name+".value")
+		if column.kind == rowAttributes {
+			names = append(names, layout.insertColumns(column.name)...)
 		} else {
 			names = append(names, column.name)
 		}
