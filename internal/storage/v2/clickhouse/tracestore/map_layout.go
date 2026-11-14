@@ -14,7 +14,7 @@ type MapLayout struct{}
 
 var _ AttributeLayout = MapLayout{}
 
-func (MapLayout) insertColumns(group string) []string {
+func (MapLayout) columnNames(group string) []string {
 	return []string{group}
 }
 
