@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,9 +57,17 @@ func newHoistedColumnReader() *Reader {
 	return NewReader(driver, config)
 }
 
+// nestedSelectSpans and nestedSelectSpansByTraceID are the statements that read spans from
+// a table in the nested layout, which the test driver matches its responses by.
+var (
+	nestedSelectSpans          = selectSpans(NestedLayout{})
+	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
+)
+
 func TestAttributeBuilder_AppendEquals(t *testing.T) {
 	tests := []struct {
 		name           string
+		layout         AttributeLayout
 		hoistedColumns []HoistedColumn
 		level          expression.Level
 		tav            typedAttributeValue
@@ -133,11 +142,56 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q sqlBuilder
-			args := newAttributeBuilder(tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
+			args := newAttributeBuilder(tt.layout, tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
 			clickhousetest.VerifyQuerySnapshot(t, q.String())
 			assert.Equal(t, tt.wantArgs, args)
 		})
 	}
+}
+
+// TestAttributeBuilder_AppendEquals_MapLayout snapshots the condition for every level and
+// value type in one file. The span attribute "model" and the resource attribute "shard" are
+// hoisted, and each condition is followed by the values that it binds.
+func TestAttributeBuilder_AppendEquals_MapLayout(t *testing.T) {
+	levels := []expression.Level{
+		expression.LevelSpan,
+		expression.LevelResource,
+		expression.LevelScope,
+		expression.LevelEvent,
+		expression.LevelLink,
+	}
+	attributes := []typedAttributeValue{
+		{
+			key:       "model",
+			value:     "x",
+			valueType: pcommon.ValueTypeStr,
+		},
+		{
+			key:       "shard",
+			value:     int64(0),
+			valueType: pcommon.ValueTypeInt,
+		},
+		{
+			key:       "ratio",
+			value:     0.5,
+			valueType: pcommon.ValueTypeDouble,
+		},
+		{
+			key:       "retry",
+			value:     true,
+			valueType: pcommon.ValueTypeBool,
+		},
+	}
+	builder := newAttributeBuilder(MapLayout{}, testHoistedColumns)
+	var q sqlBuilder
+	for _, level := range levels {
+		for _, tav := range attributes {
+			fmt.Fprintf(&q, "\n-- %s attribute %q", level, tav.key)
+			args := builder.appendEquals(&q, 0, nil, level, tav)
+			fmt.Fprintf(&q, " -- binds %v", args)
+		}
+	}
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 }
 
 func TestAttributeColumnType(t *testing.T) {

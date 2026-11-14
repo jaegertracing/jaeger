@@ -12,7 +12,7 @@ import (
 // attributeBuilder writes the conditions that search attributes, so that the way the spans
 // table stores an attribute is decided here and not at each place that builds a query. A
 // Reader owns one and hands it to every sqlBuilder it creates. The zero value writes
-// conditions for a table without hoisted columns.
+// conditions for a table in the nested layout without hoisted columns.
 //
 // TODO: equality is the only attribute condition today. Two additions are expected, and both
 // read the hoisted column of an attribute that has one, as appendEquals does:
@@ -25,6 +25,8 @@ import (
 //     column must not be rebuilt on that method: arrayExists matches every value of a key
 //     that a span carries more than once, and a single-value expression does not.
 type attributeBuilder struct {
+	// layout is the layout of the typed attribute groups.
+	layout AttributeLayout
 	// columnBySource maps a hoisted attribute to the name of its column.
 	columnBySource map[hoistedSource]string
 }
@@ -37,8 +39,20 @@ type hoistedSource struct {
 	valueType pcommon.ValueType
 }
 
-func newAttributeBuilder(columns []HoistedColumn) attributeBuilder {
-	builder := attributeBuilder{columnBySource: make(map[hoistedSource]string, len(columns))}
+// attributeLayout returns the layout of the typed groups, which is the nested layout in the
+// zero value.
+func (b attributeBuilder) attributeLayout() AttributeLayout {
+	if b.layout == nil {
+		return NestedLayout{}
+	}
+	return b.layout
+}
+
+func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attributeBuilder {
+	builder := attributeBuilder{
+		layout:         layout,
+		columnBySource: make(map[hoistedSource]string, len(columns)),
+	}
 	for _, column := range columns {
 		source := hoistedSource{
 			level:     column.Level,
@@ -104,7 +118,7 @@ func attributeGroup(level expression.Level, valueType pcommon.ValueType) string 
 // only place that writes the placeholders of an attribute condition, so they and their bind
 // values cannot drift apart between callers. A hoisted attribute is compared in its dedicated
 // column; every other attribute, and the same key at another level or type, is searched in
-// the typed groups.
+// the typed groups by the condition of the layout.
 func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, level expression.Level, tav typedAttributeValue) []any {
 	q.appendNewlineAndIndent(indent)
 	source := hoistedSource{
@@ -122,14 +136,5 @@ func (b attributeBuilder) appendEquals(q *sqlBuilder, indent int, args []any, le
 		q.WriteString("(" + column + " IS NOT NULL AND " + column + " = ?)")
 		return append(args, tav.value)
 	}
-	if prefix, nested := levelColumns(level); nested {
-		// Events and links are arrays inside the span row, so the condition searches the
-		// attributes of every item.
-		columnType := attributeColumnType(tav.valueType)
-		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
-	} else {
-		group := attributeGroup(level, tav.valueType)
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
-	}
-	return append(args, tav.key, tav.value)
+	return b.attributeLayout().appendEquals(q, args, level, tav)
 }

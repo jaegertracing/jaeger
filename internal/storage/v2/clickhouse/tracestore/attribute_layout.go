@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -27,6 +28,19 @@ type AttributeLayout interface {
 	// typed groups of the events or of the links. Such a group is one column in every layout,
 	// and its value holds the attributes of every event or link of the span.
 	appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
+	// Keys returns the expression that selects the keys of one attribute group of a span, a
+	// resource or a scope, and values the expression that selects its values in the same
+	// order.
+	Keys(group string) string
+	values(group string) string
+	// Keys2D returns the expression that selects the keys of one attribute group of the
+	// events or of the links, as one array of keys per event or link, and values2D the
+	// expression that selects its values.
+	Keys2D(group string) string
+	values2D(group string) string
+	// appendEquals writes to q the condition that the attributes of one level hold the key
+	// and value of tav, and returns args extended with the values that the condition binds.
+	appendEquals(q *sqlBuilder, args []any, level expression.Level, tav typedAttributeValue) []any
 }
 
 type spanColumnKind int
@@ -34,7 +48,8 @@ type spanColumnKind int
 const (
 	// plainColumn is a column that is not an attribute group.
 	plainColumn spanColumnKind = iota
-	// attributesColumn is an attribute group of the span row: span, resource or scope.
+	// attributesColumn is an attribute group of a span, a resource or a scope, which the row
+	// stores once.
 	attributesColumn
 	// attributes2DColumn is an attribute group that every event or every link has.
 	attributes2DColumn
@@ -48,7 +63,8 @@ type spanColumn struct {
 // attributeColumnTypes lists the typed attribute groups in the order of the columns.
 var attributeColumnTypes = []string{"bool", "double", "int", "str", "complex"}
 
-// spanColumns lists the columns of a span in the order in which the writer binds them.
+// spanColumns lists the columns of a span in the order in which the writer binds them and
+// the reader scans them.
 func spanColumns() []spanColumn {
 	var columns []spanColumn
 	plain := func(names ...string) {
@@ -115,4 +131,30 @@ func insertSpan(layout AttributeLayout) string {
 	}
 	placeholders := slices.Repeat([]string{"?"}, len(names))
 	return fmt.Sprintf(insertSpanFormat, indentedList(names, 2), indentedList(placeholders, 2))
+}
+
+// selectSpansFormat takes the list of the expressions to select.
+const selectSpansFormat = `
+SELECT
+    %s
+FROM
+    spans s
+`
+
+// selectSpans returns the statement that reads spans from a table of the given layout, up to
+// and including its FROM clause. Every layout yields a group as its keys and its values, so
+// a span is scanned the same way from any of them.
+func selectSpans(layout AttributeLayout) string {
+	var expressions []string
+	for _, column := range spanColumns() {
+		switch column.kind {
+		case attributesColumn:
+			expressions = append(expressions, layout.Keys(column.name), layout.values(column.name))
+		case attributes2DColumn:
+			expressions = append(expressions, layout.Keys2D(column.name), layout.values2D(column.name))
+		default: // plainColumn
+			expressions = append(expressions, column.name)
+		}
+	}
+	return fmt.Sprintf(selectSpansFormat, indentedList(expressions, 1))
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -59,7 +58,7 @@ func spanSearchConn(rows ...*dbmodel.SpanRow) (conn *clickhousetest.Driver, serv
 	serve(rows...)
 	conn = &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: response,
+			nestedSelectSpans: response,
 		},
 	}
 	return conn, serve
@@ -285,13 +284,13 @@ func TestFindSpans_Refusals(t *testing.T) {
 func TestFindSpans_Errors(t *testing.T) {
 	t.Run("query fails", func(t *testing.T) {
 		conn, _ := spanSearchConn()
-		conn.QueryResponses[sql.SelectSpansQuery].Err = errors.New("boom")
+		conn.QueryResponses[nestedSelectSpans].Err = errors.New("boom")
 		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to query spans: boom")
 	})
 	t.Run("scan fails", func(t *testing.T) {
 		conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
-		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).ScanErr = errors.New("boom")
+		conn.QueryResponses[nestedSelectSpans].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).ScanErr = errors.New("boom")
 		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to scan span row: boom")
 	})
@@ -299,7 +298,7 @@ func TestFindSpans_Errors(t *testing.T) {
 	// last row, or on closing the rows, still fails the page.
 	t.Run("close fails after a full page", func(t *testing.T) {
 		conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
-		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).CloseErr = errors.New("boom")
+		conn.QueryResponses[nestedSelectSpans].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).CloseErr = errors.New("boom")
 		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to close rows: boom")
 	})
