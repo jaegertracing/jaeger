@@ -53,7 +53,7 @@ on:
           - monitoring
           - all
       opensearch_recovery:
-        description: 'Hosted demo traces are disposable. Select required only to preserve and restore-test existing data.'
+        description: 'Hosted demo traces are disposable. required snapshots and restore-tests OpenSearch before an upgrade that includes it; it has no effect in clean mode or for other components.'
         required: false
         default: waive
         type: choice

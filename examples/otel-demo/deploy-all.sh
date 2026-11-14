@@ -62,7 +62,6 @@ validate_options() {
       return 1
       ;;
   esac
-
 }
 
 configure_jaeger_helm_command() {

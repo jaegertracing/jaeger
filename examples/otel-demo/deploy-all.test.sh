@@ -104,27 +104,20 @@ testInvalidOpenSearchRecoveryPolicyIsRejected() {
   assertContains "$output" "Invalid OpenSearch recovery policy 'invalid'"
 }
 
-testOpenSearchRecoveryWaiverAcceptsManualIsolatedUpgrade() {
-  output=$(GITHUB_EVENT_NAME=workflow_dispatch \
-    GITHUB_REF=refs/heads/main \
-    JAEGER_DEMO_STACK=otel \
-    JAEGER_OTEL_DEMO_DEPLOY_SCOPE=opensearch \
-    JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive \
-    bash -c 'source "$1"; MODE=upgrade; DEPLOY_SCOPE=opensearch; validate_options' _ "$SCRIPT" 2>&1)
-  rc=$?
-
-  assertEquals "exact manual waiver route should pass" 0 $rc
-  assertEquals "" "$output"
-}
-
-testDisposableDataWaiverAcceptsAutomaticAndFullUpgradeRoutes() {
+testOpenSearchRecoveryWaiverIsNotRouteRestricted() {
+  # validate_options reads only the mode, scope, and recovery policy. The event,
+  # ref, and stack stay in the table so that reintroducing a route restriction
+  # fails here.
   local cases=(
+    "workflow_dispatch|refs/heads/main|otel|upgrade|opensearch"
     "schedule|refs/heads/main|otel|upgrade|opensearch"
     "push|refs/heads/main|otel|upgrade|opensearch"
     "workflow_dispatch|refs/heads/feature|otel|upgrade|opensearch"
     "workflow_dispatch|refs/heads/main|oci|upgrade|opensearch"
     "workflow_dispatch|refs/heads/main|otel|clean|opensearch"
     "workflow_dispatch|refs/heads/main|otel|upgrade|all"
+    "schedule|refs/heads/main|otel|upgrade|jaeger"
+    "push|refs/heads/main|otel|upgrade|otel-demo"
   )
   local values
 
@@ -135,7 +128,7 @@ testDisposableDataWaiverAcceptsAutomaticAndFullUpgradeRoutes() {
       JAEGER_DEMO_STACK="$stack" \
       JAEGER_OTEL_DEMO_DEPLOY_SCOPE="$scope" \
       JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive \
-      bash -c 'source "$1"; MODE="$2"; validate_options' _ "$SCRIPT" "$mode" 2>&1)
+      bash -c 'source "$1"; MODE="$2"; DEPLOY_SCOPE="$3"; validate_options' _ "$SCRIPT" "$mode" "$scope" 2>&1)
     rc=$?
 
     assertEquals "$values should accept the explicit disposable-data waiver" 0 $rc

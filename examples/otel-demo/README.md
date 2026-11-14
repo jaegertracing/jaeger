@@ -125,22 +125,49 @@ routine maintenance.
 
 The hosted `Deploy Jaeger Demo to OKE` workflow defaults to
 `opensearch_recovery=waive` for scheduled, post-merge, and manual deployments,
-including full-stack upgrades. It skips backup creation and restore testing.
-It does not automatically delete existing data, run `clean`, or change the
-OpenSearch-before-Dashboards rollout order. Health waits, version verification,
-and a fresh trace write/read remain required. Extra cluster capacity solely for
-backup restoration is not a prerequisite for routine demo maintenance.
+including full-stack upgrades and manual dispatches from any branch. It skips
+backup creation and restore testing. It does not automatically delete existing
+data, run `clean`, or change the OpenSearch-before-Dashboards rollout order. An
+OpenSearch upgrade still requires health waits, the OpenSearch/Dashboards
+version check, and a fresh trace write/read; the Jaeger and application
+components rely on rollout waits and public smoke checks, and OCI monitoring on
+rollout waits alone. Extra cluster capacity solely for backup restoration is
+not a prerequisite for routine demo maintenance.
+
+If a waived upgrade leaves OpenSearch unhealthy, its revision is not recorded,
+so scheduled and post-merge runs retry the same upgrade and block the dependent
+OTel Jaeger and application updates until it succeeds. Because the data is
+disposable, recover with a manual dispatch that selects `deploy_mode=clean` and
+`demo_stack=otel`; set `image_tag=latest` if the dispatched commit has no
+published snapshot image. It deletes the `opensearch`, `jaeger`, and
+`otel-demo` namespaces, including the OpenSearch PVC and any namespaced
+recovery snapshots and restored PVCs, and reinstalls the stack at the pinned
+versions. The new PVC comes from the 10Gi claim template, so rerun the
+`Expand OTel Demo OpenSearch Volume` workflow afterwards. A clean dispatch is
+checked only by rollout waits and the public smoke checks and records no
+revision; the next scheduled or post-merge run re-applies the pending OpenSearch
+revision, runs the version and trace checks, and records it.
 
 Standalone deployment scripts retain `required` as their default; explicitly
 set `JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive` when using them with disposable
-data.
+data. With `required`, an upgrade whose scope includes OpenSearch does not
+create a recovery point in `deploy-all.sh` itself. It only verifies that a
+restore-tested snapshot of the live OpenSearch version and image, no older than
+72 hours, already exists, so run `opensearch-recovery.sh backup-test` or the
+recovery workflow first. Both need a running OpenSearch pod on an OCI Block
+Volume; on a new or non-OCI cluster use `waive`.
 
 ### Optional backup and recovery testing
 
 Select `opensearch_recovery=required` only when explicitly choosing to preserve
-existing data. The deployment then requires an isolated restore test against
-the exact live OpenSearch and Jaeger image digests. The manual
-`Verify OTel Demo OpenSearch Recovery` workflow can also run this test. It:
+existing data. On the hosted workflow it is a manual dispatch input: scheduled
+and post-merge runs always waive, so a merged OpenSearch update is deployed
+before `required` can be selected. The policy applies only to upgrade-mode
+deployments that include OpenSearch and does not protect data in `clean` mode.
+The hosted deployment then creates a snapshot and requires an isolated restore
+test against the exact live OpenSearch and Jaeger image digests. The manual
+`Verify OTel Demo OpenSearch Recovery` workflow, which runs only from `main`,
+can also run this test. It:
 
 1. verifies that the live volume uses the OCI Block Volume CSI driver;
 2. flushes OpenSearch and creates a retained `VolumeSnapshot`;
@@ -153,23 +180,25 @@ the exact live OpenSearch and Jaeger image digests. The manual
 
 Ingestion remains active, so the flushed provider backup is crash-consistent.
 An isolated restore test is required before treating that backup as a tested
-recovery point. Its pod requests 1.25 CPU and 6.5 GiB of memory and must run on
-a different worker from live OpenSearch. That capacity is needed only when
-opting into backup/restore verification.
+recovery point. Its pod requests 1.25 CPU and 6.5 GiB of memory, with limits
+up to 8 GiB, and must run on a different worker from live OpenSearch. That
+capacity is needed only when opting into backup/restore verification.
 
-The snapshot and restored PVC are retained deliberately. The workflow removes
+The snapshot and restored PVC are retained deliberately, so each run also holds
+a full OCI backup and a volume of the live PVC's capacity. The workflow removes
 only the exact run-specific disposable restore pod after the test, including on
 failure, so it does not expose restored data or reserve capacity needed by the
 live rollout. Removing either retained storage object is a separate operational
-action. Never use the demo's `clean` mode as a database rollback. Restore the
-retained volume into a fresh installation of the prior OpenSearch version
-instead. See the
+action. When existing data must be preserved, never use the demo's `clean` mode
+as a database rollback. Restore the retained volume into a fresh installation
+of the prior OpenSearch version instead. See the
 [OpenSearch recovery procedure](./OPENSEARCH_RECOVERY.md) for both intact- and
 replaced-namespace recovery.
 
 With `waive`, historical data has no tested recovery path if it becomes
-unusable. Regenerate demo traffic after discarding that data. The live
-OpenSearch workload still needs sufficient memory and disk for normal operation.
+unusable. Discard it with the `clean` reinstall described above; the load
+generators then regenerate traffic. The live OpenSearch workload still needs
+sufficient memory and disk for normal operation.
 
 ### OpenSearch volume expansion
 
@@ -211,9 +240,11 @@ persistent-storage wiring, while the Jaeger runtime config points at OpenSearch.
 
 ## Clean-up
 
-> **Warning:** This is not an upgrade or recovery path. It removes namespaced
-> recovery objects. Confirm that the retained `VolumeSnapshotContent` and its
-> private recovery record are available before using it.
+> **Warning:** This is not an upgrade path or a way to recover existing data.
+> It removes namespaced recovery objects. If you opted into backup/restore
+> verification and want to keep that recovery point, confirm that the retained
+> `VolumeSnapshotContent` and its private recovery record are available before
+> using it.
 
 - Clean uninstall using cleanup.sh :
 ```bash path=null start=null

@@ -2,17 +2,6 @@
 
 This guide walks you through deploying **Jaeger** (using the v2 Helm chart), **Prometheus**, and the **HotROD demo app** on Kubernetes.
 
-## Disposable demo data
-
-Both hosted Jaeger demos contain synthetic traces generated continuously by
-the demo applications and load generators. Historical trace data is disposable
-and may be discarded and regenerated. Routine maintenance verifies service
-health and fresh trace ingestion/querying; it does not require preserving old
-traces or running a database restore test. The hosted deployment workflow uses
-`opensearch_recovery=waive` for the OTel demo's OpenSearch storage. Backup/restore
-testing is an explicit opt-in, described in the
-[OTel demo documentation](../otel-demo/README.md#optional-backup-and-recovery-testing).
-
 ## Prerequisites
 
 Ensure the following tools are installed and configured:
@@ -64,6 +53,14 @@ Then, open the following URLs in your browser:
 - **Prometheus:** [http://localhost:9090](http://localhost:9090)
 - **Grafana:** [http://localhost:9091](http://localhost:9091)
 - **HotROD Demo App:** [http://localhost:8080/hotrod](http://localhost:8080/hotrod)
+
+## Disposable demo data
+
+This demo stores traces in memory. They are synthetic, generated continuously by
+HotROD and the load generator, and disposable: routine maintenance does not
+preserve them. The hosted OTel demo applies the same policy to its OpenSearch
+storage, with backup/restore testing as an explicit opt-in described in the
+[OTel demo documentation](../otel-demo/README.md#optional-backup-and-recovery-testing).
 
 ## Deploying on Cloud Infrastructure (e.g., Oracle Cloud)
 

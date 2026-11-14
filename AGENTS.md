@@ -94,13 +94,7 @@ Storage behavior belongs in the shared `internal/storage/integration` corpus and
 
 ## Hosted Demo Data
 
-The public demos in `examples/oci` and `examples/otel-demo` contain synthetic
-traces generated continuously by the demo applications and load generators.
-Historical trace data is disposable and may be regenerated. Routine maintenance
-uses `opensearch_recovery=waive`; verify healthy services and a fresh trace
-write/read rather than requiring backup restoration or extra cluster capacity
-to preserve this data. Run backup/restore verification only when explicitly
-requested. See the demo README and `examples/otel-demo/OPENSEARCH_RECOVERY.md`.
+The public demos in `examples/oci` and `examples/otel-demo` contain synthetic traces generated continuously by the demo applications and load generators. Historical trace data is disposable and may be regenerated. The hosted deployment workflow defaults to `opensearch_recovery=waive`, while the standalone scripts default to `required`. For routine maintenance, verify healthy services, plus a fresh trace write/read when OpenSearch itself is upgraded (the hosted workflow runs that check only for the OpenSearch component), rather than requiring backup restoration or extra cluster capacity to preserve this data. Run backup/restore verification only when explicitly requested. See "Disposable demo data and deployment verification" in [`examples/otel-demo/README.md`](./examples/otel-demo/README.md) and [`examples/otel-demo/OPENSEARCH_RECOVERY.md`](./examples/otel-demo/OPENSEARCH_RECOVERY.md).
 
 ## RFC / ADR Documents
 
