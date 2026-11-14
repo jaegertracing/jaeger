@@ -145,5 +145,10 @@ func selectSpans(layout AttributeLayout) string {
 			expressions = append(expressions, column.name)
 		}
 	}
-	return "\nSELECT\n    " + strings.Join(expressions, ",\n    ") + "\nFROM\n    spans s\n"
+	var q sqlBuilder
+	q.WriteString("SELECT")
+	q.appendCommaSeparated(1, expressions)
+	q.appendNewlineAndIndent(0)
+	q.WriteString("FROM spans s")
+	return q.String()
 }

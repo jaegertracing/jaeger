@@ -60,7 +60,7 @@ func newHoistedColumnReader() *Reader {
 // a table in the nested layout, which the test driver matches its responses by.
 var (
 	nestedSelectSpans          = selectSpans(NestedLayout{})
-	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
+	nestedSelectSpansByTraceID = nestedSelectSpans + "\nWHERE s.trace_id = ?"
 )
 
 func TestAttributeBuilder_AppendEquals(t *testing.T) {
