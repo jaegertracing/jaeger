@@ -128,6 +128,25 @@ func TestAcquireLockLeaseExpiry(t *testing.T) {
 		assert.False(t, p.IsLeader())
 	})
 
+	t.Run("failed renewals keep the lease until it expires, then step down", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)
+		p, _ := newParticipant(mockLock)
+		p.setLeader(true)
+		leaseExpiry := time.Now().Add(time.Hour)
+		p.leaseExpiry = leaseExpiry
+
+		// renewal fails within the lease: still leader, and the expiry is not moved
+		assert.Equal(t, leaderInterval, p.acquireLock())
+		require.True(t, p.IsLeader())
+		assert.Equal(t, leaseExpiry, p.leaseExpiry)
+
+		// renewal fails after the lease expired: step down
+		p.leaseExpiry = time.Now().Add(-time.Millisecond)
+		assert.Equal(t, followerInterval, p.acquireLock())
+		require.False(t, p.IsLeader())
+	})
+
 	t.Run("leader keeps a valid lease on a failed renewal", func(t *testing.T) {
 		mockLock := &lmocks.Lock{}
 		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)

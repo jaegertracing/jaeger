@@ -133,6 +133,8 @@ func (p *DistributedElectionParticipant) acquireLock() time.Duration {
 	} else {
 		p.Logger.Error(acquireLockErrMsg, zap.Error(err))
 		if p.IsLeader() && !time.Now().Before(p.leaseExpiry) {
+			// Only clear the local flag: the lock is not forfeited, because once the lease has
+			// expired it may belong to another participant, and forfeiting could release their lock.
 			p.Logger.Warn(leaseExpiredMsg, zap.String("resource", p.resourceName))
 			p.setLeader(false)
 		}
