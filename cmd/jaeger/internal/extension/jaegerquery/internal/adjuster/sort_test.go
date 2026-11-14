@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -94,4 +96,65 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 	i := input()
 	adjuster.Adjust(i)
 	assert.Equal(t, expected(), i)
+}
+
+func TestSortEvents_ByTimestamp(t *testing.T) {
+	adjuster := SortCollections()
+	traces := ptrace.NewTraces()
+	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+
+	// Append events with names in reverse order of their timestamps
+	e3 := span.Events().AppendEmpty()
+	e3.SetName("a-third")
+	e3.SetTimestamp(pcommon.Timestamp(300))
+
+	e1 := span.Events().AppendEmpty()
+	e1.SetName("z-first")
+	e1.SetTimestamp(pcommon.Timestamp(100))
+
+	e2 := span.Events().AppendEmpty()
+	e2.SetName("m-second")
+	e2.SetTimestamp(pcommon.Timestamp(200))
+
+	adjuster.Adjust(traces)
+
+	events := span.Events()
+	require.Equal(t, 3, events.Len())
+
+	assert.Equal(t, "z-first", events.At(0).Name())
+	assert.Equal(t, pcommon.Timestamp(100), events.At(0).Timestamp())
+
+	assert.Equal(t, "m-second", events.At(1).Name())
+	assert.Equal(t, pcommon.Timestamp(200), events.At(1).Timestamp())
+
+	assert.Equal(t, "a-third", events.At(2).Name())
+	assert.Equal(t, pcommon.Timestamp(300), events.At(2).Timestamp())
+}
+
+func TestSortEvents_TieBreakerByName(t *testing.T) {
+	adjuster := SortCollections()
+	traces := ptrace.NewTraces()
+	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+
+	// Events with identical timestamps must break ties by name in ascending alphabetical order
+	e1 := span.Events().AppendEmpty()
+	e1.SetName("z-event")
+	e1.SetTimestamp(pcommon.Timestamp(500))
+
+	e2 := span.Events().AppendEmpty()
+	e2.SetName("b-event")
+	e2.SetTimestamp(pcommon.Timestamp(500))
+
+	e3 := span.Events().AppendEmpty()
+	e3.SetName("a-event")
+	e3.SetTimestamp(pcommon.Timestamp(500))
+
+	adjuster.Adjust(traces)
+
+	events := span.Events()
+	require.Equal(t, 3, events.Len())
+
+	assert.Equal(t, "a-event", events.At(0).Name())
+	assert.Equal(t, "b-event", events.At(1).Name())
+	assert.Equal(t, "z-event", events.At(2).Name())
 }
