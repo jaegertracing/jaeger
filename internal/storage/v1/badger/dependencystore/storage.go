@@ -5,6 +5,7 @@ package dependencystore
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -30,6 +31,9 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	params := &spanstore.TraceQueryParameters{
 		StartTimeMin: endTs.Add(-1 * lookback),
 		StartTimeMax: endTs,
+		// Dependencies must count every trace in the window, so do not let the
+		// trace search default limit apply.
+		NumTraces: math.MaxUint32,
 	}
 
 	// We need to do a full table scan - if this becomes a bottleneck, we can write an index that describes
