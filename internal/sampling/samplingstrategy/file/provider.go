@@ -179,6 +179,9 @@ func (h *samplingProvider) updateSamplingStrategy(dataBytes []byte) error {
 	if err := json.Unmarshal(dataBytes, &strategies); err != nil {
 		return fmt.Errorf("failed to unmarshal sampling strategies: %w", err)
 	}
+	if err := strategies.validate(); err != nil {
+		return fmt.Errorf("invalid sampling strategies: %w", err)
+	}
 	h.parseStrategies(&strategies)
 	h.logger.Info("Updated sampling strategies:" + string(dataBytes))
 	return nil
@@ -194,6 +197,9 @@ func loadStrategies(loadFn strategyLoader) (*strategies, error) {
 	var strategies *strategies
 	if err := json.Unmarshal(strategyBytes, &strategies); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
+	}
+	if err := strategies.validate(); err != nil {
+		return nil, fmt.Errorf("invalid sampling strategies: %w", err)
 	}
 	return strategies, nil
 }
