@@ -414,50 +414,161 @@ func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
 
-func TestDbSpanToSpanWithSpanKind(t *testing.T) {
+func TestDbSpanToSpan(t *testing.T) {
+	traceID := [16]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
+	spanID := [8]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
+	otherTraceID := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
+	otherSpanID := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
+	startTime := time.Date(2021, 8, 15, 10, 30, 0, 123456000, time.UTC)
+	eventTime := time.Date(2021, 8, 15, 10, 30, 5, 0, time.UTC)
+	const durationMicros = 42
+
+	baseSpan := func() dbmodel.Span {
+		return dbmodel.Span{
+			TraceID:       getDbTraceIdFromByteArray(traceID),
+			SpanID:        getDbSpanIdFromByteArray(spanID),
+			OperationName: "test-operation",
+			StartTime:     model.TimeAsEpochMicroseconds(startTime),
+			Duration:      durationMicros,
+			Flags:         1,
+		}
+	}
+	withSpanKind := func(kind string) dbmodel.Span {
+		s := baseSpan()
+		s.Tags = []dbmodel.KeyValue{
+			{Key: model.SpanKindKey, Type: dbmodel.StringType, Value: kind},
+		}
+		return s
+	}
+	mutate := func(mod func(*dbmodel.Span)) dbmodel.Span {
+		s := baseSpan()
+		mod(&s)
+		return s
+	}
+
 	tests := []struct {
-		name         string
-		spanKind     string
-		expectedKind ptrace.SpanKind
-		description  string
+		name       string
+		wantKind   ptrace.SpanKind
+		dbSpan     dbmodel.Span
+		assertSpan func(t *testing.T, span ptrace.Span)
 	}{
 		{
-			name:         "span with client kind",
-			spanKind:     "client",
-			expectedKind: ptrace.SpanKindClient,
-			description:  "Span with client kind should be converted properly",
+			name:   "span with no tags",
+			dbSpan: baseSpan(),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, pcommon.TraceID(traceID), span.TraceID())
+				assert.Equal(t, pcommon.SpanID(spanID), span.SpanID())
+				assert.Equal(t, "test-operation", span.Name())
+				assert.Equal(t, uint32(1), span.Flags())
+				assert.Equal(t, startTime, span.StartTimestamp().AsTime())
+				assert.Equal(t, startTime.Add(durationMicros*time.Microsecond), span.EndTimestamp().AsTime())
+				assert.Equal(t, ptrace.StatusCodeUnset, span.Status().Code())
+				assert.Empty(t, span.Status().Message())
+				assert.Empty(t, span.TraceState().AsRaw())
+				assert.Equal(t, 0, span.Attributes().Len())
+			},
 		},
 		{
-			name:         "span with server kind",
-			spanKind:     "server",
-			expectedKind: ptrace.SpanKindServer,
-			description:  "Span with server kind should be converted properly",
+			name: "span with only non-special tags",
+			dbSpan: mutate(func(s *dbmodel.Span) {
+				s.Tags = []dbmodel.KeyValue{
+					{Key: "string-key", Type: dbmodel.StringType, Value: "string-value"},
+					{Key: "int-key", Type: dbmodel.Int64Type, Value: int64(42)},
+					{Key: "bool-key", Type: dbmodel.BoolType, Value: true},
+					{Key: "double-key", Type: dbmodel.Float64Type, Value: 3.14},
+				}
+			}),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, map[string]any{
+					"string-key": "string-value",
+					"int-key":    int64(42),
+					"bool-key":   true,
+					"double-key": 3.14,
+				}, span.Attributes().AsRaw())
+			},
 		},
 		{
-			name:         "span with unspecified kind",
-			spanKind:     "unknown",
-			expectedKind: ptrace.SpanKindUnspecified,
-			description:  "Span with unknown kind should be unspecified",
+			name: "span with lowercase otel status code tag",
+			dbSpan: mutate(func(s *dbmodel.Span) {
+				s.Tags = []dbmodel.KeyValue{
+					{Key: conventions.OtelStatusCode, Type: dbmodel.StringType, Value: "error"},
+				}
+			}),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, ptrace.StatusCodeError, span.Status().Code())
+				assert.Empty(t, span.Status().Message())
+				assert.Equal(t, 0, span.Attributes().Len())
+			},
+		},
+		{
+			name:     "span with client kind",
+			wantKind: ptrace.SpanKindClient,
+			dbSpan:   withSpanKind("client"),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, 0, span.Attributes().Len())
+			},
+		},
+		{
+			name:     "span with server kind",
+			wantKind: ptrace.SpanKindServer,
+			dbSpan:   withSpanKind("server"),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, 0, span.Attributes().Len())
+			},
+		},
+		{
+			name:     "span with unspecified kind",
+			wantKind: ptrace.SpanKindUnspecified,
+			dbSpan:   withSpanKind("unknown"),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				assert.Equal(t, 0, span.Attributes().Len())
+			},
+		},
+		{
+			name: "span with logs and references",
+			dbSpan: mutate(func(s *dbmodel.Span) {
+				s.Logs = []dbmodel.Log{{
+					Timestamp: model.TimeAsEpochMicroseconds(eventTime),
+					Fields: []dbmodel.KeyValue{
+						{Key: eventNameAttr, Type: dbmodel.StringType, Value: "log-event"},
+						{Key: "log-key", Type: dbmodel.StringType, Value: "log-value"},
+					},
+				}}
+				s.References = []dbmodel.Reference{{
+					RefType: dbmodel.FollowsFrom,
+					TraceID: getDbTraceIdFromByteArray(otherTraceID),
+					SpanID:  getDbSpanIdFromByteArray(otherSpanID),
+				}}
+			}),
+			assertSpan: func(t *testing.T, span ptrace.Span) {
+				require.Equal(t, 1, span.Events().Len())
+				event := span.Events().At(0)
+				assert.Equal(t, eventTime, event.Timestamp().AsTime())
+				assert.Equal(t, "log-event", event.Name())
+				assert.Equal(t, map[string]any{"log-key": "log-value"}, event.Attributes().AsRaw())
+
+				require.Equal(t, 1, span.Links().Len())
+				link := span.Links().At(0)
+				assert.Equal(t, pcommon.TraceID(otherTraceID), link.TraceID())
+				assert.Equal(t, pcommon.SpanID(otherSpanID), link.SpanID())
+				refType, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
+				require.True(t, ok)
+				assert.Equal(t, conventions.AttributeOpentracingRefTypeFollowsFrom, refType.Str())
+				// a cross-trace reference does not become the parent
+				assert.True(t, span.ParentSpanID().IsEmpty())
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dbSpan := &dbmodel.Span{
-				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
-				SpanID:  dbmodel.SpanID("0123456789abcdef"),
-				Tags: []dbmodel.KeyValue{
-					{Key: model.SpanKindKey, Value: tt.spanKind, Type: dbmodel.StringType},
-				},
-			}
-
 			span := ptrace.NewSpan()
-			err := dbSpanToSpan(dbSpan, span)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedKind, span.Kind(), tt.description)
-			// Verify span kind attribute was removed
+			require.NoError(t, dbSpanToSpan(&tt.dbSpan, span))
+			assert.Equal(t, tt.wantKind, span.Kind())
+			// the span kind tag is converted into the span field and removed
 			_, exists := span.Attributes().Get(model.SpanKindKey)
-			assert.False(t, exists, "Span kind attribute should be removed")
+			assert.False(t, exists, "span kind attribute should be removed")
+			tt.assertSpan(t, span)
 		})
 	}
 }
