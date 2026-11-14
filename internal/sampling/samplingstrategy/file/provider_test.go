@@ -243,6 +243,36 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	}
 }
 
+func TestPerOperationSamplingBounds(t *testing.T) {
+	provider, err := NewProvider(Options{
+		StrategiesFile:             "fixtures/per_operation_bounds.json",
+		DefaultSamplingProbability: DefaultSamplingProbability,
+	}, zap.NewNop())
+	require.NoError(t, err)
+
+	tests := []struct {
+		service string
+		lower   float64
+		upper   float64
+	}{
+		{service: "foo", lower: 1.5, upper: 10},
+		{service: "bar", lower: 3.5, upper: 30}, // overrides inherited bounds without its own operations
+		{service: "baz", lower: 2.5, upper: 20}, // inherits the default strategy's bounds
+		{service: "qux", lower: 2.5, upper: 20}, // inherits default bounds alongside its own operations
+		{service: "default", lower: 2.5, upper: 20},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.service, func(t *testing.T) {
+			s, err := provider.GetSamplingStrategy(context.Background(), tt.service)
+			require.NoError(t, err)
+			require.NotNil(t, s.OperationSampling)
+			assert.InDelta(t, tt.lower, s.OperationSampling.DefaultLowerBoundTracesPerSecond, 1e-9)
+			assert.InDelta(t, tt.upper, s.OperationSampling.DefaultUpperBoundTracesPerSecond, 1e-9)
+		})
+	}
+}
+
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	provider, err := NewProvider(Options{StrategiesFile: "fixtures/missing-service-types.json", DefaultSamplingProbability: DefaultSamplingProbability}, logger)
