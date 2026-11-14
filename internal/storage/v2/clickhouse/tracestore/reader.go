@@ -59,6 +59,10 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
 }
 
+func (r *Reader) newSQLBuilder() *sqlBuilder {
+	return &sqlBuilder{attrBuilder: r.attrBuilder}
+}
+
 func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
 	filter := FilterCapabilities()
 	return tracestore.SearchCapabilities{

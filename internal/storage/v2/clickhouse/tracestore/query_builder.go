@@ -50,13 +50,7 @@ type typedAttributeValue struct {
 // query builders and the filter lowering share, each on its own indented line.
 type sqlBuilder struct {
 	strings.Builder
-	// attrBuilder writes the attribute conditions of the statement.
 	attrBuilder attributeBuilder
-}
-
-// newSQLBuilder returns a builder that writes attribute conditions with the reader's attrBuilder.
-func (r *Reader) newSQLBuilder() *sqlBuilder {
-	return &sqlBuilder{attrBuilder: r.attrBuilder}
 }
 
 func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
