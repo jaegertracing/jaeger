@@ -57,6 +57,10 @@ type PrometheusConfiguration struct {
 	Authentication escfg.Authentication  `mapstructure:"auth"`
 }
 
+func (c *PrometheusConfiguration) Validate() error {
+	return c.Configuration.Validate()
+}
+
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
 // defaults for different configs.
 func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
@@ -132,12 +136,31 @@ func (cfg *TraceBackend) Validate() error {
 	}
 	// Validate the selected backend's own configuration. Both callers of
 	// Config.Validate, the Viper path in remote-storage and the jaegerstorage
-	// extension, reach this method, so without this the memory backend's
-	// constraints were only enforced by confmap.Validate and an invalid
-	// max_traces surfaced later, from the store constructor.
-	if cfg.Memory != nil {
-		if err := cfg.Memory.Validate(); err != nil {
-			return fmt.Errorf("memory: %w", err)
+	// extension, reach this method, so without this individual backend
+	// constraints were only enforced by confmap.Validate and invalid
+	// settings surfaced later, from the store constructor.
+	var (
+		name string
+		v    interface{ Validate() error }
+	)
+	switch {
+	case cfg.Memory != nil:
+		name, v = "memory", cfg.Memory
+	case cfg.Badger != nil:
+		name, v = "badger", cfg.Badger
+	case cfg.Cassandra != nil:
+		name, v = "cassandra", cfg.Cassandra
+	case cfg.Elasticsearch != nil:
+		name, v = "elasticsearch", cfg.Elasticsearch
+	case cfg.Opensearch != nil:
+		name, v = "opensearch", cfg.Opensearch
+	case cfg.ClickHouse != nil:
+		name, v = "clickhouse", cfg.ClickHouse
+	default:
+	}
+	if v != nil {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
 		}
 	}
 	return nil
@@ -186,6 +209,26 @@ func (cfg *MetricBackend) Validate() error {
 	}
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backend types found for metric storage: %v", backends)
+	}
+	var (
+		name string
+		v    interface{ Validate() error }
+	)
+	switch {
+	case cfg.Prometheus != nil:
+		name, v = "prometheus", cfg.Prometheus
+	case cfg.Elasticsearch != nil:
+		name, v = "elasticsearch", cfg.Elasticsearch
+	case cfg.Opensearch != nil:
+		name, v = "opensearch", cfg.Opensearch
+	case cfg.ClickHouse != nil:
+		name, v = "clickhouse", cfg.ClickHouse
+	default:
+	}
+	if v != nil {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
 	}
 	return nil
 }

@@ -12,9 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
@@ -75,7 +78,13 @@ func TestConfigValidate(t *testing.T) {
 					"memory": {Memory: &memory.Configuration{MaxTraces: 10000}},
 				},
 				MetricBackends: map[string]MetricBackend{
-					"prometheus": {Prometheus: &PrometheusConfiguration{}},
+					"prometheus": {
+						Prometheus: &PrometheusConfiguration{
+							Configuration: promcfg.Configuration{
+								ServerURL: "http://localhost:9090",
+							},
+						},
+					},
 				},
 			},
 			expectError: false,
@@ -489,5 +498,262 @@ func TestMetricBackendExclusive(t *testing.T) {
 				assert.Contains(t, err.Error(), "multiple backend types found")
 			})
 		}
+	}
+}
+
+func TestTraceBackendValidate(t *testing.T) {
+	validClickHouse := clickhouse.DefaultConfiguration()
+	validClickHouse.Addresses = []string{"127.0.0.1:9000"}
+
+	validCassandra := cassandra.NewOptions()
+	validCassandra.Connection.Servers = []string{"http://127.0.0.1:9042"}
+
+	tests := []struct {
+		name        string
+		backend     TraceBackend
+		expectedErr string
+	}{
+		{
+			name: "valid memory",
+			backend: TraceBackend{
+				Memory: &memory.Configuration{MaxTraces: 1000},
+			},
+		},
+		{
+			name: "invalid memory",
+			backend: TraceBackend{
+				Memory: &memory.Configuration{MaxTraces: 0},
+			},
+			expectedErr: "memory: max traces must be greater than zero",
+		},
+		{
+			name: "valid badger",
+			backend: TraceBackend{
+				Badger: badger.DefaultConfig(),
+			},
+		},
+		{
+			name: "valid grpc",
+			backend: TraceBackend{
+				GRPC: &grpc.Config{},
+			},
+		},
+		{
+			name: "valid cassandra",
+			backend: TraceBackend{
+				Cassandra: validCassandra,
+			},
+		},
+		{
+			name: "invalid cassandra",
+			backend: TraceBackend{
+				Cassandra: &cassandra.Options{},
+			},
+			expectedErr: "cassandra: Connection.Servers: non zero value required",
+		},
+		{
+			name: "valid elasticsearch",
+			backend: TraceBackend{
+				Elasticsearch: &escfg.Configuration{
+					Servers: []string{"http://127.0.0.1:9200"},
+				},
+			},
+		},
+		{
+			name: "invalid elasticsearch",
+			backend: TraceBackend{
+				Elasticsearch: &escfg.Configuration{},
+			},
+			expectedErr: "elasticsearch: Servers: non zero value required",
+		},
+		{
+			name: "valid opensearch",
+			backend: TraceBackend{
+				Opensearch: &escfg.Configuration{
+					Servers: []string{"http://127.0.0.1:9200"},
+				},
+			},
+		},
+		{
+			name: "invalid opensearch",
+			backend: TraceBackend{
+				Opensearch: &escfg.Configuration{},
+			},
+			expectedErr: "opensearch: Servers: non zero value required",
+		},
+		{
+			name: "valid clickhouse",
+			backend: TraceBackend{
+				ClickHouse: &validClickHouse,
+			},
+		},
+		{
+			name: "invalid clickhouse",
+			backend: TraceBackend{
+				ClickHouse: &clickhouse.Configuration{},
+			},
+			expectedErr: "clickhouse: Addresses: non zero value required",
+		},
+		{
+			name:        "empty configuration",
+			backend:     TraceBackend{},
+			expectedErr: "empty configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.backend.Validate()
+			if tt.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedErr)
+			}
+		})
+	}
+}
+
+func TestMetricBackendValidate(t *testing.T) {
+	validClickHouse := clickhouse.DefaultConfiguration()
+	validClickHouse.Addresses = []string{"127.0.0.1:9000"}
+
+	tests := []struct {
+		name        string
+		backend     MetricBackend
+		expectedErr string
+	}{
+		{
+			name: "valid prometheus",
+			backend: MetricBackend{
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promcfg.Configuration{
+						ServerURL: "http://localhost:9090",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid prometheus missing ServerURL",
+			backend: MetricBackend{
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promcfg.Configuration{},
+				},
+			},
+			expectedErr: "prometheus: ServerURL: non zero value required",
+		},
+		{
+			name: "invalid prometheus latency unit",
+			backend: MetricBackend{
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promcfg.Configuration{
+						ServerURL:   "http://localhost:9090",
+						LatencyUnit: "hours",
+					},
+				},
+			},
+			expectedErr: `prometheus: latency_unit must be "ms" or "s"`,
+		},
+		{
+			name: "valid elasticsearch",
+			backend: MetricBackend{
+				Elasticsearch: &escfg.Configuration{
+					Servers: []string{"http://127.0.0.1:9200"},
+				},
+			},
+		},
+		{
+			name: "invalid elasticsearch",
+			backend: MetricBackend{
+				Elasticsearch: &escfg.Configuration{},
+			},
+			expectedErr: "elasticsearch: Servers: non zero value required",
+		},
+		{
+			name: "valid opensearch",
+			backend: MetricBackend{
+				Opensearch: &escfg.Configuration{
+					Servers: []string{"http://127.0.0.1:9200"},
+				},
+			},
+		},
+		{
+			name: "invalid opensearch",
+			backend: MetricBackend{
+				Opensearch: &escfg.Configuration{},
+			},
+			expectedErr: "opensearch: Servers: non zero value required",
+		},
+		{
+			name: "valid clickhouse",
+			backend: MetricBackend{
+				ClickHouse: &validClickHouse,
+			},
+		},
+		{
+			name: "invalid clickhouse",
+			backend: MetricBackend{
+				ClickHouse: &clickhouse.Configuration{},
+			},
+			expectedErr: "clickhouse: Addresses: non zero value required",
+		},
+		{
+			name:        "empty configuration",
+			backend:     MetricBackend{},
+			expectedErr: "empty configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.backend.Validate()
+			if tt.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedErr)
+			}
+		})
+	}
+}
+
+func TestConfigValidate_BackendErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		expectedErr string
+	}{
+		{
+			name: "invalid trace backend wraps with storage name",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"my-es": {
+						Elasticsearch: &escfg.Configuration{},
+					},
+				},
+			},
+			expectedErr: "trace storage 'my-es': elasticsearch: Servers: non zero value required",
+		},
+		{
+			name: "invalid metric backend wraps with storage name",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"mem": {
+						Memory: &memory.Configuration{MaxTraces: 1000},
+					},
+				},
+				MetricBackends: map[string]MetricBackend{
+					"my-prom": {
+						Prometheus: &PrometheusConfiguration{},
+					},
+				},
+			},
+			expectedErr: "metric storage 'my-prom': prometheus: ServerURL: non zero value required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			require.ErrorContains(t, err, tt.expectedErr)
+		})
 	}
 }
