@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -51,6 +52,10 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 
 func TestBadgerStorage(t *testing.T) {
 	SkipUnlessEnv(t, StorageBadger)
+	require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.badger.operationIndex", true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.badger.operationIndex", false))
+	})
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
