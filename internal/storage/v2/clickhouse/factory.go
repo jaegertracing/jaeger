@@ -58,20 +58,18 @@ type schemaBuilder struct {
 	statements []schemaStatement
 }
 
-func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+// newSchemaBuilder renders the statements that create the schema, for the attribute layout
+// and the hoisted columns that the factory resolved from cfg.
+func newSchemaBuilder(
+	cfg Configuration,
+	layout chtracestore.AttributeLayout,
+	hoistedColumns []chtracestore.HoistedColumn,
+) (*schemaBuilder, error) {
 	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
 	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
-	if err != nil {
-		return nil, err
-	}
-	layout, err := cfg.attributeLayout()
-	if err != nil {
-		return nil, err
-	}
-	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +149,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		builder, err = newSchemaBuilder(cfg)
+		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
 		if err != nil {
 			return nil, err
 		}

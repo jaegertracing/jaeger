@@ -102,10 +102,24 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
+// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and the
+// hoisted columns that cfg selects.
+func buildSchema(cfg Configuration) (*schemaBuilder, error) {
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return nil, err
+	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
+	if err != nil {
+		return nil, err
+	}
+	return newSchemaBuilder(cfg, layout, hoistedColumns)
+}
+
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for
 // localTableEngine and no TTL, so the tests expect exactly what the factory executes.
 func schemaQuery(t *testing.T, name string) string {
-	builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
+	builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: localTableEngine})
 	require.NoError(t, err)
 	for _, stmt := range builder.statements {
 		if stmt.name == name {
@@ -479,7 +493,7 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 // stored type and level, a key that needs escaping, a column name that is a keyword, and a
 // codec that ClickHouse stores in another spelling.
 func TestCreateSpansTable_HoistedColumns(t *testing.T) {
-	builder, err := newSchemaBuilder(Configuration{
+	builder, err := buildSchema(Configuration{
 		CreateSchema: true,
 		TableEngine:  localTableEngine,
 		HoistedAttributes: []HoistedAttribute{
@@ -530,15 +544,6 @@ func TestCreateSpansTable_HoistedColumns(t *testing.T) {
 	})
 	require.NoError(t, err)
 	clickhousetest.VerifyQuerySnapshot(t, builder.statements[0].query)
-}
-
-func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
-	_, err := newSchemaBuilder(Configuration{
-		CreateSchema:      true,
-		TableEngine:       localTableEngine,
-		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
-	})
-	require.ErrorContains(t, err, "hoisted_attributes[0]")
 }
 
 // TestNewFactory_SpansTableMissing checks that the factory runs the check: the test server
@@ -681,7 +686,7 @@ func TestCreateTraceReader_HoistedColumns(t *testing.T) {
 // rendered for the map layout: the spans table with a hoisted column of each level, and the
 // three views that collect attribute keys.
 func TestSchemaBuilder_MapLayout(t *testing.T) {
-	builder, err := newSchemaBuilder(Configuration{
+	builder, err := buildSchema(Configuration{
 		CreateSchema:    true,
 		TableEngine:     localTableEngine,
 		AttributeLayout: "map",
@@ -717,15 +722,6 @@ func TestSchemaBuilder_MapLayout(t *testing.T) {
 
 func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
 	_, err := NewFactory(context.Background(), Configuration{AttributeLayout: "json"}, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "attribute_layout must be nested or map")
-}
-
-func TestNewSchemaBuilder_InvalidAttributeLayout(t *testing.T) {
-	_, err := newSchemaBuilder(Configuration{
-		CreateSchema:    true,
-		TableEngine:     localTableEngine,
-		AttributeLayout: "json",
-	})
 	require.ErrorContains(t, err, "attribute_layout must be nested or map")
 }
 
@@ -819,7 +815,7 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: tt.engine})
+			builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: tt.engine})
 			require.NoError(t, err)
 			seen := 0
 			for _, stmt := range builder.statements {
@@ -842,7 +838,7 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	}
 
 	t.Run("unset engine is refused", func(t *testing.T) {
-		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
+		_, err := buildSchema(Configuration{CreateSchema: true})
 		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
 	})
 }
