@@ -165,6 +165,24 @@ testRestorePodUsesExactImagesAndNoNetworkService() {
   assertNotContains "$output" "kind: Ingress"
 }
 
+# The image entrypoint appends -Eplugins.security.disabled=true on its own when
+# DISABLE_SECURITY_PLUGIN=true, and OpenSearch refuses to start when the same
+# -E key is given twice, so the manifest must supply the setting only once.
+testRestorePodDisablesSecurityPluginOnce() {
+  output=$(bash -c \
+    'source "$1"; render_restore_pod verify restored "opensearchproject/opensearch@sha256:abc" "jaegertracing/jaeger@sha256:def" config' \
+    _ "$SCRIPT")
+  security_env=$(printf '%s\n' "$output" | grep -A1 -- '- name: DISABLE_SECURITY_PLUGIN')
+  before_volume_mounts=$(printf '%s\n' "$output" | grep -B1 -m1 -- 'volumeMounts:' | head -n 1)
+
+  assertContains "$security_env" 'value: "true"'
+  assertNotContains "$output" "plugins.security.disabled"
+  # The manifest heredoc is unquoted, so a line continuation left on the last
+  # entrypoint argument would fold the next YAML key into the command line.
+  assertContains "$before_volume_mounts" "opensearch-docker-entrypoint.sh"
+  assertContains "$before_volume_mounts" "-Enetwork.host=127.0.0.1"
+}
+
 testRecoveryScriptOnlyDeletesDisposableRestorePod() {
   contents=$(cat "$SCRIPT")
   assertContains "$contents" "kubectl -n \"\$NAMESPACE\" delete pod \"\$restore_pod\""
