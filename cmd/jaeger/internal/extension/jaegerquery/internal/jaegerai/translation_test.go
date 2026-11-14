@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
+	"github.com/coder/acp-go-sdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -297,4 +298,65 @@ func TestValidateUIToolNamesReportsFirstOffendingIndex(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tools[2].name",
 		"the index of the first invalid tool must be in the error so frontend devs can locate it")
+}
+
+func TestLatestUserMessageIndex(t *testing.T) {
+	messages := []aguitypes.Message{
+		{Role: aguitypes.RoleUser, Content: "turn 1"},
+		{Role: aguitypes.RoleAssistant, Content: "reply 1"},
+		{Role: aguitypes.RoleUser, Content: "turn 2"},
+		{Role: aguitypes.RoleAssistant, Content: "reply 2"},
+		{Role: aguitypes.RoleUser, Content: "turn 3"},
+	}
+	assert.Equal(t, 4, latestUserMessageIndex(messages))
+
+	// No user message
+	assert.Equal(t, -1, latestUserMessageIndex([]aguitypes.Message{
+		{Role: aguitypes.RoleAssistant, Content: "only assistant"},
+	}))
+
+	// User message with empty content
+	assert.Equal(t, -1, latestUserMessageIndex([]aguitypes.Message{
+		{Role: aguitypes.RoleUser, Content: "   \t\n"},
+	}))
+}
+
+func TestHistoryPromptBlocks(t *testing.T) {
+	messages := []aguitypes.Message{
+		{Role: aguitypes.RoleUser, Content: "investigate trace abc"},
+		{Role: aguitypes.RoleAssistant, Content: "found 10 spans"},
+		{Role: aguitypes.RoleUser, Content: "show me slowest"},
+	}
+
+	blocks := historyPromptBlocks(messages, 2)
+	require.Len(t, blocks, 2)
+
+	assert.Equal(t, acp.TextBlock("[User]:\ninvestigate trace abc"), blocks[0])
+	assert.Equal(t, acp.TextBlock("[Assistant]:\nfound 10 spans"), blocks[1])
+
+	// Turn 1 (latestUserIdx == 0) yields nil
+	assert.Nil(t, historyPromptBlocks(messages, 0))
+	assert.Nil(t, historyPromptBlocks(messages, -1))
+
+	// Skips empty content
+	messagesWithEmpty := []aguitypes.Message{
+		{Role: aguitypes.RoleUser, Content: ""},
+		{Role: aguitypes.RoleAssistant, Content: "reply"},
+		{Role: aguitypes.RoleUser, Content: "turn 2"},
+	}
+	blocks = historyPromptBlocks(messagesWithEmpty, 2)
+	require.Len(t, blocks, 1)
+	assert.Equal(t, acp.TextBlock("[Assistant]:\nreply"), blocks[0])
+}
+
+func TestHistoryPromptBlocksDefaultsEmptyRoleToUser(t *testing.T) {
+	// A history message with no role still needs a readable prefix in the
+	// replayed transcript; the replay defaults such messages to the user.
+	messages := []aguitypes.Message{
+		{Content: "question with no role"},
+		{Role: aguitypes.RoleUser, Content: "follow-up"},
+	}
+	blocks := historyPromptBlocks(messages, 1)
+	require.Len(t, blocks, 1)
+	assert.Equal(t, acp.TextBlock("[User]:\nquestion with no role"), blocks[0])
 }
