@@ -5,6 +5,7 @@ package remotesampling
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -87,6 +88,15 @@ func (cfg *Config) Validate() error {
 		}
 		if adaptiveCfg.FollowerLeaseRefreshInterval <= 0 {
 			return errFollowerLeaseRefreshInterval
+		}
+		if adaptiveCfg.CalculationInterval <= 0 || adaptiveCfg.AggregationBuckets <= 0 {
+			return adaptive.ErrNonZero
+		}
+		if adaptiveCfg.BucketsForCalculation < 1 {
+			return adaptive.ErrBucketsForCalculation
+		}
+		if adaptiveCfg.TargetSamplesPerSecond <= 0 || math.IsNaN(adaptiveCfg.TargetSamplesPerSecond) || math.IsInf(adaptiveCfg.TargetSamplesPerSecond, 0) {
+			return adaptive.ErrTargetSamplesPerSecond
 		}
 	}
 
