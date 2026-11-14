@@ -4,7 +4,9 @@
 package tracestore
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -81,6 +83,24 @@ func spanColumns() []spanColumn {
 	return columns
 }
 
+// insertSpanFormat takes the list of the columns and the list of their placeholders.
+const insertSpanFormat = `
+INSERT INTO
+    spans (
+        %s
+    )
+VALUES
+    (
+        %s
+    )
+`
+
+// indentedList joins the items with a comma, each item after the first on a line of its own
+// at the given depth of four-space indentation.
+func indentedList(items []string, depth int) string {
+	return strings.Join(items, ",\n"+strings.Repeat("    ", depth))
+}
+
 // insertSpan returns the statement that inserts a span into a table of the given layout.
 func insertSpan(layout AttributeLayout) string {
 	var names []string
@@ -91,13 +111,6 @@ func insertSpan(layout AttributeLayout) string {
 			names = append(names, column.name)
 		}
 	}
-	var q sqlBuilder
-	q.WriteString("INSERT INTO spans (")
-	q.appendCommaSeparated(1, names)
-	q.appendNewlineAndIndent(0)
-	q.WriteString(") VALUES (")
-	q.appendCommaSeparated(1, slices.Repeat([]string{"?"}, len(names)))
-	q.appendNewlineAndIndent(0)
-	q.WriteString(")")
-	return q.String()
+	placeholders := slices.Repeat([]string{"?"}, len(names))
+	return fmt.Sprintf(insertSpanFormat, indentedList(names, 2), indentedList(placeholders, 2))
 }

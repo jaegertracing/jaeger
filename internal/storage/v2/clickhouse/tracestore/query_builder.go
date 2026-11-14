@@ -60,18 +60,6 @@ func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
 	}
 }
 
-// appendCommaSeparated writes every item on a line of its own at the given indent, with a
-// comma between two items.
-func (q *sqlBuilder) appendCommaSeparated(indent int, items []string) {
-	for i, item := range items {
-		if i > 0 {
-			q.WriteString(",")
-		}
-		q.appendNewlineAndIndent(indent)
-		q.WriteString(item)
-	}
-}
-
 // appendAnd writes cond as one more AND clause of a WHERE that already has a predicate.
 func (q *sqlBuilder) appendAnd(cond string) {
 	q.appendNewlineAndIndent(1)
