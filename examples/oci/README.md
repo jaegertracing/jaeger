@@ -29,6 +29,20 @@ bash ./deploy-all.sh
 ```
 This script will automatically install and configure all components on your Kubernetes , To deal with individual components refer to deploy-all.sh script .
 
+### Retry a failed monitoring release
+
+From the repository root, upgrade only the existing monitoring release with:
+
+```bash
+JAEGER_DEMO_DEPLOY_SCOPE=monitoring bash examples/oci/deploy-all.sh upgrade
+```
+
+The script upgrades `deployed` and `failed` Prometheus releases in place. A
+missing release or a pending Helm operation requires separate repair. The
+monitoring upgrade waits up to 20 minutes, and Grafana's liveness checks start
+after 10 minutes to allow index creation and plugin installation to finish.
+Readiness checks gate traffic while Grafana initializes.
+
 ## Access the Deployment
 
 After deploying, you can access each component locally using the following port-forward commands in separate terminals:

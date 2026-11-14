@@ -93,11 +93,24 @@ if command == "helm":
                 self.assertFalse(any(call[0] == "kubectl" for call in calls))
                 self.assertFalse(any(call[:2] == ["helm", "upgrade"] for call in calls))
 
-    def test_failed_monitoring_is_an_error_and_is_not_uninstalled(self):
+    def test_failed_monitoring_is_retried_without_uninstalling(self):
         result, calls = self.execute("monitoring", "failed")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("repair it separately", result.stderr)
-        self.assertEqual([["helm", "status", "prometheus"]], calls)
+        self.assertEqual(0, result.returncode, result.stderr)
+        upgrades = [call for call in calls if call[:2] == ["helm", "upgrade"]]
+        self.assertEqual(1, len(upgrades))
+        self.assertIn("prometheus", upgrades[0])
+        self.assertIn("--wait", upgrades[0])
+        self.assertEqual("20m0s", upgrades[0][upgrades[0].index("--timeout") + 1])
+        self.assertFalse(any(call[:2] == ["helm", "uninstall"] for call in calls))
+        self.assertFalse(any("jaeger" in call or "trace-script" in call for call in calls))
+
+    def test_pending_or_missing_monitoring_requires_separate_repair(self):
+        for status in ("", "pending-install", "pending-upgrade", "pending-rollback", "uninstalling", "unknown"):
+            with self.subTest(status=status):
+                result, calls = self.execute("monitoring", status)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("repair it separately", result.stderr)
+                self.assertEqual([["helm", "status", "prometheus"]], calls)
 
     def test_invalid_scope_has_no_side_effects(self):
         result, calls = self.execute("opensearch")
