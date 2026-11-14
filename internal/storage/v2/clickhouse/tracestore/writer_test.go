@@ -29,7 +29,7 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 	return td
 }
 
-func TestWriter_Success(t *testing.T) {
+func TestWriter_Success_NestedLayout(t *testing.T) {
 	b := &clickhousetest.Batch{}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
