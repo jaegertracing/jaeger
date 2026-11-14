@@ -15,73 +15,70 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
-func TestClickHouseStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+// runClickHouseStorageSuite runs the span store suite against a Jaeger binary that reads
+// configFile. The storage name also names the metrics snapshot of the run.
+func runClickHouseStorageSuite(t *testing.T, configFile string, storage string) {
 	s := &E2EStorageIntegration{
-		ConfigFile:   "../../config-clickhouse.yaml",
+		ConfigFile:   configFile,
 		FeatureGates: searchGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.ClickHouseE2E(),
 		},
 	}
-	s.e2eInitialize(t, "clickhouse")
+	s.e2eInitialize(t, storage)
 	s.RunSpanStoreTests(t)
 }
 
-// TestClickHouseStorage_HoistedAttributes runs the same suite against tables that copy the
-// searched attributes into dedicated columns, so every search must return what it returns
-// without them.
+func TestClickHouseStorage(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+	runClickHouseStorageSuite(t, "../../config-clickhouse.yaml", "clickhouse")
+}
+
+// TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
+// columns, so every search must return what it returns without them. Its storage name keeps
+// its metrics snapshot apart from the snapshot of the plain run, which is the one that CI
+// compares.
 func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	integration.RecreateClickHouseDatabase(t, integration.ClickHouseHoistedDatabase)
-	s := &E2EStorageIntegration{
-		ConfigFile:   clickHouseHoistedConfig(t),
-		FeatureGates: searchGates,
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.ClickHouseE2E(),
-		},
-	}
-	// The name keeps the metrics snapshot of this run apart from the snapshot of the plain run,
-	// which is the one that CI compares.
-	s.e2eInitialize(t, "clickhouse_hoisted")
-	s.RunSpanStoreTests(t)
+	runClickHouseStorageSuite(t, writeClickHouseHoistedConfig(t), "clickhouse_hoisted")
 }
 
-// clickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use the
-// database of the hoisted runs and whose trace backend hoists the shared attribute list. The
-// copy is derived, not committed, so it cannot drift from the config the plain run uses.
-func clickHouseHoistedConfig(t *testing.T) string {
+// writeClickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use the
+// database of the hoisted runs and whose trace backend hoists the shared attribute list, and
+// returns its path. The copy is derived, not committed, so it cannot drift from the config
+// the plain run uses.
+func writeClickHouseHoistedConfig(t *testing.T) string {
 	data, err := os.ReadFile("../../config-clickhouse.yaml")
 	require.NoError(t, err)
 	var config map[string]any
 	require.NoError(t, yaml.Unmarshal(data, &config))
 	jaegerStorage := config["extensions"].(map[string]any)["jaeger_storage"].(map[string]any)
 
-	hoisted := make([]map[string]string, 0, len(integration.ClickHouseHoistedAttributes))
-	for _, h := range integration.ClickHouseHoistedAttributes {
+	hoistedEntries := make([]map[string]string, 0, len(integration.ClickHouseHoistedAttributes))
+	for _, attribute := range integration.ClickHouseHoistedAttributes {
 		entry := map[string]string{
-			"key":    h.Key,
-			"level":  h.Level,
-			"type":   h.Type,
-			"column": h.Column,
+			"key":    attribute.Key,
+			"level":  attribute.Level,
+			"type":   attribute.Type,
+			"column": attribute.Column,
 		}
-		if h.Codec != "" {
-			entry["codec"] = h.Codec
+		if attribute.Codec != "" {
+			entry["codec"] = attribute.Codec
 		}
-		hoisted = append(hoisted, entry)
+		hoistedEntries = append(hoistedEntries, entry)
 	}
-	traces := jaegerStorage["backends"].(map[string]any)["some-storage"].(map[string]any)["clickhouse"].(map[string]any)
-	traces["database"] = integration.ClickHouseHoistedDatabase
-	traces["hoisted_attributes"] = hoisted
-	metrics := jaegerStorage["metric_backends"].(map[string]any)["some-metrics"].(map[string]any)["clickhouse"].(map[string]any)
-	metrics["database"] = integration.ClickHouseHoistedDatabase
+	traceBackend := jaegerStorage["backends"].(map[string]any)["some-storage"].(map[string]any)["clickhouse"].(map[string]any)
+	traceBackend["database"] = integration.ClickHouseHoistedDatabase
+	traceBackend["hoisted_attributes"] = hoistedEntries
+	metricBackend := jaegerStorage["metric_backends"].(map[string]any)["some-metrics"].(map[string]any)["clickhouse"].(map[string]any)
+	metricBackend["database"] = integration.ClickHouseHoistedDatabase
 
-	out, err := yaml.Marshal(config)
+	hoistedYAML, err := yaml.Marshal(config)
 	require.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "config-clickhouse-hoisted.yaml")
-	require.NoError(t, os.WriteFile(path, out, 0o600))
+	require.NoError(t, os.WriteFile(path, hoistedYAML, 0o600))
 	return path
 }
 

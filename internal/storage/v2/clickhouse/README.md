@@ -58,14 +58,14 @@ hoisted_attributes:
 | `key` | any non-empty string | The attribute key. It is an opaque string, never a column name or an expression. |
 | `level` | `span`, `resource` | Where the attribute is stored. |
 | `type` | `string`, `int`, `double`, `bool` | The stored type of the attribute. It selects the typed group to copy from and converts nothing: a value stored under the same key with another type is not copied. The same key may be listed once per type. |
-| `column` | `[a-z_][a-z0-9_]*` | The name of the dedicated column. It must not be a column the table already has. |
+| `column` | `[a-z][a-z0-9_]*` | The name of the dedicated column. It must not be a column the table already has. |
 | `codec` | `ZSTD(1)` to `ZSTD(22)` | Optional compression codec of the column. The default is `ZSTD(1)`. |
 
 The column is `MATERIALIZED`: ClickHouse computes it from the typed attribute group when a span is inserted. Its type is `Nullable`, so a span without the attribute holds `NULL` and not zero, `false` or an empty string. The typed groups stay the source of the attribute; a trace is still read from them, and `attribute_metadata` still records the attribute.
 
 An equality search on a hoisted attribute compares the column instead of scanning the key and value arrays, in both the tag search and the structured filter. The same key at another level or with another type, and every attribute that is not hoisted, is searched as before. The copy costs the storage of a second copy of the value and the CPU to compute it on insert.
 
-Two properties follow from the copy holding one value per span:
+Two properties of the column matter to an operator:
 
 - If a span carries the same key twice in one typed group, which OTLP forbids, the column holds the first value, and a search for the second finds the span only when the attribute is not hoisted.
 - The backend creates no index on the column. An operator who wants granule pruning adds a skip index (`bloom_filter`, `minmax`, or another type that suits the values) and materializes it for existing parts.

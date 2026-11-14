@@ -265,7 +265,7 @@ The factory only ever runs `CREATE TABLE IF NOT EXISTS`, so an existing table is
 
 ### 5.2 Make typed attribute hoisting configurable
 
-A deployment can select frequently searched attributes to copy into dedicated `MATERIALIZED` columns on `spans`. This provides direct column access for those keys while keeping the typed `Nested` groups as the source of truth. Storage tuning (§5.1) ships first, followed by hoisting; the general attribute-index proposal (§5.3) and JSON spike (§5.4) remain separate milestones. Hoisting changes the previous JSON-first implementation order for selected keys without replacing the general indexing proposal.
+A deployment can select frequently searched attributes to copy into dedicated `MATERIALIZED` columns on `spans`. This provides direct column access for those keys while keeping the typed `Nested` groups as the source of truth. Hoisting and storage tuning (§5.1) do not depend on each other, and hoisting is delivered first; the general attribute-index proposal (§5.3) and JSON spike (§5.4) remain separate milestones. Hoisting changes the previous JSON-first implementation order for selected keys without replacing the general indexing proposal.
 
 **Configuration and types.** One optional `hoisted_attributes` list on the ClickHouse backend defines the source and destination of each copy. The same definition drives schema creation, schema validation, and query routing; there is no second reader-only mapping. An empty list preserves today's schema and queries.
 
@@ -293,7 +293,7 @@ The initial levels are `span` and `resource`. The type names identify the OTLP s
 
 Resource-level sources use the corresponding `resource_` groups. Each expression searches the group's paired key/value arrays and returns the value only when the configured key exists in that type group; otherwise it returns `NULL`. There is no conversion of strings to numbers, no narrowing of an OTLP integer to `UInt32`, and no replacement of missing values with zero, false, or an empty string. A key seen at multiple types can have a separate hoist for each type.
 
-`key`, `level`, `type`, and `column` are required. Reject unsupported levels and types, empty keys, duplicate `(level, key, type)` entries, and duplicate destination names. Destination names must match `[a-z_][a-z0-9_]*` and must not collide with existing schema columns. Attribute keys remain opaque strings and are escaped as SQL literals rather than treated as identifiers or SQL expressions.
+`key`, `level`, `type`, and `column` are required. Reject unsupported levels and types, empty keys, duplicate `(level, key, type)` entries, and duplicate destination names. Destination names must match `[a-z][a-z0-9_]*` and must not collide with existing schema columns; a leading underscore is not accepted, because ClickHouse refuses names of its own virtual columns such as `_row_exists`. Attribute keys remain opaque strings and are escaped as SQL literals rather than treated as identifiers or SQL expressions.
 
 The optional `codec` defaults to `ZSTD(1)`, following §5.1. Initially accept only `ZSTD(level)` with an integer level from 1 through 22, validated and rendered by the backend. This permits `ZSTD(3)` for a large payload without accepting arbitrary SQL or introducing codec overrides for every existing column. Hoisted columns do not implicitly gain `LowCardinality` or a secondary index.
 

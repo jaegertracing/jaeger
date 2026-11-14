@@ -17,25 +17,78 @@ import (
 // need tables of their own, because the backend never adds a column to an existing table.
 const ClickHouseHoistedDatabase = "jaeger_hoisted"
 
-// ClickHouseHoistedAttributes copies into columns the corpus attributes that the tag and filter
-// searches look for, so those searches read the columns: all four scalar types, a key present
-// at both levels (sameplacetag1, zone), a key stored with two types (retry.count, hoisted as an
-// int only), and a key whose only value is zero (queue.depth). The last entry is in no span: its
-// key needs escaping and its column is a ClickHouse keyword, so the server has to accept the
-// column and the startup check has to recognize it. The direct and the e2e suite both hoist
-// this list.
+// ClickHouseHoistedAttributes hoists a subset of the corpus attributes that the tag and filter
+// searches look for: all four scalar types, a key present at both levels, a key stored with
+// two types, and a key whose only value is zero. The last entry is in no span; its key needs
+// escaping and its column name is a ClickHouse keyword, which a real server has to accept.
 var ClickHouseHoistedAttributes = []ch.HoistedAttribute{
-	{Key: "sameplacetag1", Level: "span", Type: "string", Column: "span_tag1"},
-	{Key: "sameplacetag2", Level: "span", Type: "int", Column: "span_tag2"},
-	{Key: "sameplacetag3", Level: "span", Type: "double", Column: "span_tag3"},
-	{Key: "sameplacetag4", Level: "span", Type: "bool", Column: "span_tag4"},
-	{Key: "sameplacetag1", Level: "resource", Type: "string", Column: "resource_tag1"},
-	{Key: "zone", Level: "span", Type: "string", Column: "span_zone"},
-	{Key: "zone", Level: "resource", Type: "string", Column: "resource_zone"},
-	{Key: "retry.count", Level: "span", Type: "int", Column: "retry_count", Codec: "ZSTD(3)"},
-	{Key: "queue.depth", Level: "span", Type: "int", Column: "queue_depth"},
-	{Key: "deployment.environment", Level: "resource", Type: "string", Column: "deployment_environment"},
-	{Key: `it's a \key`, Level: "span", Type: "string", Column: "index"},
+	{
+		Key:    "sameplacetag1",
+		Level:  "span",
+		Type:   "string",
+		Column: "span_tag1",
+	},
+	{
+		Key:    "sameplacetag2",
+		Level:  "span",
+		Type:   "int",
+		Column: "span_tag2",
+	},
+	{
+		Key:    "sameplacetag3",
+		Level:  "span",
+		Type:   "double",
+		Column: "span_tag3",
+	},
+	{
+		Key:    "sameplacetag4",
+		Level:  "span",
+		Type:   "bool",
+		Column: "span_tag4",
+	},
+	{
+		Key:    "sameplacetag1",
+		Level:  "resource",
+		Type:   "string",
+		Column: "resource_tag1",
+	},
+	{
+		Key:    "zone",
+		Level:  "span",
+		Type:   "string",
+		Column: "span_zone",
+	},
+	{
+		Key:    "zone",
+		Level:  "resource",
+		Type:   "string",
+		Column: "resource_zone",
+	},
+	{
+		Key:    "retry.count",
+		Level:  "span",
+		Type:   "int",
+		Column: "retry_count",
+		Codec:  "ZSTD(3)",
+	},
+	{
+		Key:    "queue.depth",
+		Level:  "span",
+		Type:   "int",
+		Column: "queue_depth",
+	},
+	{
+		Key:    "deployment.environment",
+		Level:  "resource",
+		Type:   "string",
+		Column: "deployment_environment",
+	},
+	{
+		Key:    `it's a \key`,
+		Level:  "span",
+		Type:   "string",
+		Column: "index",
+	},
 }
 
 // RecreateClickHouseDatabase creates an empty database beside the one the compose file creates.
