@@ -44,6 +44,7 @@ type Reader struct {
 	conn          driver.Conn
 	config        ReaderConfig
 	attrMetaCache cache.Cache
+	attrBuilder   attributeBuilder
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
@@ -56,6 +57,10 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
+}
+
+func (r *Reader) newSQLBuilder() *sqlBuilder {
+	return &sqlBuilder{attrBuilder: r.attrBuilder}
 }
 
 func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
