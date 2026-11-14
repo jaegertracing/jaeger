@@ -4,8 +4,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,8 +39,9 @@ func main() {
 		Long:         "creates indices and aliases",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			return app.ExecuteAction(app.ActionExecuteOptions{
+				Ctx:    cmd.Context(),
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -73,9 +76,10 @@ func main() {
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			rolloverCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
+				Ctx:    cmd.Context(),
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -101,9 +105,10 @@ func main() {
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			lookbackCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
+				Ctx:    cmd.Context(),
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -128,7 +133,9 @@ func main() {
 	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
 
-	if err := rootCmd.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
 }
