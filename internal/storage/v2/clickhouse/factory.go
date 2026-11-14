@@ -124,6 +124,9 @@ type Factory struct {
 	config Configuration
 	telset telemetry.Settings
 	conn   driver.Conn
+	// hoistedColumns holds the configured hoisted columns. It is set only after the startup
+	// check passes, which is what lets the reader search them.
+	hoistedColumns []chtracestore.HoistedColumn
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
@@ -193,11 +196,13 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 
 	success = true
 	f.conn = conn
+	f.hoistedColumns = hoistedColumns
 	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+		HoistedColumns:                f.hoistedColumns,
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
 		AttributeMetadataCacheTTL:     f.config.AttributeMetadataCacheTTL,

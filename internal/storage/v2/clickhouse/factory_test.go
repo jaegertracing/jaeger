@@ -24,7 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -636,6 +638,42 @@ func TestNewFactory_InvalidHoistedAttribute(t *testing.T) {
 		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
 	}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "hoisted_attributes[0]")
+}
+
+// TestCreateTraceReader_HoistedColumns checks that a reader created by the factory searches
+// the configured hoisted columns.
+func TestCreateTraceReader_HoistedColumns(t *testing.T) {
+	srv, queries := hoistedColumnServer(t, hoistedColumnState{
+		Type:           "Nullable(Int64)",
+		Kind:           "MATERIALIZED",
+		Codec:          "CODEC(ZSTD(1))",
+		SameExpression: 1,
+	})
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.HoistedAttributes = []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+		},
+	}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, factory.Close()) })
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+
+	attributes := pcommon.NewMap()
+	attributes.PutInt("gen_ai.usage.input_tokens", 7)
+	for _, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{Attributes: attributes}) {
+		require.NoError(t, err)
+	}
+
+	// The driver writes the bind value into the query.
+	assert.Contains(t, (*queries)[len(*queries)-1], "(s.`input_tokens` IS NOT NULL AND s.`input_tokens` = 7)")
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
