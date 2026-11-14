@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
@@ -199,4 +200,150 @@ func TestNewHoistedColumns_SpansTableColumns(t *testing.T) {
 		require.ErrorContains(t, err, "is already a column of the spans table", column)
 	}
 	assert.Len(t, spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1), len(spansColumns))
+}
+
+func TestCheckHoistedColumns(t *testing.T) {
+	columns, err := newHoistedColumns([]HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+		},
+	})
+	require.NoError(t, err)
+	matchingState := hoistedColumnState{
+		Type:           "Nullable(Int64)",
+		Kind:           "MATERIALIZED",
+		Expression:     columns[0].SourceExpression(),
+		Codec:          "CODEC(ZSTD(1))",
+		SameExpression: 1,
+	}
+	rowsWith := func(mutate func(state *hoistedColumnState)) *clickhousetest.Rows[hoistedColumnState] {
+		state := matchingState
+		mutate(&state)
+		return &clickhousetest.Rows[hoistedColumnState]{Data: []hoistedColumnState{state}}
+	}
+	tests := []struct {
+		name     string
+		rows     *clickhousetest.Rows[hoistedColumnState]
+		queryErr error
+		// tables answers the lookup of the spans table; nil means that the table exists.
+		tables    *clickhousetest.Rows[uint8]
+		tablesErr error
+		wantErr   string
+	}{
+		{
+			name: "column matches",
+			rows: rowsWith(func(*hoistedColumnState) {}),
+		},
+		{
+			name: "column is missing",
+			rows: &clickhousetest.Rows[hoistedColumnState]{},
+			wantErr: `hoisted attribute column "input_tokens" is missing from the spans table; ` +
+				"add it with: ALTER TABLE spans ADD COLUMN `input_tokens` Nullable(Int64) MATERIALIZED ",
+		},
+		{
+			name:    "table is missing",
+			rows:    &clickhousetest.Rows[hoistedColumnState]{},
+			tables:  &clickhousetest.Rows[uint8]{},
+			wantErr: "hoisted attributes are configured, but the spans table does not exist; create the schema first",
+		},
+		{
+			name:    "table lookup fails",
+			rows:    &clickhousetest.Rows[hoistedColumnState]{},
+			tables:  &clickhousetest.Rows[uint8]{RowsErr: assert.AnError},
+			wantErr: "failed to look up the spans table",
+		},
+		{
+			name:      "table lookup query fails",
+			rows:      &clickhousetest.Rows[hoistedColumnState]{},
+			tablesErr: assert.AnError,
+			wantErr:   "failed to look up the spans table",
+		},
+		{
+			name:    "another type",
+			rows:    rowsWith(func(state *hoistedColumnState) { state.Type = "Nullable(String)" }),
+			wantErr: "the spans table declares it as [Nullable(String) MATERIALIZED if(",
+		},
+		{
+			name: "an ordinary column",
+			rows: rowsWith(func(state *hoistedColumnState) {
+				state.Kind = ""
+				state.Expression = ""
+				state.SameExpression = 0
+			}),
+			wantErr: "the spans table declares it as [Nullable(Int64) CODEC(ZSTD(1))], and the configuration needs [Nullable(Int64) MATERIALIZED if(",
+		},
+		{
+			name:    "a default in place of a materialized column",
+			rows:    rowsWith(func(state *hoistedColumnState) { state.Kind = "DEFAULT" }),
+			wantErr: "the spans table declares it as [Nullable(Int64) DEFAULT if(",
+		},
+		{
+			name:    "another expression",
+			rows:    rowsWith(func(state *hoistedColumnState) { state.SameExpression = 0 }),
+			wantErr: "does not match its configuration",
+		},
+		{
+			name:    "another codec",
+			rows:    rowsWith(func(state *hoistedColumnState) { state.Codec = "CODEC(ZSTD(3))" }),
+			wantErr: "a changed hoisted attribute needs a schema migration",
+		},
+		{
+			name:     "query fails",
+			queryErr: assert.AnError,
+			wantErr:  `failed to read the hoisted attribute column "input_tokens"`,
+		},
+		{
+			name: "scan fails",
+			rows: &clickhousetest.Rows[hoistedColumnState]{
+				Data:    []hoistedColumnState{matchingState},
+				ScanErr: assert.AnError,
+			},
+			wantErr: `failed to read the hoisted attribute column "input_tokens"`,
+		},
+		{
+			name:    "rows fail",
+			rows:    &clickhousetest.Rows[hoistedColumnState]{RowsErr: assert.AnError},
+			wantErr: `failed to read the hoisted attribute column "input_tokens"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.rows != nil {
+				tt.rows.ScanFn = func(dest any, src hoistedColumnState) error {
+					*dest.(*hoistedColumnState) = src
+					return nil
+				}
+			}
+			tables := tt.tables
+			if tables == nil {
+				tables = &clickhousetest.Rows[uint8]{Data: []uint8{1}}
+			}
+			conn := &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					"FROM system.columns": {
+						Rows: tt.rows,
+						Err:  tt.queryErr,
+					},
+					"FROM system.tables": {
+						Rows: tables,
+						Err:  tt.tablesErr,
+					},
+				},
+			}
+
+			err := checkHoistedColumns(t.Context(), conn, columns)
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+			// The server compares the stored expression with the one the configuration
+			// renders, and looks the column up by its name.
+			require.Equal(t, []any{columns[0].SourceExpression(), "input_tokens"}, conn.RecordedArgs[0])
+		})
+	}
 }

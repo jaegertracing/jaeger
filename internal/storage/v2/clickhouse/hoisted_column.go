@@ -4,10 +4,14 @@
 package clickhouse
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -115,4 +119,86 @@ func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedCol
 		})
 	}
 	return columns, nil
+}
+
+// hoistedColumnState is how the spans table declares a hoisted column.
+type hoistedColumnState struct {
+	Type           string `ch:"type"`
+	Kind           string `ch:"default_kind"`
+	Expression     string `ch:"default_expression"`
+	Codec          string `ch:"compression_codec"`
+	SameExpression uint8  `ch:"same_expression"`
+}
+
+// declaration returns the stored type, kind, expression and codec in the order of a column
+// declaration. An ordinary column has no kind and no expression.
+func (s hoistedColumnState) declaration() string {
+	parts := make([]string, 0, 4)
+	for _, part := range []string{s.Type, s.Kind, s.Expression, s.Codec} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// checkHoistedColumns verifies that the spans table has every configured hoisted column with
+// the type, expression and codec the configuration renders. The table may have been created by
+// the operator or by an earlier configuration, and a search that read a column of another
+// attribute would return wrong results without an error.
+func checkHoistedColumns(ctx context.Context, conn driver.Conn, columns []chtracestore.HoistedColumn) error {
+	for _, column := range columns {
+		state, found, err := readHoistedColumn(ctx, conn, column)
+		if err != nil {
+			return fmt.Errorf("failed to read the hoisted attribute column %q: %w", column.Name, err)
+		}
+		if !found {
+			// A missing table also has no columns, and the statement below cannot add one to it.
+			tableExists, err := spansTableExists(ctx, conn)
+			if err != nil {
+				return fmt.Errorf("failed to look up the spans table: %w", err)
+			}
+			if !tableExists {
+				return errors.New("hoisted attributes are configured, but the spans table does not exist; create the schema first")
+			}
+			return fmt.Errorf("hoisted attribute column %q is missing from the spans table; add it with: ALTER TABLE spans ADD COLUMN %s",
+				column.Name, column.Definition())
+		}
+		if state.Type != column.NullableType() ||
+			state.Kind != "MATERIALIZED" ||
+			state.SameExpression == 0 ||
+			state.Codec != "CODEC("+column.Codec+")" {
+			return fmt.Errorf("hoisted attribute column %q does not match its configuration: the spans table declares it as [%s], "+
+				"and the configuration needs [%s]; a changed hoisted attribute needs a schema migration",
+				column.Name, state.declaration(), column.Declaration())
+		}
+	}
+	return nil
+}
+
+// readHoistedColumn reads the rows to the end, because the driver reports an error of the
+// result stream only after the last row.
+func readHoistedColumn(ctx context.Context, conn driver.Conn, column chtracestore.HoistedColumn) (state hoistedColumnState, found bool, err error) {
+	rows, err := conn.Query(ctx, sql.SelectHoistedColumn, column.SourceExpression(), column.Name)
+	if err != nil {
+		return state, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := rows.ScanStruct(&state); err != nil {
+			return state, false, err
+		}
+		found = true
+	}
+	return state, found, rows.Err()
+}
+
+func spansTableExists(ctx context.Context, conn driver.Conn) (bool, error) {
+	rows, err := conn.Query(ctx, sql.SelectSpansTable)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	exists := rows.Next()
+	return exists, rows.Err()
 }
