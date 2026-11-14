@@ -149,7 +149,16 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
+	var encodingType byte
+	switch f.Config.SpanEncoding {
+	case "", SpanEncodingProtobuf:
+		encodingType = badgerstore.EncodingProtobuf
+	case SpanEncodingJSON:
+		encodingType = badgerstore.EncodingJSON
+	default:
+		return nil, fmt.Errorf("unsupported Badger span encoding %q", f.Config.SpanEncoding)
+	}
+	return badgerstore.NewSpanWriterWithEncoding(f.store, f.cache, f.Config.TTL.Spans, encodingType), nil
 }
 
 // CreateDependencyReader creates a dependencystore.Reader.
