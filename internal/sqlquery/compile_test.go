@@ -719,6 +719,16 @@ func TestRefusals(t *testing.T) {
 			want: "The statement did not parse as SQL",
 		},
 		{
+			name: "order by cut off after AS",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY duration AS`,
+			at:   "",
+			want: "The statement did not parse as SQL",
+		},
+		{
 			name: "tilde is not an operator",
 			sql: `
 				SELECT DISTINCT trace_id

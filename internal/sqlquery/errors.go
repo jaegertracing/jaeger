@@ -47,6 +47,9 @@ const hintTracesColumns = "Write SELECT * FROM traces; a trace search returns wh
 // hintAggregation names where the aggregation clauses are reserved.
 const hintAggregation = "GROUP BY, HAVING and aggregate functions are reserved for the row-returning query service method of RFC 0016 §5 and are not supported yet"
 
+// hintNotSQL is the hint for a statement the parser could not read.
+const hintNotSQL = "The statement did not parse as SQL; the dialect is a read-only SELECT over spans or traces (RFC 0019 §4)"
+
 // positions maps a byte offset in the statement to a line and column, both 1-based.
 type positions struct {
 	sql        string
@@ -113,12 +116,11 @@ func (p positions) atOffset(offset int, message, hint string) *Error {
 // fromParser converts the parser's own error, keeping its position and dropping the caret
 // rendering, which is meant for a terminal.
 func (p positions) fromParser(err error) error {
-	const hint = "The statement did not parse as SQL; the dialect is a read-only SELECT over spans or traces (RFC 0019 §4)"
 	var parseErr *parser.ParseError
 	if !errors.As(err, &parseErr) {
-		return p.atOffset(0, err.Error(), hint)
+		return p.atOffset(0, err.Error(), hintNotSQL)
 	}
 	first, _, _ := strings.Cut(parseErr.Error(), "\n")
 	first = strings.TrimPrefix(first, fmt.Sprintf("line %d:%d ", parseErr.Line, parseErr.Column))
-	return p.atOffset(int(parseErr.Pos), first, hint)
+	return p.atOffset(int(parseErr.Pos), first, hintNotSQL)
 }
