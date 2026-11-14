@@ -79,9 +79,22 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 	}
 }
 
+// defaultTimerBuckets are the bucket boundaries, in seconds, used for timers
+// without explicit buckets. They match prometheus.DefBuckets, which the
+// Prometheus factory uses for timers, because the OTEL SDK default boundaries
+// (0, 5, 10, ..., 10000) are sized for milliseconds while timers record seconds.
+var defaultTimerBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+
 func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
 	name := f.subScope(opts.Name)
-	timer, err := f.meter.Float64Histogram(name, metric.WithUnit("s"))
+	buckets := defaultTimerBuckets
+	if len(opts.Buckets) > 0 {
+		buckets = make([]float64, len(opts.Buckets))
+		for i, b := range opts.Buckets {
+			buckets[i] = b.Seconds()
+		}
+	}
+	timer, err := f.meter.Float64Histogram(name, metric.WithUnit("s"), metric.WithExplicitBucketBoundaries(buckets...))
 	if err != nil {
 		log.Printf("Error creating OTEL timer: %v", err)
 		return metrics.NullTimer
