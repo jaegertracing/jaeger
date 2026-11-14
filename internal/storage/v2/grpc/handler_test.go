@@ -57,7 +57,7 @@ func TestHandler_GetTraces(t *testing.T) {
 	end := start.Add(time.Minute)
 	query := []tracestore.GetTraceParams{
 		{
-			TraceID: pcommon.TraceID([16]byte{1}),
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 			Start:   start,
 			End:     end,
 		},
@@ -128,7 +128,7 @@ func TestHandler_GetTraces(t *testing.T) {
 			err := server.GetTraces(&storage.GetTracesRequest{
 				Query: []*storage.GetTraceParams{
 					{
-						TraceId:   []byte{1},
+						TraceId:   []byte{1, 2, 3, 4, 5, 6, 7, 8},
 						StartTime: start,
 						EndTime:   end,
 					},
@@ -140,6 +140,45 @@ func TestHandler_GetTraces(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedSent, stream.sent)
 			}
+		})
+	}
+}
+
+func TestTraceIDFromBytes_PlacesShortIDInLowHalf(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected pcommon.TraceID
+	}{
+		{
+			name:     "16 bytes passthrough",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expected: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+		},
+		{
+			name:     "8 bytes go to low half",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			expected: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
+		},
+		{
+			name:     "1 byte goes to low half",
+			input:    []byte{1},
+			expected: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			name:     "empty is zero",
+			input:    []byte{},
+			expected: pcommon.TraceID([16]byte{}),
+		},
+		{
+			name:     "oversize truncates to first 16",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
+			expected: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, traceIDFromBytes(test.input))
 		})
 	}
 }
