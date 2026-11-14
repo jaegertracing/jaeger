@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
-      processors: [batch, adaptive_sampling]
+      processors: [adaptive_sampling]
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
@@ -93,7 +93,6 @@ receivers:
   zipkin:
 
 processors:
-  batch:
   # Adaptive Sampling Processor is required to support adaptive sampling.
   # It expects remote_sampling extension with `adaptive:` config to be enabled.
   adaptive_sampling:
@@ -101,3 +100,16 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_store
+    queue:
+      enabled: true
+      sizer: requests
+      num_consumers: 1
+      queue_size: 10
+      block_on_overflow: true
+      wait_for_result: false
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms

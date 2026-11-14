@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
-      processors: [batch]
+      processors: []
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
@@ -89,8 +89,20 @@ receivers:
     endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:9411"
 
 processors:
-  batch:
 
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
+    queue:
+      enabled: true
+      sizer: requests
+      num_consumers: 1
+      queue_size: 10
+      block_on_overflow: true
+      wait_for_result: false
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms

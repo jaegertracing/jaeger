@@ -18,6 +18,58 @@ extensions:
         max_traces: 100000
 ```
 
+### Batching
+
+OpenTelemetry has [deprecated the Collector `batch` processor](https://opentelemetry.io/blog/2026/collector-batching-migration/).
+Exporter batching defaults are planned for Collector v0.171.0 (February 2027),
+and processor removal for v0.177.0 (May 2027). Existing Jaeger configurations
+using `batch` remain supported during the migration.
+
+For a pipeline with one storage exporter, remove `batch` from the pipeline's
+`processors` list and enable batching in the exporter's `queue`. The shipped
+storage examples use this configuration to retain a single consumer, a queue of
+10 incoming requests, blocking overflow, and batching at 8192 spans or 200ms:
+
+```yaml
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: memstore
+    queue:
+      enabled: true
+      sizer: requests
+      num_consumers: 1
+      queue_size: 10
+      block_on_overflow: true
+      wait_for_result: false
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms
+```
+
+`max_size: 0` leaves the maximum batch size unlimited, matching the former
+processor's default. Acknowledgment occurs on enqueue; this configuration does
+not promise durable storage before returning success. The synchronous Kafka and
+dead-letter examples instead keep `wait_for_result: true`, retries, and their
+byte-sized queue and batch limits.
+
+Jaeger's storage exporter calls this setting `queue.batch`; standard OTLP and
+Kafka exporters call it `sending_queue.batch`. Their migrated examples retain
+the exporter queue defaults (1000 requests and 10 consumers). Queue capacity is
+now measured before requests are merged into batches, so 1000 queued requests
+can contain fewer spans than 1000 requests already combined by a processor.
+Review queue sizing when migrating a busy pipeline.
+
+Pipelines that share batching before storage and spanmetrics use the
+`queue_batch` processor, with the storage exporter's queue explicitly disabled.
+Use a Jaeger image containing `queue_batch` support (#10145), including a matching
+snapshot image until a release includes it. Keep one batching stage per path to
+avoid duplicate buffering and latency when exporter batching defaults change.
+Omitting `queue` keeps the storage exporter queue disabled; this migration does
+not change the exporter's global defaults.
+
 ### Retry Configuration
 
 The exporter supports configurable retry behavior for failed exports. By default, retry is disabled. When enabled, the following default settings are used:

@@ -197,12 +197,18 @@ opentelemetry-collector:
           - key: service.instance.id
             from_attribute: k8s.pod.uid
             action: insert
-      batch: {}
     exporters:
       otlp/jaeger:
         endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
         tls:
           insecure: true
+        sending_queue:
+          batch:
+            enabled: true
+            sizer: items
+            min_size: 8192
+            max_size: 0
+            flush_timeout: 200ms
     service:
       extensions: [health_check]
       telemetry:
@@ -216,5 +222,5 @@ opentelemetry-collector:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, k8sattributes, resource]
           exporters: [otlp/jaeger]

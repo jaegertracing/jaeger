@@ -8,6 +8,27 @@ This example provides a one-command deployment of a complete observability stack
 
 It is driven by `deploy-all.sh`, which supports both clean installs and upgrades.
 
+## Collector batching migration
+
+OpenTelemetry has [deprecated the `batch` processor](https://opentelemetry.io/blog/2026/collector-batching-migration/),
+with exporter batching defaults planned for v0.171.0 (February 2027) and processor
+removal for v0.177.0 (May 2027). Both ingestion stages in this demo use explicit
+exporter batching: the demo Collector uses `otlp/jaeger.sending_queue.batch`, and
+Jaeger uses `jaeger_storage_exporter.queue.batch`.
+
+Jaeger's queue retains one consumer, 10 queued requests, blocking overflow, and
+an 8192-span or 200ms flush threshold. The demo Collector retains its OTLP
+exporter's queue defaults (1000 requests and 10 consumers). These queue limits
+count requests before batching; review capacity when migrating from a queue
+that previously received already-batched requests. Jaeger acknowledges enqueue,
+so this pipeline does not guarantee a durable OpenSearch write before success.
+
+Deploy matching images and configurations, then reconcile both the `jaeger` and
+`otel-demo` scopes through the existing deployment workflow. Verify new demo
+traces can be queried and that SPM metrics still work. Roll back the affected
+Helm release to its previous image and configuration on a failed smoke check.
+Existing operator configurations using `batch` remain supported during migration.
+
 ## Prerequisites
 - Kubernetes cluster reachable via `kubectl`
 - Installed CLIs: `bash`, `git`, `curl`, `kubectl`, `helm`
