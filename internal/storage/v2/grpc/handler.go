@@ -63,8 +63,16 @@ func (h *Handler) GetTraces(
 ) error {
 	traceIDs := make([]tracestore.GetTraceParams, len(req.Query))
 	for i, query := range req.Query {
+		// Place incoming bytes in the low (right) half of the 16-byte trace ID
+		// so that an 8-byte (64-bit) ID lands in TraceID[8:16], matching the
+		// behaviour of model.TraceIDFromBytes and pcommon.TraceID semantics.
+		// A naive copy(dst[:], src) would fill from the left (high half), which
+		// puts a 64-bit ID in the wrong half and matches nothing in storage.
 		var sizedTraceID [16]byte
-		copy(sizedTraceID[:], query.TraceId)
+		src := query.TraceId
+		if n := len(src); n <= 16 {
+			copy(sizedTraceID[16-n:], src)
+		}
 
 		traceIDs[i] = tracestore.GetTraceParams{
 			TraceID: pcommon.TraceID(sizedTraceID),

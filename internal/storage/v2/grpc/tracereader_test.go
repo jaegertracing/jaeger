@@ -533,7 +533,9 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					// 8-byte wire value is right-aligned into the low half
+					// (bytes 8–15), consistent with model.TraceIDFromBytes.
+					TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
@@ -553,7 +555,9 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+					// IDs longer than 16 bytes cannot be right-aligned safely;
+					// the receiver ignores them and returns a zero TraceID.
+					TraceID: pcommon.TraceID([16]byte{}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
