@@ -82,15 +82,14 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 	return args
 }
 
-// appendSelectSpans writes the statement that reads spans, up to and including its FROM clause.
+// appendSelectSpans writes the statement that reads spans, without the newline that ends it.
 func (q *sqlBuilder) appendSelectSpans() {
-	q.WriteString(selectSpans(q.attrBuilder.attributeLayout()))
+	q.WriteString(strings.TrimRight(selectSpans(q.attrBuilder.attributeLayout()), "\n"))
 }
 
 func (r *Reader) buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	q := r.newSQLBuilder()
-	q.appendSelectSpans()
-	q.WriteString("\nWHERE s.trace_id = ?")
+	q.WriteString(selectSpans(r.attrBuilder.attributeLayout()) + " WHERE s.trace_id = ?")
 	args := []any{params.TraceID}
 	args = q.appendTimeRange(args, params.Start, params.End)
 	return q.String(), args
