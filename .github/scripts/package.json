@@ -35,6 +35,7 @@
     ],
     "collectCoverageFrom": [
       "pr-quota-manager.js",
+      "pr-duplicates.js",
       "ci-summary-report-publish.js"
     ]
   }

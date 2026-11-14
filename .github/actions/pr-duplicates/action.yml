@@ -1,0 +1,58 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Duplicate PRs'
+description: >-
+  Allow one active pull request per linked issue by labelling the other pull
+  requests that close the same issue as duplicates and commenting on them.
+
+inputs:
+  token:
+    description: >-
+      Token used to label and comment. Needs issues:write and pull-requests:write,
+      so pass the workflow token from a job that declares those permissions.
+    required: true
+  pull-request-number:
+    description: >-
+      Pull request whose event asked for the run. Its comments, and those of pull
+      requests that share a linked issue with it, are checked in addition to
+      those of every duplicate.
+    required: false
+    default: ''
+  issue-number:
+    description: >-
+      Issue whose label event asked for the run. The comments of the pull requests
+      linked to it are checked in addition to those of every duplicate. Ignored
+      when pull-request-number is set.
+    required: false
+    default: ''
+  dry-run:
+    description: 'Log the intended labels and comments without writing anything.'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+      env:
+        # The script stays in .github/scripts, where its dependencies and tests live.
+        DUPLICATES_SCRIPT: ${{ github.action_path }}/../../scripts/pr-duplicates.js
+        # Passed through the environment rather than interpolated into the script
+        # body, so a value from a workflow input cannot inject JavaScript.
+        DUPLICATES_PR_NUMBER: ${{ inputs.pull-request-number }}
+        DUPLICATES_ISSUE_NUMBER: ${{ inputs.issue-number }}
+        DUPLICATES_DRY_RUN: ${{ inputs.dry-run }}
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const handler = require(process.env.DUPLICATES_SCRIPT)
+          await handler({
+            github,
+            core,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pullRequestNumber: process.env.DUPLICATES_PR_NUMBER,
+            issueNumber: process.env.DUPLICATES_ISSUE_NUMBER,
+            dryRun: process.env.DUPLICATES_DRY_RUN === 'true'
+          })
