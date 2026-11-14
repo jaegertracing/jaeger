@@ -10,6 +10,8 @@ This directory contains the HTTPS ingress configurations for exposing the observ
 - **`ingress-jaeger.yaml`** - Exposes Jaeger UI and HotROD demo
 - **`ingress-opensearch.yaml`** - Exposes OpenSearch Dashboards
 - **`ingress-otel-demo.yaml`** - Exposes OTel Demo Shop (frontend-proxy)
+- **[`CLIENT_IP.md`](CLIENT_IP.md)** - OCI TCP load-balancer setup, trusted
+  client addresses, recovery, and public verification of chat limits
 
 ## Exposed Services
 

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import deploy
 
+GOOSE = "example/goose:v1-cache@sha256:" + "a" * 64
 
 class DeploymentTests(unittest.TestCase):
     def setUp(self):
@@ -44,7 +45,9 @@ class DeploymentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             shutil.copytree(deploy.ROOT / "examples/otel-demo", root / "examples/otel-demo")
+            shutil.copytree(deploy.ROOT / "examples/oci", root / "examples/oci")
             shutil.copytree(deploy.ROOT / "scripts/demo", root / "scripts/demo")
+            shutil.copytree(deploy.ROOT / "scripts/ai-sidecar/goose", root / "scripts/ai-sidecar/goose")
             script = root / "examples/otel-demo/deploy-all.sh"
             script.write_text(re.sub(r'OPENSEARCH_CHART_VERSION="[^\"]+"', 'OPENSEARCH_CHART_VERSION="99.99.99"', script.read_text()))
             self.assertNotEqual(self.desired["opensearch"], deploy.fingerprint("opensearch", root))
@@ -53,6 +56,25 @@ class DeploymentTests(unittest.TestCase):
             values = root / "examples/otel-demo/otel-demo-values.yaml"
             values.write_text(values.read_text() + "\n# revised application\n")
             self.assertNotEqual(self.desired["otel-demo"], deploy.fingerprint("otel-demo", root))
+            dockerfile = root / deploy.DOCKERFILE
+            dockerfile.write_text(dockerfile.read_text() + "\n# revised agent\n")
+            self.assertNotEqual(self.desired["otel-jaeger"], deploy.fingerprint("otel-jaeger", root))
+            self.assertEqual(self.desired["oci-jaeger"], deploy.fingerprint("oci-jaeger", root))
+
+    @patch("deploy.run")
+    def test_only_otel_jaeger_requires_a_resolved_goose_image(self, run):
+        for name in deploy.COMPONENTS:
+            with self.subTest(component=name):
+                run.reset_mock()
+                if name == "otel-jaeger":
+                    with self.assertRaises(ValueError):
+                        deploy.deploy_component(name, self.env)
+                    run.assert_not_called()
+                    deploy.deploy_component(name, dict(self.env, JAEGER_DEMO_GOOSE_IMAGE=GOOSE))
+                    self.assertEqual(GOOSE, run.call_args.kwargs["env"]["JAEGER_DEMO_GOOSE_IMAGE"])
+                else:
+                    deploy.deploy_component(name, self.env)
+                    run.assert_called()
 
     @patch("deploy.run")
     def test_recovery_precedes_upgrade_and_fresh_trace(self, run):
@@ -112,10 +134,36 @@ class DeploymentTests(unittest.TestCase):
     @patch("deploy.resolve_snapshots")
     @patch("deploy.run")
     def test_clean_is_dispatched_once_per_stack(self, run, resolve):
-        env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="all", JAEGER_DEMO_DEPLOY_MODE="clean")
+        env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="all",
+                   JAEGER_DEMO_DEPLOY_MODE="clean", JAEGER_DEMO_GOOSE_IMAGE=GOOSE)
         self.assertEqual(0, deploy.reconcile(env))
         self.assertEqual(2, run.call_count)
         self.assertTrue(all(call.args[0][-1] == "clean" for call in run.call_args_list))
+        self.assertEqual(GOOSE, run.call_args_list[1].kwargs["env"]["JAEGER_DEMO_GOOSE_IMAGE"])
+
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.run")
+    def test_unresolved_image_stops_otel_clean_before_any_deletion(self, run, resolve):
+        for stack in ("otel", "all"):
+            with self.subTest(stack=stack), self.assertRaises(ValueError):
+                deploy.reconcile(dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK=stack,
+                                      JAEGER_DEMO_DEPLOY_MODE="clean"))
+        run.assert_not_called()
+
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.run")
+    def test_unresolved_image_blocks_otel_jaeger_without_recording_success(self, run, resolve):
+        previous = dict(self.desired, **{"otel-jaeger": "old"})
+        run.return_value.stdout = json.dumps({"data": previous})
+        self.assertEqual(1, deploy.reconcile(self.env))
+        self.assertEqual(1, run.call_count)
+
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.run")
+    def test_oci_clean_does_not_require_goose(self, run, resolve):
+        env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="oci", JAEGER_DEMO_DEPLOY_MODE="clean")
+        self.assertEqual(0, deploy.reconcile(env))
+        self.assertEqual(1, run.call_count)
 
     def test_rejects_invalid_or_automatic_unsafe_routes(self):
         cases = [{"GITHUB_REF": "refs/heads/other"}, {"JAEGER_DEMO_STACK": "invalid"},

@@ -1,6 +1,8 @@
 # OpenTelemetry Demo app + HotRODapp + Jaeger + OpenSearch
 
-This example provides a one-command deployment of a complete observability stack on Kubernetes:
+This directory configures the public Jaeger OTel demo on Oracle OKE. Its ingress
+hostnames, storage, and AI prerequisites are specific to that deployment. Adapt
+them before using it on another cluster. The stack includes:
 - Jaeger (all-in-one) for tracing
 - OpenSearch and OpenSearch Dashboards
 - OpenTelemetry Demo application (multi-service web store)
@@ -12,13 +14,24 @@ It is driven by `deploy-all.sh`, which supports both clean installs and upgrades
 - Kubernetes cluster reachable via `kubectl`
 - Installed CLIs: `bash`, `git`, `curl`, `kubectl`, `helm`
 - Network access to Helm repositories
+- The AI assistant's deployment-built image, project spending controls, and
+  `jaeger-demo-ai` credential Secret, provisioned before a Jaeger upgrade as
+  described in [AI_ASSISTANT.md](./AI_ASSISTANT.md).
 
 ## Quick start
-- Clean install (removes previous releases/namespaces, then installs everything):
-```bash path=null start=null
+
+The public AI assistant uses a separately managed credential Secret. Use the
+upgrade path after completing [AI setup](./AI_ASSISTANT.md). Clean mode preserves
+the AI Secret in a private temporary file and restores it after recreating the
+namespace; all other clean-mode data deletion remains unchanged.
+- Clean install, deletes the existing demo namespaces and trace storage. Keep
+  an independent secure credential copy before using this mode:
+
+```bash
 ./deploy-all.sh clean
 ```
-- Upgrade (default) — installs if missing, upgrades if present:
+
+- Upgrade (default), installs if missing, upgrades if present:
 ```bash path=null start=null
 ./deploy-all.sh
 # or explicitly
@@ -32,11 +45,12 @@ It is driven by `deploy-all.sh`, which supports both clean installs and upgrades
 ```
 
 Environment variables:
+- JAEGER_DEMO_GOOSE_IMAGE: versioned Goose image (set by the deployment workflow), or an explicit image digest for a manual deployment
 - ROLLOUT_TIMEOUT: rollout wait timeout in seconds (default 600)
 - OPENSEARCH_DASHBOARDS_HELM_TIMEOUT: Helm wait timeout for OpenSearch Dashboards (default 60m)
 
 ```bash path=null start=null
-ROLLOUT_TIMEOUT=900 ./deploy-all.sh clean
+ROLLOUT_TIMEOUT=900 ./deploy-all.sh upgrade
 ```
 
 ## What gets deployed

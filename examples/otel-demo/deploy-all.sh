@@ -17,6 +17,7 @@ JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
 # renovate: datasource=docker depName=jaegertracing/example-hotrod
 HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
+GOOSE_IMAGE="${JAEGER_DEMO_GOOSE_IMAGE:-}"
 PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 DEPLOY_SCOPE="${JAEGER_DEMO_DEPLOY_SCOPE:-${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}}"
@@ -111,6 +112,40 @@ check_required_files() {
   for f in "${files[@]}"; do
     [[ -f "$f" ]] || err "Missing required file: $f"
   done
+}
+
+check_ai_secret() {
+  # Print only key names, never Secret values, including on a failed rollout.
+  local keys
+  local key
+  # shellcheck disable=SC2016 # These are Go-template variables, not shell variables.
+  keys=$(kubectl -n jaeger get secret jaeger-demo-ai -o 'go-template={{range $key, $value := .data}}{{if $value}}{{$key}}{{"\n"}}{{end}}{{end}}') || {
+    err "Create jaeger/jaeger-demo-ai after verifying the OpenAI project cap; see AI_ASSISTANT.md"
+  }
+  for key in OPENAI_API_KEY GOOSE_SERVER__SECRET_KEY; do
+    if ! grep -Fxq "$key" <<<"$keys"; then
+      err "jaeger/jaeger-demo-ai is missing $key; see AI_ASSISTANT.md"
+    fi
+  done
+}
+
+cleanup_preserving_ai_secret() {
+  local backup
+  backup=$(umask 077; mktemp "${TMPDIR:-/tmp}/jaeger-demo-ai.XXXXXX")
+  # shellcheck disable=SC2016 # Go-template values are written only to a private file.
+  if ! kubectl -n jaeger get secret jaeger-demo-ai \
+    -o 'go-template={"apiVersion":"v1","kind":"Secret","metadata":{"name":"jaeger-demo-ai","namespace":"jaeger"},"type":"Opaque","data":{"OPENAI_API_KEY":"{{index .data "OPENAI_API_KEY"}}","GOOSE_SERVER__SECRET_KEY":"{{index .data "GOOSE_SERVER__SECRET_KEY"}}"}}' >"$backup"; then
+    rm -f "$backup"
+    err "Cannot preserve AI credentials; refusing cleanup"
+  fi
+  # Recovery from this file lasts only as long as the local host or CI runner.
+  log "Private AI credential backup: $backup (runner-local; keep an independent credential copy)"
+  cleanup
+  kubectl create namespace jaeger --dry-run=client -o yaml | kubectl apply -f -
+  if ! kubectl apply -f "$backup" >/dev/null; then
+    err "Restore AI credentials from $backup before retrying deployment"
+  fi
+  rm -f "$backup"
 }
 
 wait_for_deployment() {
@@ -475,22 +510,38 @@ cleanup() {
   log "Cleanup complete"
 }
 
-# Deploy HTTPS ingress resources
-deploy_ingress() {
-  log "Deploying HTTPS ingress resources..."
-
-  # Check if ingress files exist
-  if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]]; then
-    log " Ingress files not found in $SCRIPT_DIR/ingress/ - skipping HTTPS setup"
-    return 0
+stop_ai_after_ingress_failure() {
+  local deployment
+  log "Chat ingress prerequisite failed; stopping the AI agent"
+  if ! deployment=$(kubectl -n jaeger get deployment jaeger-goose --ignore-not-found -o name); then
+    err "Cannot inspect Goose; revoke its OpenAI key before retrying ingress reconciliation"
   fi
-
-  # Apply ingress for each namespace
-  if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
-    log "Jaeger ingress configured (jaeger.demo.jaegertracing.io, hotrod.demo.jaegertracing.io)"
-  else
-    log " Failed to apply Jaeger ingress "
+  if [[ -n "$deployment" ]] && ! kubectl -n jaeger scale deployment/jaeger-goose --replicas=0; then
+    err "Cannot stop Goose; revoke its OpenAI key before retrying ingress reconciliation"
   fi
+  err "Chat ingress limits could not be verified; refusing the AI-enabled upgrade"
+}
+
+verify_ai_ingress() {
+  local controller
+  controller=$(kubectl get ingressclass nginx -o 'jsonpath={.spec.controller}') || return 1
+  [[ "$controller" == "k8s.io/ingress-nginx" ]] || return 1
+}
+
+deploy_jaeger_ingress() {
+  log "Reconciling Jaeger ingress and chat limits before enabling AI"
+  if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]] ||
+    ! kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ||
+    ! verify_ai_ingress; then
+    stop_ai_after_ingress_failure
+  fi
+  log "Jaeger ingress and chat-limit policy verified"
+}
+
+# Jaeger's ingress is a prerequisite of its AI-enabled Helm release. Reconcile
+# the remaining namespaces only after their workloads have been installed.
+deploy_opensearch_and_otel_ingress() {
+  log "Deploying remaining HTTPS ingress resources..."
 
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-opensearch.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
     log " OpenSearch ingress configured (opensearch.demo.jaegertracing.io)"
@@ -560,9 +611,8 @@ main() {
   check_required_files
   check_cluster
 
-
-  if [[ "$MODE" == "clean" ]]; then
-    cleanup
+  if deploy_jaeger_stack; then
+    check_ai_secret
   fi
 
   log "Adding/updating Helm repos"
@@ -572,8 +622,23 @@ main() {
   helm repo update >/dev/null
   if deploy_jaeger_stack; then
     clone_jaeger_v2
+    # Validate the image setting and manifests before deleting any deployment.
+    helm template jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+      --namespace jaeger \
+      --set storage.type=elasticsearch \
+      --set-string goose.image="$GOOSE_IMAGE" \
+      --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
+      -f "$SCRIPT_DIR/jaeger-values.yaml" >/dev/null
   else
     log "Skipping Jaeger Helm chart preparation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
+
+  if [[ "$MODE" == "clean" ]]; then
+    cleanup_preserving_ai_secret
+  fi
+
+  if deploy_jaeger_stack; then
+    deploy_jaeger_ingress
   fi
 
   if deploy_opensearch_stack; then
@@ -594,6 +659,7 @@ main() {
     if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
       --namespace jaeger --create-namespace \
       --set allInOne.enabled=true \
+      --set-string goose.image="$GOOSE_IMAGE" \
       --set storage.type=elasticsearch \
       --set storage.elasticsearch.anonymous=true \
       --set storage.elasticsearch.usePassword=false \
@@ -613,6 +679,7 @@ main() {
       err "Helm release jaeger failed"
     fi
     wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
+    wait_for_deployment jaeger jaeger-goose "${ROLLOUT_TIMEOUT}s"
 
     log "Creating Jaeger query ClusterIP service..."
     kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
@@ -657,7 +724,7 @@ main() {
 
   # Deploy HTTPS ingress
   if reconcile_ingress; then
-    deploy_ingress
+    deploy_opensearch_and_otel_ingress
   else
     log "Skipping ingress reconciliation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi

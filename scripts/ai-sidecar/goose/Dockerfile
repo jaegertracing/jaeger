@@ -4,13 +4,20 @@
 # This image runs a released Goose binary as the ACP agent of the stack in
 # docker-compose.yml. Goose publishes no versioned container image, so the
 # binary is taken from its GitHub release for the build platform.
-FROM alpine:3.21
+FROM alpine:3.21@sha256:bc21487101ae47172509130ee1092cc273a831968d64b617776d1f69c81e42ab
 ARG GOOSE_VERSION=v1.57.0
 ARG TARGETARCH
 RUN apk add --no-cache ca-certificates curl \
-  && case "$TARGETARCH" in amd64) arch=x86_64 ;; arm64) arch=aarch64 ;; *) echo "unsupported arch $TARGETARCH" && exit 1 ;; esac \
+  && case "$TARGETARCH" in \
+       amd64) arch=x86_64; checksum=6c3a05e30e1a425dc06a410dbe24b3f3697c9721b1ea2340434ddda6b64267ae ;; \
+       arm64) arch=aarch64; checksum=00a32522f0421ed72fc06f36bfc44c8e51cffefb4daf22a81bb84ccd29d1a1ce ;; \
+       *) echo "unsupported arch $TARGETARCH"; exit 1 ;; \
+     esac \
   && curl -fsSL "https://github.com/aaif-goose/goose/releases/download/${GOOSE_VERSION}/goose-${arch}-unknown-linux-musl.tar.gz" \
-     | tar -xz -C /usr/local/bin ./goose \
+     -o /tmp/goose.tar.gz \
+  && echo "$checksum  /tmp/goose.tar.gz" | sha256sum -c - \
+  && tar -xz -C /usr/local/bin -f /tmp/goose.tar.gz ./goose \
+  && rm /tmp/goose.tar.gz \
   && apk del curl
 ENV HOME=/tmp
 # Goose enables its bundled extensions (shell access, apps, skills and more)

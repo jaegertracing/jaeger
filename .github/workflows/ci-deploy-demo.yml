@@ -10,13 +10,14 @@ on:
       - 'examples/oci/**'
       - 'examples/otel-demo/**'
       - 'scripts/demo/**'
+      - 'scripts/ai-sidecar/goose/**'
       - '.github/workflows/ci-deploy-demo.yml'
   schedule:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Snapshot image tag to deploy for both images. Defaults to the workflow SHA.'
+        description: 'Snapshot image tag for demo components. Defaults to the workflow SHA.'
         required: false
       jaeger_image_tag:
         description: 'Jaeger snapshot image tag override. Defaults to image_tag or the workflow SHA.'
@@ -79,6 +80,7 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY: jaegertracing/jaeger-snapshot
       JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
+      JAEGER_DEMO_GOOSE_IMAGE_REPOSITORY: jaegertracing/jaeger-goose-snapshot
       JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}
@@ -125,8 +127,31 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+    # Goose is published only from main. A branch dispatch skips these steps,
+    # and its OTel Jaeger component then fails for want of an image.
+    - name: Set up QEMU for Goose
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+    - name: Set up buildx for Goose
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
+      run: docker buildx create --use --name jaeger-demo
+
+    # The registry credentials stay in this step. A failure here leaves the
+    # image unresolved, which fails OTel Jaeger without blocking other components.
+    - name: Resolve Goose image
+      id: goose
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
+      continue-on-error: true
+      run: python3 scripts/demo/goose_image.py
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
     - name: Reconcile demo components
       run: python3 scripts/demo/deploy.py
+      env:
+        JAEGER_DEMO_GOOSE_IMAGE: ${{ steps.goose.outputs.image }}
 
     - name: Send detailed Slack notification on failure
       if: failure()

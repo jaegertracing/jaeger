@@ -6,7 +6,13 @@ global:
 
 allInOne:
   enabled: true
-  extraEnv: []
+  extraEnv:
+    - name: GOOSE_SERVER__SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: jaeger-demo-ai
+          key: GOOSE_SERVER__SECRET_KEY
+          optional: true
   resources:
     requests:
       memory: "1Gi"
@@ -81,3 +87,131 @@ esIndexCleaner:
       memory: "64Mi"
     limits:
       memory: "128Mi"
+
+# The deployment script supplies a versioned Goose image tag, or an operator's
+# explicit image digest, through JAEGER_DEMO_GOOSE_IMAGE.
+goose:
+  image: ""
+
+extraObjects:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: jaeger-goose
+    spec:
+      # Activation is a separate reviewed change to this count, made once the
+      # published image and the rollout checks in AI_ASSISTANT.md have passed.
+      replicas: 0
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: jaeger-goose
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: jaeger-goose
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+          initContainers:
+            - name: goose-config
+              image: '{{ required "Set goose.image" .Values.goose.image }}'
+              command: [sh, -ec]
+              args:
+                - mkdir -p /runtime/.config; cp -R /tmp/.config/goose /runtime/.config/
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: runtime
+                  mountPath: /runtime
+          containers:
+            - name: goose
+              image: '{{ required "Set goose.image" .Values.goose.image }}'
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: GOOSE_PROVIDER
+                  value: openai
+                - name: GOOSE_MODEL
+                  value: gpt-6-luna
+                - name: GOOSE_THINKING_EFFORT
+                  value: "off"
+                - name: GOOSE_MAX_TURNS
+                  value: "8"
+                - name: GOOSE_MAX_TOKENS
+                  value: "4096"
+                - name: GOOSE_DISABLE_SESSION_NAMING
+                  value: "true"
+                - name: OPENAI_STORE
+                  value: "false"
+                - name: OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: jaeger-demo-ai
+                      key: OPENAI_API_KEY
+                - name: GOOSE_SERVER__SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: jaeger-demo-ai
+                      key: GOOSE_SERVER__SECRET_KEY
+              ports:
+                - name: acp
+                  containerPort: 16688
+              readinessProbe:
+                tcpSocket:
+                  port: acp
+                periodSeconds: 5
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: runtime
+                  mountPath: /tmp
+          volumes:
+            - name: runtime
+              emptyDir:
+                sizeLimit: 256Mi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: jaeger-goose
+    spec:
+      type: ClusterIP
+      selector:
+        app.kubernetes.io/name: jaeger-goose
+      ports:
+        - name: acp
+          port: 16688
+          targetPort: acp
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: jaeger-goose
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: jaeger-goose
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: '{{ .Release.Name }}'
+                  app.kubernetes.io/component: all-in-one
+          ports:
+            - protocol: TCP
+              port: 16688

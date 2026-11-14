@@ -185,7 +185,9 @@ run_jaeger_deploy() {
     log() { :; }
     need() { :; }
     check_cluster() { :; }
-    cleanup() { :; }
+    cleanup_preserving_ai_secret() { :; }
+    check_ai_secret() { :; }
+    deploy_jaeger_ingress() { :; }
     clone_jaeger_v2() { :; }
     deploy_opensearch_releases() { :; }
     adopt_resource_for_helm_release() { :; }
@@ -193,7 +195,7 @@ run_jaeger_deploy() {
     wait_for_deployment() { :; }
     wait_for_service_endpoints() { :; }
     wait_for_daemonset() { :; }
-    deploy_ingress() { :; }
+    deploy_opensearch_and_otel_ingress() { :; }
     kubectl() { :; }
     helm() {
       if [[ "$1" != repo ]]; then
@@ -554,6 +556,241 @@ testInvalidRecoveryPolicyCannotCallHelm() {
   assertNotEquals "invalid recovery policy must stop deployment" 0 "$rc"
   assertContains "$output" "Invalid OpenSearch recovery policy 'invalid'"
   assertNotContains "$output" "unsafe helm call"
+}
+
+testCleanRestoresAiCredentialsFromPrivateBackup() {
+  output=$(bash -c '
+    source "$1"
+    log() { :; }
+    kubectl() {
+      if [[ "$1" == "-n" ]]; then
+        printf "test-only-secret"
+      elif [[ "$1" == "create" ]]; then
+        printf "namespace"
+      elif [[ "$3" == "-" ]]; then
+        cat >/dev/null
+      else
+        [[ -s "$3" ]] || return 1
+        local mode
+        mode=$(LC_ALL=C ls -ld "$3")
+        [[ "${mode:0:10}" == "-rw-------" ]] || return 1
+        grep -q test-only-secret "$3"
+      fi
+    }
+    cleanup() { printf "cleanup\n"; }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertEquals "clean should restore the credential Secret" 0 "$?"
+  assertEquals "credentials must not appear in output" "cleanup" "$output"
+}
+
+testCleanCannotProceedWithoutCredentialBackup() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { return 1; }
+    cleanup() { printf "unsafe cleanup\n"; }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertNotEquals "backup failure must prevent namespace deletion" 0 "$?"
+  assertContains "$output" "Cannot preserve AI credentials"
+  assertNotContains "$output" "unsafe cleanup"
+}
+
+testCleanRetainsPrivateBackupIfRestoreFails() {
+  local path_file
+  local retained
+  path_file=$(mktemp)
+  output=$(BACKUP_PATH_FILE="$path_file" bash -c '
+    source "$1"
+    log() { :; }
+    cleanup() { :; }
+    kubectl() {
+      if [[ "$1" == "-n" ]]; then
+        printf "test-only-secret"
+      elif [[ "$1" == "create" ]]; then
+        printf "namespace"
+      elif [[ "$3" == "-" ]]; then
+        cat >/dev/null
+      else
+        printf "%s" "$3" >"$BACKUP_PATH_FILE"
+        return 1
+      fi
+    }
+    cleanup_preserving_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertNotEquals "restore failure must stop deployment" 0 "$?"
+  retained=$(cat "$path_file")
+  assertTrue "credential backup must remain available for recovery" "[[ -s '$retained' ]]"
+  assertContains "$output" "Restore AI credentials from $retained"
+  assertNotContains "$output" "test-only-secret"
+  [[ -z "$retained" ]] || rm -f "$retained"
+  rm -f "$path_file"
+}
+
+testMissingAiSecretStopsBeforeDeployment() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { return 1; }
+    check_ai_secret
+    printf "unsafe deployment\n"
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+  assertNotEquals "missing credentials must stop deployment" 0 "$rc"
+  assertContains "$output" "Create jaeger/jaeger-demo-ai"
+  assertNotContains "$output" "unsafe deployment"
+}
+
+testIncompleteAiSecretStopsWithoutPrintingValues() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { printf "OPENAI_API_KEY\n"; }
+    check_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+  assertNotEquals "both credentials are required" 0 "$rc"
+  assertContains "$output" "missing GOOSE_SERVER__SECRET_KEY"
+}
+
+testCompleteAiSecretPassesWithoutPrintingKeys() {
+  output=$(bash -c '
+    source "$1"
+    kubectl() { printf "OPENAI_API_KEY\nGOOSE_SERVER__SECRET_KEY\n"; }
+    check_ai_secret
+  ' _ "$SCRIPT" 2>&1)
+  assertEquals "credential check should succeed" 0 "$?"
+  assertEquals "credential check must not log Secret data" "" "$output"
+}
+
+run_ingress_main() {
+  CALLS_FILE="$4" FAILURE="$3" bash -c '
+    source "$1"
+    MODE="$2"
+    DEPLOY_SCOPE="$3"
+    record() { printf "%s\n" "$1" >>"$CALLS_FILE"; }
+    log() { :; }
+    need() { :; }
+    check_required_files() { :; }
+    check_cluster() { :; }
+    check_ai_secret() { :; }
+    clone_jaeger_v2() { :; }
+    cleanup_preserving_ai_secret() { record cleanup; }
+    deploy_opensearch_releases() { record storage; }
+    adopt_resource_for_helm_release() { record adopt; }
+    delete_deployment_before_helm_upgrade() { record delete; }
+    wait_for_deployment() { record wait-failed; return 1; }
+    helm() {
+      case "$1" in
+        upgrade|install) record helm-jaeger ;;
+      esac
+    }
+    kubectl() {
+      case "$1 $2" in
+        "apply -f")
+          record ingress-apply
+          case "$FAILURE" in apply|inspect|scale|absent) return 1 ;; esac
+          ;;
+        "get ingressclass")
+          record ingress-class
+          [[ "$FAILURE" != class-read ]] || return 1
+          if [[ "$FAILURE" == class ]]; then printf other; else printf k8s.io/ingress-nginx; fi
+          ;;
+        "-n jaeger")
+          if [[ "$3 $4" == "get deployment" ]]; then
+            record inspect-goose
+            [[ "$FAILURE" != inspect ]] || return 1
+            [[ "$FAILURE" == absent ]] || printf deployment/jaeger-goose
+          elif [[ "$3 $4" == "scale deployment/jaeger-goose" && "$5" == --replicas=0 ]]; then
+            record stop-goose
+            [[ "$FAILURE" != scale ]] || return 1
+          else
+            return 1
+          fi
+          ;;
+        *) return 1 ;;
+      esac
+      return 0
+    }
+    if [[ "$FAILURE" == missing ]]; then SCRIPT_DIR=/nonexistent; fi
+    main
+  ' _ "$SCRIPT" "$1" "$2" 2>&1
+}
+
+testIngressIsVerifiedBeforeAiAndSurvivesLaterRolloutFailure() {
+  local mode scope calls expected
+  calls=$(mktemp)
+  for mode in upgrade clean; do
+    for scope in jaeger all; do
+      : >"$calls"
+      output=$(run_ingress_main "$mode" "$scope" none "$calls")
+      assertNotEquals "the simulated later wait must fail" 0 "$?"
+      expected=$'ingress-apply\ningress-class'
+      if [[ "$mode" == clean ]]; then expected=$'cleanup\n'"$expected"; fi
+      if [[ "$mode" == clean || "$scope" == all ]]; then expected+=$'\nstorage'; fi
+      if [[ "$mode" == upgrade ]]; then expected+=$'\nadopt\nadopt\ndelete'; fi
+      expected+=$'\nhelm-jaeger\nwait-failed'
+      assertEquals "$mode/$scope must verify ingress before any release or adoption" "$expected" "$(cat "$calls")"
+    done
+  done
+  rm -f "$calls"
+}
+
+testIngressFailuresStopAiAndAbortBeforeChangingReleases() {
+  local failure calls
+  calls=$(mktemp)
+  for failure in missing apply class-read class; do
+    : >"$calls"
+    output=$(run_ingress_main upgrade all "$failure" "$calls")
+    assertNotEquals "$failure must abort deployment" 0 "$?"
+    assertContains "$output" "refusing the AI-enabled upgrade"
+    assertContains "$(cat "$calls")" $'inspect-goose\nstop-goose'
+    assertNotContains "$(cat "$calls")" storage
+    assertNotContains "$(cat "$calls")" helm-jaeger
+    assertNotContains "$(cat "$calls")" adopt
+  done
+  rm -f "$calls"
+}
+
+testIngressFailureHandlesAbsentOrUnstoppableAgent() {
+  local failure calls expected
+  calls=$(mktemp)
+  for failure in absent inspect scale; do
+    : >"$calls"
+    output=$(run_ingress_main upgrade jaeger "$failure" "$calls")
+    assertNotEquals "$failure must abort deployment" 0 "$?"
+    expected=$'ingress-apply\ninspect-goose'
+    if [[ "$failure" == scale ]]; then expected+=$'\nstop-goose'; fi
+    assertEquals "$failure must not proceed to Helm" "$expected" "$(cat "$calls")"
+    if [[ "$failure" == absent ]]; then
+      assertContains "$output" "refusing the AI-enabled upgrade"
+    else
+      assertContains "$output" "revoke its OpenAI key"
+    fi
+  done
+  rm -f "$calls"
+}
+
+testLateIngressReconciliationDoesNotReapplyJaegerPolicy() {
+  local calls
+  calls=$(mktemp)
+  output=$(CALLS_FILE="$calls" bash -c '
+    source "$1"
+    log() { :; }
+    sleep() { :; }
+    kubectl() {
+      if [[ "$1" == apply ]]; then
+        printf "%s\n" "$3" >>"$CALLS_FILE"
+        printf configured
+      else
+        return 1
+      fi
+    }
+    deploy_opensearch_and_otel_ingress
+  ' _ "$SCRIPT" 2>&1)
+  assertEquals "remaining ingress reconciliation should succeed" 0 "$?"
+  assertContains "$(cat "$calls")" ingress-opensearch.yaml
+  assertContains "$(cat "$calls")" ingress-otel-demo.yaml
+  assertNotContains "$(cat "$calls")" ingress-jaeger.yaml
+  rm -f "$calls"
 }
 
 # shellcheck disable=SC1091
