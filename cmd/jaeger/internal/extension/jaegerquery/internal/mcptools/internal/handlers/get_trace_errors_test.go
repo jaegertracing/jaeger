@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
 	"testing"
@@ -38,6 +39,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 		},
 		{
 			spanID:       "span003",
+			parentSpanID: "span001",
 			operation:    "/api/error2",
 			hasError:     true,
 			errorMessage: "Second error",
@@ -64,20 +66,20 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, 2, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 2)
 
-	// Verify only error spans are returned
+	byName := make(map[string]types.ErrorSpan, len(output.Spans))
 	for _, span := range output.Spans {
-		assert.Equal(t, "Error", span.Status.Code)
-		assert.NotEmpty(t, span.Status.Message)
+		assert.NotEmpty(t, span.SpanID)
+		assert.Equal(t, "test-service", span.Service)
+		assert.NotEmpty(t, span.StatusMessage)
+		assertListingHasNoVerboseFields(t, span)
+		byName[span.SpanName] = span
 	}
-
-	// Verify both error operations are present
-	operations := make(map[string]bool)
-	for _, span := range output.Spans {
-		operations[span.SpanName] = true
-	}
-	assert.True(t, operations["/api/error1"])
-	assert.True(t, operations["/api/error2"])
-	assert.False(t, operations["/api/ok"]) // OK span should not be included
+	require.Contains(t, byName, "/api/error1")
+	require.Contains(t, byName, "/api/error2")
+	assert.Equal(t, "First error", byName["/api/error1"].StatusMessage)
+	assert.Equal(t, "Second error", byName["/api/error2"].StatusMessage)
+	assert.Equal(t, spanIDToHex("span001"), byName["/api/error2"].ParentSpanID)
+	assert.NotContains(t, byName, "/api/ok")
 }
 
 func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
@@ -147,9 +149,11 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 	assert.Equal(t, traceID, output.TraceID)
 	assert.Equal(t, 1, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 1)
+	assert.Equal(t, spanIDToHex("span002"), output.Spans[0].SpanID)
+	assert.Equal(t, "test-service", output.Spans[0].Service)
 	assert.Equal(t, "/api/error", output.Spans[0].SpanName)
-	assert.Equal(t, "Error", output.Spans[0].Status.Code)
-	assert.Equal(t, "Single error", output.Spans[0].Status.Message)
+	assert.Equal(t, "Single error", output.Spans[0].StatusMessage)
+	assertListingHasNoVerboseFields(t, output.Spans[0])
 }
 
 func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
@@ -285,10 +289,12 @@ func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 	assert.Equal(t, 3, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 3)
 
-	// Verify all spans have error status
 	for _, span := range output.Spans {
-		assert.Equal(t, "Error", span.Status.Code)
-		assert.NotEmpty(t, span.Status.Message)
+		assert.NotEmpty(t, span.SpanID)
+		assert.Equal(t, "test-service", span.Service)
+		assert.NotEmpty(t, span.SpanName)
+		assert.NotEmpty(t, span.StatusMessage)
+		assertListingHasNoVerboseFields(t, span)
 	}
 }
 
@@ -325,9 +331,11 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanAttributes(t *testing.T) {
 	assert.Len(t, output.Spans, 1)
 
 	span := output.Spans[0]
-	assert.Equal(t, "500", span.Attributes["http.status_code"])
-	assert.Equal(t, "InternalServerError", span.Attributes["error.type"])
-	assert.Equal(t, "Database connection failed", span.Attributes["error.message"])
+	assert.Equal(t, spanIDToHex("span001"), span.SpanID)
+	assert.Equal(t, "test-service", span.Service)
+	assert.Equal(t, "/api/error", span.SpanName)
+	assert.Equal(t, "Test error", span.StatusMessage)
+	assertListingHasNoVerboseFields(t, span)
 }
 
 func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
@@ -367,10 +375,11 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 	assert.Len(t, output.Spans, 1)
 
 	span := output.Spans[0]
-	assert.Len(t, span.Events, 1)
-	assert.Equal(t, "exception", span.Events[0].Name)
-	assert.Equal(t, "RuntimeError", span.Events[0].Attributes["exception.type"])
-	assert.Equal(t, "Something went wrong", span.Events[0].Attributes["exception.message"])
+	assert.Equal(t, spanIDToHex("span001"), span.SpanID)
+	assert.Equal(t, "test-service", span.Service)
+	assert.Equal(t, "/api/error", span.SpanName)
+	assert.Equal(t, "Test error", span.StatusMessage)
+	assertListingHasNoVerboseFields(t, span)
 }
 
 func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
@@ -402,4 +411,15 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	assert.Equal(t, 5, output.TotalErrorCount)
 	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
+}
+
+func assertListingHasNoVerboseFields(t *testing.T, span any) {
+	t.Helper()
+	raw, err := json.Marshal(span)
+	require.NoError(t, err)
+	var asMap map[string]any
+	require.NoError(t, json.Unmarshal(raw, &asMap))
+	assert.NotContains(t, asMap, "attributes")
+	assert.NotContains(t, asMap, "events")
+	assert.NotContains(t, asMap, "links")
 }
