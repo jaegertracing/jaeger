@@ -176,7 +176,7 @@ if deploy_monitoring; then
   helm repo update prometheus-community
   echo "🟢 Deploying Prometheus..."
   kubectl apply -f prometheus-svc.yaml
-  helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
+  helm $HELM_PROM_CMD --timeout 15m0s prometheus "$PROMETHEUS_STACK_CHART" \
     --version "$PROMETHEUS_STACK_CHART_VERSION" \
     --set crds.upgradeJob.enabled=true \
     --set crds.upgradeJob.forceConflicts=true \
@@ -210,18 +210,22 @@ if deploy_monitoring; then
 fi
 kubectl get pods,svc,ingress
 
+# Attempt/sleep knobs are overridable so tests can exercise failure paths quickly.
+JAEGER_DEMO_SMOKE_ATTEMPTS="${JAEGER_DEMO_SMOKE_ATTEMPTS:-12}"
+JAEGER_DEMO_SMOKE_SLEEP_SECONDS="${JAEGER_DEMO_SMOKE_SLEEP_SECONDS:-10}"
+
 smoke_expect() {
   local url=$1
   local expected=$2
   local output=$3
 
-  for attempt in $(seq 1 12); do
+  for attempt in $(seq 1 "$JAEGER_DEMO_SMOKE_ATTEMPTS"); do
     if curl -fsS "$url" -o "$output" && grep -q "$expected" "$output"; then
       echo "✅ Smoke check passed: $url"
       return 0
     fi
-    echo "Waiting for $url to return expected content (attempt $attempt/12)..."
-    sleep 10
+    echo "Waiting for $url to return expected content (attempt $attempt/${JAEGER_DEMO_SMOKE_ATTEMPTS})..."
+    sleep "$JAEGER_DEMO_SMOKE_SLEEP_SECONDS"
   done
 
   echo "❌ Smoke check failed: $url"
@@ -231,10 +235,44 @@ smoke_expect() {
   return 1
 }
 
+# smoke_expect_json asserts HTTP 2xx plus a JSON body satisfying a jq filter.
+# It relies on HTTP status and response schema semantics instead of literal
+# text matching, so compact and pretty-printed responses behave identically.
+smoke_expect_json() {
+  local url=$1
+  local jq_filter=$2
+  local output=$3
+
+  for attempt in $(seq 1 "$JAEGER_DEMO_SMOKE_ATTEMPTS"); do
+    if curl -fsS "$url" -o "$output" && jq -e "$jq_filter" "$output" >/dev/null 2>&1; then
+      echo "✅ Smoke check passed: $url (satisfied ${jq_filter})"
+      return 0
+    fi
+    echo "Waiting for $url to satisfy ${jq_filter} (attempt $attempt/${JAEGER_DEMO_SMOKE_ATTEMPTS})..."
+    sleep "$JAEGER_DEMO_SMOKE_SLEEP_SECONDS"
+  done
+
+  echo "❌ Smoke check failed: $url"
+  echo "Expected HTTP 2xx with a JSON body satisfying: ${jq_filter}"
+  echo "Last response:"
+  cat "$output" 2>/dev/null || true
+  return 1
+}
+
 if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]] && deploy_jaeger; then
   echo "🔎 Step 7: Verifying public demo endpoints..."
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ jq is required for the public smoke tests (JSON response assertions)" >&2
+    exit 1
+  fi
   smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' /tmp/hotrod-smoke.json
   smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' /tmp/jaeger-services.json
+  # The query metrics handler reports failures with a non-2xx status, which
+  # curl -f rejects; the jq assertion verifies the healthy response shape.
+  smoke_expect_json "${PUBLIC_BASE_URL}/jaeger/api/metrics/calls?service=frontend" '(.metrics | type) == "array" and (.metrics | length) > 0' /tmp/jaeger-metrics-calls.json
+  if deploy_monitoring; then
+    smoke_expect_json "${PUBLIC_BASE_URL}/grafana/api/health" '.database == "ok"' /tmp/grafana-health.json
+  fi
 fi
 
 # Output Port-forward Instructions

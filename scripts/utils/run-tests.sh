@@ -14,6 +14,7 @@ TEST_FILES=(
     "$UTILS_DIR/resolve-demo-snapshot-tags.test.sh"
     "$REPO_ROOT/scripts/release/release.test.sh"
     "$REPO_ROOT/scripts/release/verify-published.test.sh"
+    "$REPO_ROOT/examples/oci/deploy-all.test.sh"
     "$REPO_ROOT/examples/otel-demo/deploy-all.test.sh"
     "$REPO_ROOT/examples/otel-demo/jaeger-values.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-expand-volume.test.sh"

@@ -20,3 +20,9 @@ grafana:
       domain: demo.jaegertracing.io
       root_url: "%(protocol)s://%(domain)s/grafana/"
       serve_from_sub_path: true
+  # At the pinned kube-prometheus-stack 82.10.4 (grafana 11.3.2), the Grafana subchart does not expose startupProbe on the main container.
+  # Probes only run after the container starts, so image pulls on cold nodes are covered by the 15m Helm timeout in deploy-all.sh, not these settings.
+  # Increase initialDelaySeconds and failureThreshold to give Grafana time to install plugins and build search indexes.
+  livenessProbe:
+    initialDelaySeconds: 300
+    failureThreshold: 20
