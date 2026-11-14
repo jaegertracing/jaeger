@@ -178,6 +178,42 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 	}
 }
 
+func TestOperationNamesStorageWriteRetriesAfterError(t *testing.T) {
+	withOperationNamesStorage(t, time.Minute, latestVersion, func(s *operationNameStorageTest) {
+		tableName := schemas[latestVersion].tableName
+		query := &mocks.Query{}
+		query1 := &mocks.Query{}
+		query.On("Bind", []any{"service-a", "", "Operation-b"}).Return(query1)
+		query1.On("Exec").Return(errors.New("exec error")).Once()
+		query1.On("Exec").Return(nil)
+		query1.On("String").Return("select from " + tableName)
+
+		s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+
+		operation := dbmodel.Operation{
+			ServiceName:   "service-a",
+			OperationName: "Operation-b",
+		}
+		err := s.storage.Write(operation)
+		require.EqualError(t, err, "failed to Exec query 'select from "+tableName+"': exec error")
+
+		// the failed insert must not stay in the write cache
+		err = s.storage.Write(operation)
+		require.NoError(t, err)
+
+		// cached after the successful retry
+		err = s.storage.Write(operation)
+		require.NoError(t, err)
+
+		counts, _ := s.metricsFactory.Snapshot()
+		assert.Equal(t, map[string]int64{
+			"attempts|table=" + tableName: 2,
+			"inserts|table=" + tableName:  1,
+			"errors|table=" + tableName:   1,
+		}, counts)
+	})
+}
+
 func TestOperationNamesStorageGetServices(t *testing.T) {
 	scanError := errors.New("scan error")
 	for _, test := range []struct {

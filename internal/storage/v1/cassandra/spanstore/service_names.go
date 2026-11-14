@@ -64,6 +64,7 @@ func (s *ServiceNamesStorage) Write(serviceName string) error {
 		q := query.Bind(serviceName)
 		err2 := s.metrics.Exec(q, s.logger)
 		if err2 != nil {
+			s.serviceNames.Delete(serviceName)
 			err = err2
 		}
 	}
