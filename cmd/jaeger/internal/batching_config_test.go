@@ -74,7 +74,7 @@ func TestShippedConfigsUseQueueBatching(t *testing.T) {
 
 					if raw, ok := cfg.Processors[component.MustNewID("queue_batch")]; ok {
 						shared := raw.(*exporterhelper.QueueBatchConfig)
-						assertLegacyBatchQueue(t, shared)
+						assertStorageBatchQueue(t, shared)
 						assert.Equal(t, []component.ID{component.MustNewID("queue_batch")}, traces.Processors)
 						assert.Equal(t, []component.ID{storageexporter.ID, component.MustNewID("spanmetrics")}, traces.Exporters)
 						storage := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
@@ -89,7 +89,7 @@ func TestShippedConfigsUseQueueBatching(t *testing.T) {
 							assert.Equal(t, exporterhelper.RequestSizerTypeBytes, queue.Get().Sizer)
 							return
 						}
-						assertLegacyBatchQueue(t, queue.Get())
+						assertStorageBatchQueue(t, queue.Get())
 						if filepath.Base(file) == "config.yaml" || filepath.Base(file) == "config-cassandra.yaml" {
 							assert.Equal(t, []component.ID{component.MustNewID("adaptive_sampling")}, traces.Processors)
 						}
@@ -152,14 +152,14 @@ func assertDataStreamBatching(t *testing.T, factories otelcol.Factories, file st
 	storageCfg := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
 	require.NoError(t, confmap.Validate(storageCfg))
 	require.True(t, storageCfg.QueueConfig.HasValue())
-	assertLegacyBatchQueue(t, storageCfg.QueueConfig.Get())
+	assertStorageBatchQueue(t, storageCfg.QueueConfig.Get())
 }
 
-func assertLegacyBatchQueue(t *testing.T, cfg *exporterhelper.QueueBatchConfig) {
+func assertStorageBatchQueue(t *testing.T, cfg *exporterhelper.QueueBatchConfig) {
 	t.Helper()
 	assert.Equal(t, exporterhelper.RequestSizerTypeRequests, cfg.Sizer)
 	assert.Equal(t, 1, cfg.NumConsumers)
-	assert.EqualValues(t, 10, cfg.QueueSize)
+	assert.EqualValues(t, 8192, cfg.QueueSize)
 	assert.True(t, cfg.BlockOnOverflow)
 	assert.False(t, cfg.WaitForResult)
 	assertSpanBatch(t, cfg)

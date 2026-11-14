@@ -72,7 +72,7 @@ exporters:
       enabled: true
       sizer: requests
       num_consumers: 1
-      queue_size: 10
+      queue_size: 8192
       block_on_overflow: true
       wait_for_result: false
       batch:

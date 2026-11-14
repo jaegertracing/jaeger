@@ -27,8 +27,8 @@ using `batch` remain supported during the migration.
 
 For a pipeline with one storage exporter, remove `batch` from the pipeline's
 `processors` list and enable batching in the exporter's `queue`. The shipped
-storage examples use this configuration to retain a single consumer, a queue of
-10 incoming requests, blocking overflow, and batching at 8192 spans or 200ms:
+storage examples use a single consumer, 8192 raw-request slots, blocking
+overflow, and the former processor's 8192-span or 200ms batching threshold:
 
 ```yaml
 exporters:
@@ -38,7 +38,7 @@ exporters:
       enabled: true
       sizer: requests
       num_consumers: 1
-      queue_size: 10
+      queue_size: 8192
       block_on_overflow: true
       wait_for_result: false
       batch:
@@ -48,6 +48,15 @@ exporters:
         max_size: 0
         flush_timeout: 200ms
 ```
+
+The former processor buffered incoming requests separately from its active
+batch and freed each input slot when it added that request to the batch. The
+replacement queue counts requests until export completes, including those
+already in the active batch. Its 8192 slots allow one-span requests to reach the
+8192-span threshold. A smaller request queue forces this traffic to wait for
+the flush timeout; 10 slots with a 200ms timeout limit it to roughly 50 spans
+per second. This capacity is a request count, not a span or memory limit, so
+size it for the workload and available memory.
 
 `max_size: 0` leaves the maximum batch size unlimited, matching the former
 processor's default. Acknowledgment occurs on enqueue; this configuration does

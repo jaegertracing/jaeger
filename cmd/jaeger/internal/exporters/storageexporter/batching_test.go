@@ -27,7 +27,7 @@ func (w batchingWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error
 }
 
 func TestShippedExporterBatchingFlushes(t *testing.T) {
-	for _, trigger := range []string{"size", "timeout", "shutdown"} {
+	for _, trigger := range []string{"size", "size_single_span_requests", "timeout", "shutdown"} {
 		t.Run(trigger, func(t *testing.T) {
 			settings := jconfmap.ResolverSettings()
 			settings.URIs = []string{"file:../../../config-badger.yaml"}
@@ -57,11 +57,19 @@ func TestShippedExporterBatchingFlushes(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, shutdown()) })
 
 			spans := 1
-			if trigger == "size" {
+			switch trigger {
+			case "size_single_span_requests":
+				spans = int(batch.MinSize)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				for i := range spans {
+					require.NoError(t, exp.ConsumeTraces(ctx, batchingTraces(1)), "request %d must be enqueued without waiting for a batch timeout", i+1)
+				}
+			case "size":
 				spans = int(batch.MinSize)
 				require.NoError(t, exp.ConsumeTraces(context.Background(), batchingTraces(spans/2)))
 				require.NoError(t, exp.ConsumeTraces(context.Background(), batchingTraces(spans/2)))
-			} else {
+			default:
 				require.NoError(t, exp.ConsumeTraces(context.Background(), batchingTraces(spans)))
 			}
 			if trigger == "shutdown" {
