@@ -69,9 +69,37 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(1, run.call_count)
 
     @patch("deploy.run")
-    def test_explicit_manual_waiver_skips_only_backup(self, run):
+    def test_explicit_waiver_skips_only_backup(self, run):
         deploy.deploy_component("opensearch", dict(self.env, JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY="waive"))
         self.assertEqual(2, run.call_count)
+        self.assertTrue(run.call_args_list[0].args[0][1].endswith("deploy-all.sh"))
+        self.assertTrue(run.call_args_list[1].args[0][1].endswith("verify_trace.py"))
+
+    @patch("deploy.resolve_snapshots")
+    @patch("deploy.deploy_component")
+    @patch("deploy.run")
+    def test_disposable_data_waiver_is_valid_for_automatic_and_full_manual_upgrades(self, run, component, resolve):
+        run.return_value.stdout = json.dumps({"data": dict(self.desired, opensearch="old")})
+        # Automatic events carry the workflow's input fallbacks, not a full-stack selection.
+        for event, ref, stack, scope in (("push", "refs/heads/main", "oci", "jaeger"),
+                                         ("schedule", "refs/heads/main", "oci", "jaeger"),
+                                         ("workflow_dispatch", "refs/heads/repair", "all", "all")):
+            with self.subTest(event=event):
+                env = dict(self.env, GITHUB_EVENT_NAME=event, GITHUB_REF=ref, JAEGER_DEMO_STACK=stack,
+                           JAEGER_DEMO_DEPLOY_MODE="upgrade", JAEGER_OTEL_DEMO_DEPLOY_SCOPE=scope,
+                           JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY="waive")
+                self.assertEqual(0, deploy.reconcile(env))
+                component.assert_any_call("opensearch", env)
+                component.reset_mock()
+
+    def test_hosted_workflow_defaults_to_the_disposable_data_waiver(self):
+        workflow = (deploy.ROOT / ".github/workflows/ci-deploy-demo.yml").read_text()
+        block = re.search(r"^      opensearch_recovery:\n((?:        .*\n)+)", workflow, re.MULTILINE)
+        self.assertIsNotNone(block, "opensearch_recovery input not found")
+        self.assertEqual(["waive"], re.findall(r"^        default: (\S+)$", block[1], re.MULTILINE))
+        # Every assignment is listed so that a step-level override cannot hide behind the job default.
+        self.assertEqual(["${{ github.event.inputs.opensearch_recovery || 'waive' }}"],
+                         re.findall(r"^ +JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY: (.+)$", workflow, re.MULTILINE))
 
     @patch("deploy.run")
     def test_snapshot_exports_are_loaded_and_push_can_use_published_fallback(self, run):
@@ -112,18 +140,27 @@ class DeploymentTests(unittest.TestCase):
     @patch("deploy.resolve_snapshots")
     @patch("deploy.run")
     def test_clean_is_dispatched_once_per_stack(self, run, resolve):
-        env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="all", JAEGER_DEMO_DEPLOY_MODE="clean")
-        self.assertEqual(0, deploy.reconcile(env))
-        self.assertEqual(2, run.call_count)
-        self.assertTrue(all(call.args[0][-1] == "clean" for call in run.call_args_list))
+        for policy in ("required", "waive"):
+            with self.subTest(policy=policy):
+                env = dict(self.env, GITHUB_EVENT_NAME="workflow_dispatch", JAEGER_DEMO_STACK="all",
+                           JAEGER_DEMO_DEPLOY_MODE="clean", JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=policy)
+                self.assertEqual(0, deploy.reconcile(env))
+                self.assertEqual(2, run.call_count)
+                self.assertTrue(all(call.args[0][-1] == "clean" for call in run.call_args_list))
+                run.reset_mock()
 
-    def test_rejects_invalid_or_automatic_unsafe_routes(self):
+    @patch("deploy.deploy_component")
+    @patch("deploy.run")
+    def test_rejects_invalid_or_automatic_unsafe_routes(self, run, component):
         cases = [{"GITHUB_REF": "refs/heads/other"}, {"JAEGER_DEMO_STACK": "invalid"},
                  {"JAEGER_DEMO_DEPLOY_MODE": "invalid"}, {"JAEGER_DEMO_DEPLOY_MODE": "clean"},
-                 {"GITHUB_EVENT_NAME": "pull_request"}, {"JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY": "waive"}]
+                 {"GITHUB_EVENT_NAME": "pull_request"}, {"JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY": "invalid"}]
         for case in cases:
             with self.subTest(case=case), self.assertRaises(ValueError):
                 deploy.reconcile(dict(self.env, **case))
+        # Rejection must precede any cluster access.
+        run.assert_not_called()
+        component.assert_not_called()
 
     @patch("deploy.run")
     def test_manual_invalid_scope_fails(self, run):

@@ -85,8 +85,7 @@ def resolve_snapshots(env):
 def deploy_component(component, env):
     stack, scope, _ = COMPONENTS[component]
     directory = ROOT / "examples" / ("otel-demo" if stack == "otel" else "oci")
-    child_env = dict(env, JAEGER_DEMO_STACK=stack, JAEGER_DEMO_DEPLOY_SCOPE=scope,
-                     JAEGER_OTEL_DEMO_DEPLOY_SCOPE=scope)
+    child_env = dict(env, JAEGER_DEMO_DEPLOY_SCOPE=scope, JAEGER_OTEL_DEMO_DEPLOY_SCOPE=scope)
     mode = env.get("JAEGER_DEMO_DEPLOY_MODE", "upgrade")
     if scope == "opensearch" and mode == "upgrade" and env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "required":
         run(["bash", str(directory / "opensearch-recovery.sh"), "backup-test"], env=child_env)
@@ -109,16 +108,14 @@ def reconcile(env, root=ROOT):
         raise ValueError("Invalid demo stack or mode")
     if event != "workflow_dispatch" and mode != "upgrade":
         raise ValueError("Automatic demo deployments must use upgrade mode")
-    if env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "waive" and (
-            event != "workflow_dispatch" or env.get("GITHUB_REF") != "refs/heads/main"
-            or stack != "otel" or scope != "opensearch" or mode != "upgrade"):
-        raise ValueError("Recovery waiver requires a manual main/otel/upgrade/opensearch deployment")
+    if env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") not in ("required", "waive"):
+        raise ValueError("Invalid OpenSearch recovery policy")
     if event == "workflow_dispatch" and mode == "clean":
         # Clean is an explicit whole-stack operation, not a per-component loop.
         resolve_snapshots(env)
         for target in ("oci", "otel"):
             if stack in (target, "all"):
-                child = dict(env, JAEGER_DEMO_STACK=target, JAEGER_DEMO_DEPLOY_SCOPE="all")
+                child = dict(env, JAEGER_DEMO_DEPLOY_SCOPE="all")
                 directory = root / "examples" / ("otel-demo" if target == "otel" else "oci")
                 run(["bash", str(directory / "deploy-all.sh"), "clean"], env=child)
         return 0

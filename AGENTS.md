@@ -92,6 +92,10 @@ Storage behavior belongs in the shared `internal/storage/integration` corpus and
 - Do not change CI workflows or release tooling unless explicitly asked.
 - Before adding a flag or field that controls behavior, find the mechanism that already owns that decision and extend it. Expressing one decision in two places is worse than either place alone, and replacing an established mechanism is a maintainer's call.
 
+## Hosted Demo Data
+
+The public demos in `examples/oci` and `examples/otel-demo` contain synthetic traces generated continuously by the demo applications and load generators. Historical trace data is disposable and may be regenerated. The hosted deployment workflow defaults to `opensearch_recovery=waive`, while the standalone scripts default to `required`. For routine maintenance, verify healthy services, plus a fresh trace write/read when OpenSearch itself is upgraded (the hosted workflow runs that check only for the OpenSearch component), rather than requiring backup restoration or extra cluster capacity to preserve this data. Run backup/restore verification only when explicitly requested. See "Disposable demo data and deployment verification" in [`examples/otel-demo/README.md`](./examples/otel-demo/README.md) and [`examples/otel-demo/OPENSEARCH_RECOVERY.md`](./examples/otel-demo/OPENSEARCH_RECOVERY.md).
+
 ## RFC / ADR Documents
 
 RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.

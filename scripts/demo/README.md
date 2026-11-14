@@ -23,11 +23,15 @@ not prevent independent components from deploying, but OpenSearch failure blocks
 the dependent OTel Jaeger and application updates in that run.
 
 Deployment, recovery, and volume expansion share the existing workflow concurrency
-lock. Database updates run the existing retained snapshot and isolated restore
-test within that lock, then the deployment script checks the recovery point and
-upgrades OpenSearch before Dashboards. A version check and a fresh collector-to-
-query trace check must pass before recording the revision. Recovery failure stops
-the update. Automated runs never waive recovery or perform a clean reinstall.
+lock. Hosted demo traces are disposable, so scheduled, post-merge, and default
+manual runs use `opensearch_recovery=waive`: a database update upgrades OpenSearch
+before Dashboards without a snapshot or restore test. A version check and a fresh
+collector-to-query trace check must pass before recording the revision. During
+a deployment, the retained snapshot and isolated restore test run only when a
+manual upgrade dispatch that includes OpenSearch selects
+`opensearch_recovery=required`; the deployment script then checks the recovery
+point, and a recovery failure stops the update. Automated runs never perform a
+clean reinstall.
 
 The manual `demo_stack`, `otel_deploy_scope`, image overrides, `deploy_mode`, and
 recovery inputs are preserved. The historical `otel_deploy_scope` input also
@@ -37,9 +41,13 @@ pairs fail. Direct script callers can select a scope through
 
 For the initial catch-up, review and merge the paired OpenSearch/Dashboards 3.9.0
 Renovate update first. Keep other component updates separate. Major database
-changes require a tested migration in their reviewed change. Existing missing or
-failed OCI monitoring releases must be repaired under #10002; an upgrade reports
-that failure instead of skipping monitoring and reporting success.
+changes require a tested migration in their reviewed change. The post-merge run
+deploys a merged database update under the waiver, and `required` cannot be
+selected for it. To keep a tested recovery point for existing data, run the
+manual `Verify OTel Demo OpenSearch Recovery` workflow on main and confirm that
+it succeeded before merging. Existing missing or failed OCI monitoring releases
+must be repaired under #10002; an upgrade reports that failure instead of
+skipping monitoring and reporting success.
 
 Run the maintenance tests through `scripts/utils/run-tests.sh`, alongside the
 repository-required formatting, lint, and test targets. To inspect discovery

@@ -54,6 +54,14 @@ Then, open the following URLs in your browser:
 - **Grafana:** [http://localhost:9091](http://localhost:9091)
 - **HotROD Demo App:** [http://localhost:8080/hotrod](http://localhost:8080/hotrod)
 
+## Disposable demo data
+
+This demo stores traces in memory. They are synthetic, generated continuously by
+HotROD and the load generator, and disposable: routine maintenance does not
+preserve them. The hosted OTel demo applies the same policy to its OpenSearch
+storage, with backup/restore testing as an explicit opt-in described in the
+[OTel demo documentation](../otel-demo/README.md#optional-backup-and-recovery-testing).
+
 ## Deploying on Cloud Infrastructure (e.g., Oracle Cloud)
 
 To expose your services externally using a custom domain (e.g., `http://demo.jaegertracing.io/`), you need to set up an **Ingress Controller** and define an **Ingress resource**.
