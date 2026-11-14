@@ -78,11 +78,11 @@ SELECT
 FROM system.columns
 WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
 
-// SelectAttributeLayout returns one row when the spans table exists, which says whether the
-// table stores the str_attributes group as a Map. In the nested layout the server lists the
-// group as str_attributes.key, or as str_attributes when flatten_nested is off.
-const SelectAttributeLayout = `
-SELECT startsWith(type, 'Map(') AS is_map
+// SelectAttributeGroupType returns how the spans table declares the str_attributes group, and
+// no row when the table does not exist. The server lists a Nested group as the array
+// str_attributes.key, or as str_attributes when flatten_nested is off.
+const SelectAttributeGroupType = `
+SELECT type
 FROM system.columns
 WHERE database = currentDatabase() AND table = 'spans' AND name IN ('str_attributes', 'str_attributes.key')`
 

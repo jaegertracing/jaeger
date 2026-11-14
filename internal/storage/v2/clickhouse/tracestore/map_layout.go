@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"strings"
+
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -14,6 +16,22 @@ import (
 type MapLayout struct{}
 
 var _ AttributeLayout = MapLayout{}
+
+func (MapLayout) Name() string {
+	return "map"
+}
+
+func (MapLayout) GroupType(valueType string) string {
+	return "Map(String, " + valueType + ")"
+}
+
+func (MapLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Map(")
+}
+
+func (MapLayout) hoistedSource(group string, key string) string {
+	return "if(mapContains(" + group + ", " + key + "), " + group + "[" + key + "], NULL)"
+}
 
 func (MapLayout) columnNames(group string) []string {
 	return []string{group}

@@ -67,12 +67,16 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, cfg.attributeLayout())
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return nil, err
+	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
 	if err != nil {
 		return nil, err
 	}
 	params := schemaTemplateParams{
-		Layout:               cfg.attributeLayout(),
+		Layout:               layout,
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
@@ -131,10 +135,17 @@ type Factory struct {
 	// hoistedColumns holds the configured hoisted columns. It is set only after the startup
 	// check passes, which is what lets the reader search them.
 	hoistedColumns []chtracestore.HoistedColumn
+	// attributeLayout is the configured layout of the typed attribute groups, set with
+	// hoistedColumns.
+	attributeLayout chtracestore.AttributeLayout
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, cfg.attributeLayout())
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return nil, err
+	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +205,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 
 	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the checks run whether
 	// or not the schema was just built.
-	if err := checkAttributeLayout(ctx, conn, cfg.attributeLayout()); err != nil {
+	if err := checkAttributeLayout(ctx, conn, layout); err != nil {
 		return nil, err
 	}
 	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
@@ -204,13 +215,14 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	success = true
 	f.conn = conn
 	f.hoistedColumns = hoistedColumns
+	f.attributeLayout = layout
 	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
 		HoistedColumns:                f.hoistedColumns,
-		AttributeLayout:               f.config.attributeLayout(),
+		AttributeLayout:               f.attributeLayout,
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
 		AttributeMetadataCacheTTL:     f.config.AttributeMetadataCacheTTL,
@@ -219,7 +231,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return chtracestore.NewWriter(f.conn, f.config.attributeLayout()), nil
+	return chtracestore.NewWriter(f.conn, f.attributeLayout), nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {

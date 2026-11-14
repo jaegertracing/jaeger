@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -468,7 +469,7 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree"})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree", Layout: chtracestore.NestedLayout{}})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -714,6 +715,20 @@ func TestSchemaBuilder_MapLayout(t *testing.T) {
 	clickhousetest.VerifyQuerySnapshot(t, queries...)
 }
 
+func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
+	_, err := NewFactory(context.Background(), Configuration{AttributeLayout: "json"}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "attribute_layout must be nested or map")
+}
+
+func TestNewSchemaBuilder_InvalidAttributeLayout(t *testing.T) {
+	_, err := newSchemaBuilder(Configuration{
+		CreateSchema:    true,
+		TableEngine:     localTableEngine,
+		AttributeLayout: "json",
+	})
+	require.ErrorContains(t, err, "attribute_layout must be nested or map")
+}
+
 // TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check: the
 // test server reports a spans table in the map layout, and the configuration is nested.
 func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
@@ -721,14 +736,14 @@ func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
 	t.Cleanup(fakeServer.Close)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		if !strings.Contains(string(body), "is_map") {
+		if !strings.Contains(string(body), "name IN ('str_attributes'") {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			fakeServer.Config.Handler.ServeHTTP(w, r)
 			return
 		}
 		block := chproto.NewBlock()
-		block.AddColumn("is_map", "UInt8")
-		block.Append(uint8(1))
+		block.AddColumn("type", "String")
+		block.Append("Map(String, String)")
 		var buf proto.Buffer
 		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
 		w.Header().Set("Content-Type", "application/octet-stream")
@@ -741,7 +756,7 @@ func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
 
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 
-	require.ErrorContains(t, err, "the spans table stores attributes in the map layout, and attribute_layout is nested")
+	require.ErrorContains(t, err, "the spans table declares its string attributes as Map(String, String), which is not the nested layout")
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {

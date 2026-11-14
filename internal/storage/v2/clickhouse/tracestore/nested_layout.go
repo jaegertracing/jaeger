@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"strings"
+
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -13,6 +15,24 @@ import (
 type NestedLayout struct{}
 
 var _ AttributeLayout = NestedLayout{}
+
+func (NestedLayout) Name() string {
+	return "nested"
+}
+
+func (NestedLayout) GroupType(valueType string) string {
+	return "Nested (key String, value " + valueType + ")"
+}
+
+// Declares accepts the two ways the server lists a Nested group: as the array of its keys,
+// and as the group itself when flatten_nested is off.
+func (NestedLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
+}
+
+func (NestedLayout) hoistedSource(group string, key string) string {
+	return "if(has(" + group + ".key, " + key + "), " + group + ".value[indexOf(" + group + ".key, " + key + ")], NULL)"
+}
 
 func (NestedLayout) columnNames(group string) []string {
 	return []string{group + ".key", group + ".value"}

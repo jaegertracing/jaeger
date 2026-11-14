@@ -27,7 +27,7 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "unknown attribute layout",
 			mutate:  func(cfg *Configuration) { cfg.AttributeLayout = "json" },
-			wantErr: "AttributeLayout: json does not validate as in(nested|map)",
+			wantErr: `attribute_layout must be nested or map, not "json"`,
 		},
 		{
 			name:   "defaults with native protocol",
