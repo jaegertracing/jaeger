@@ -1,6 +1,8 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -8,6 +10,8 @@ from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 import goose_image
+
+DIGEST = "sha256:" + "a" * 64
 
 
 class GooseImageTests(unittest.TestCase):
@@ -17,22 +21,58 @@ class GooseImageTests(unittest.TestCase):
     @patch("goose_image.subprocess.run")
     @patch("goose_image.urlopen")
     def test_published_version_skips_login_and_build(self, lookup, run):
+        lookup.return_value.__enter__.return_value = io.BytesIO(json.dumps({"digest": DIGEST}).encode())
         image = goose_image.ensure_image(self.env)
-        self.assertEqual(goose_image.image_reference(self.env), image)
-        self.assertIn(image.replace(":", "/tags/"), lookup.call_args.args[0])
+        tagged = goose_image.image_reference(self.env)
+        self.assertEqual(tagged + "@" + DIGEST, image)
+        self.assertIn(tagged.replace(":", "/tags/"), lookup.call_args.args[0])
         self.assertEqual(30, lookup.call_args.kwargs["timeout"])
+        run.assert_not_called()
+
+    @patch("goose_image.subprocess.run")
+    @patch("goose_image.urlopen")
+    def test_published_version_without_digest_is_rejected(self, lookup, run):
+        lookup.return_value.__enter__.return_value = io.BytesIO(b"{}")
+        with self.assertRaises(RuntimeError):
+            goose_image.ensure_image(self.env)
         run.assert_not_called()
 
     @patch("goose_image.subprocess.run")
     @patch("goose_image.urlopen", side_effect=HTTPError("url", 404, "absent", {}, None))
     def test_missing_version_publishes_both_registries_and_architectures(self, lookup, run):
+        def build(command, **kwargs):
+            if "--metadata-file" in command:
+                Path(command[command.index("--metadata-file") + 1]).write_text(
+                    json.dumps({"containerimage.digest": DIGEST}))
+        run.side_effect = build
         image = goose_image.ensure_image(self.env)
+        tagged = goose_image.image_reference(self.env)
+        self.assertEqual(tagged + "@" + DIGEST, image)
         self.assertTrue(run.call_args_list[0].args[0][1].endswith("docker-login.sh"))
         command = run.call_args_list[1].args[0]
         self.assertEqual(["docker", "buildx", "build", "--platform", "linux/amd64,linux/arm64",
-                          "--tag", image, "--tag", "quay.io/" + image, "--push"], command[:-1])
-        self.assertTrue(run.call_args.kwargs["check"])
-        self.assertEqual(self.env, run.call_args.kwargs["env"])
+                          "--tag", tagged, "--tag", "quay.io/" + tagged, "--push", "--metadata-file"], command[:-2])
+        self.assertTrue(all(call.kwargs["check"] for call in run.call_args_list[:2]))
+        self.assertTrue(all(call.kwargs["env"] == self.env for call in run.call_args_list))
+        self.assertEqual([["docker", "logout", "docker.io"], ["docker", "logout", "quay.io"]],
+                         [call.args[0] for call in run.call_args_list[2:]])
+
+    @patch("goose_image.subprocess.run")
+    @patch("goose_image.urlopen", side_effect=HTTPError("url", 404, "absent", {}, None))
+    def test_failed_publication_still_logs_out(self, lookup, run):
+        def fail(command, **kwargs):
+            if command[:3] == ["docker", "buildx", "build"]:
+                raise goose_image.subprocess.CalledProcessError(1, command)
+        run.side_effect = fail
+        with self.assertRaises(goose_image.subprocess.CalledProcessError):
+            goose_image.ensure_image(self.env)
+        self.assertEqual(["docker", "logout", "quay.io"], run.call_args.args[0])
+
+    @patch("goose_image.ensure_image", return_value="example/goose:v1@" + DIGEST)
+    def test_command_exports_the_reference_to_later_steps(self, ensure):
+        with tempfile.NamedTemporaryFile(mode="r") as output:
+            goose_image.main(dict(self.env, GITHUB_OUTPUT=output.name))
+            self.assertEqual("image=example/goose:v1@" + DIGEST + "\n", output.read())
 
     @patch("goose_image.subprocess.run")
     @patch("goose_image.urlopen")

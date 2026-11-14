@@ -99,8 +99,9 @@ extraObjects:
     metadata:
       name: jaeger-goose
     spec:
-      # Account, ingress, and CNI prerequisites must pass before activation.
-      replicas: 1
+      # Activation is a separate reviewed change to this count, made once the
+      # published image and the rollout checks in AI_ASSISTANT.md have passed.
+      replicas: 0
       selector:
         matchLabels:
           app.kubernetes.io/name: jaeger-goose

@@ -13,7 +13,7 @@ import re
 import subprocess
 import tempfile
 
-from goose_image import DOCKERFILE, ensure_image
+from goose_image import DOCKERFILE
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = "jaeger-demo-deployment-revisions"
@@ -64,6 +64,14 @@ def fingerprint(component, root=ROOT):
     return hashlib.sha256("\0".join(inputs).encode()).hexdigest()
 
 
+def goose_image(env):
+    # A separate workflow step holds the registry credentials and resolves this.
+    image = env.get("JAEGER_DEMO_GOOSE_IMAGE")
+    if not image:
+        raise ValueError("JAEGER_DEMO_GOOSE_IMAGE is unresolved; the workflow publishes Goose only from main")
+    return image
+
+
 def selected_components(event, stack, scope, mode, previous, desired):
     if event == "workflow_dispatch":
         return [name for name, (target, part, _) in COMPONENTS.items()
@@ -92,7 +100,7 @@ def deploy_component(component, env):
                      JAEGER_OTEL_DEMO_DEPLOY_SCOPE=scope)
     mode = env.get("JAEGER_DEMO_DEPLOY_MODE", "upgrade")
     if component == "otel-jaeger":
-        child_env["JAEGER_DEMO_GOOSE_IMAGE"] = ensure_image(env)
+        goose_image(env)
     if scope == "opensearch" and mode == "upgrade" and env.get("JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY", "required") == "required":
         run(["bash", str(directory / "opensearch-recovery.sh"), "backup-test"], env=child_env)
     run(["bash", str(directory / "deploy-all.sh"), mode], env=child_env)
@@ -120,12 +128,12 @@ def reconcile(env, root=ROOT):
         raise ValueError("Recovery waiver requires a manual main/otel/upgrade/opensearch deployment")
     if event == "workflow_dispatch" and mode == "clean":
         # Clean is an explicit whole-stack operation, not a per-component loop.
+        if stack != "oci":
+            goose_image(env)
         resolve_snapshots(env)
         for target in ("oci", "otel"):
             if stack in (target, "all"):
                 child = dict(env, JAEGER_DEMO_STACK=target, JAEGER_DEMO_DEPLOY_SCOPE="all")
-                if target == "otel":
-                    child["JAEGER_DEMO_GOOSE_IMAGE"] = ensure_image(env, root)
                 directory = root / "examples" / ("otel-demo" if target == "otel" else "oci")
                 run(["bash", str(directory / "deploy-all.sh"), "clean"], env=child)
         return 0
@@ -156,7 +164,7 @@ def reconcile(env, root=ROOT):
             run(["kubectl", "apply", "-f", "-"], input=json.dumps(state))
             previous = updated
             print(f"{name}: deployed successfully", flush=True)
-        except (subprocess.CalledProcessError, RuntimeError, ValueError) as error:
+        except (subprocess.CalledProcessError, ValueError) as error:
             reason = error.returncode if isinstance(error, subprocess.CalledProcessError) else str(error)
             print(f"::error::{name}: deployment failed ({reason})", flush=True)
             failures.append(name)

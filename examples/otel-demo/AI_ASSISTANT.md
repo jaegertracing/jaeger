@@ -39,7 +39,9 @@ reconciliation. Complete the preactivation checks before enabling it.
    hash. A published Docker Hub tag is reused; a missing tag triggers one
    multi-platform build for Docker Hub and Quay. Lookup errors abort that
    component rather than treating an unknown cache state as a missing image.
-   The resolved reference is passed directly as `JAEGER_DEMO_GOOSE_IMAGE`.
+   A dedicated workflow step holds the registry credentials; the deployment
+   itself receives only the resolved reference, pinned by digest, as
+   `JAEGER_DEMO_GOOSE_IMAGE`.
    Daily reconciliation refreshes both Jaeger stacks and reuses the Goose tag.
 
    The [Dockerfile](../../scripts/ai-sidecar/goose/Dockerfile) verifies pinned

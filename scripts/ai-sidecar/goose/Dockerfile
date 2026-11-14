@@ -4,7 +4,7 @@
 # This image runs a released Goose binary as the ACP agent of the stack in
 # docker-compose.yml. Goose publishes no versioned container image, so the
 # binary is taken from its GitHub release for the build platform.
-FROM alpine:3.21
+FROM alpine:3.21@sha256:bc21487101ae47172509130ee1092cc273a831968d64b617776d1f69c81e42ab
 ARG GOOSE_VERSION=v1.57.0
 ARG TARGETARCH
 RUN apk add --no-cache ca-certificates curl \

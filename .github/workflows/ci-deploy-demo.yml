@@ -71,7 +71,6 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Jaeger to OKE Cluster
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
@@ -128,19 +127,31 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+    # Goose is published only from main. A branch dispatch skips these steps,
+    # and its OTel Jaeger component then fails for want of an image.
     - name: Set up QEMU for Goose
-      if: github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all'))
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
       uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
     - name: Set up buildx for Goose
-      if: github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all'))
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
       run: docker buildx create --use --name jaeger-demo
+
+    # The registry credentials stay in this step. A failure here leaves the
+    # image unresolved, which fails OTel Jaeger without blocking other components.
+    - name: Resolve Goose image
+      id: goose
+      if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || (inputs.demo_stack != 'oci' && (inputs.deploy_mode == 'clean' || inputs.otel_deploy_scope == 'jaeger' || inputs.otel_deploy_scope == 'all')))
+      continue-on-error: true
+      run: python3 scripts/demo/goose_image.py
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Reconcile demo components
       run: python3 scripts/demo/deploy.py
       env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        JAEGER_DEMO_GOOSE_IMAGE: ${{ steps.goose.outputs.image }}
 
     - name: Send detailed Slack notification on failure
       if: failure()
