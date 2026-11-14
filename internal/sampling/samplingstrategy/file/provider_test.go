@@ -459,6 +459,89 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
+// switchableServer serves strategies, or 503 while unavailable is set.
+type switchableServer struct {
+	url         string
+	unavailable atomic.Bool
+	requests    atomic.Int32
+	body        atomic.Pointer[string]
+}
+
+func newSwitchableServer(t *testing.T, initial string) *switchableServer {
+	s := &switchableServer{}
+	s.body.Store(&initial)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		s.requests.Add(1)
+		if s.unavailable.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte(*s.body.Load()))
+	}))
+	t.Cleanup(srv.Close)
+	s.url = srv.URL
+	return s
+}
+
+func probabilityOf(t *testing.T, p *samplingProvider, service string) float64 {
+	s, err := p.GetSamplingStrategy(context.Background(), service)
+	require.NoError(t, err)
+	return s.ProbabilisticSampling.SamplingRate
+}
+
+func TestStartupServiceUnavailableKeepsRetrying(t *testing.T) {
+	srv := newSwitchableServer(t, strategiesJSON(0.8))
+	srv.unavailable.Store(true)
+
+	ss, err := NewProvider(Options{
+		DefaultSamplingProbability: DefaultSamplingProbability,
+		StrategiesFile:             srv.url,
+		ReloadInterval:             10 * time.Millisecond,
+	}, zap.NewNop())
+	require.NoError(t, err)
+	provider := ss.(*samplingProvider)
+	defer provider.Close()
+	assert.InDelta(t, DefaultSamplingProbability, probabilityOf(t, provider, "foo"), 0)
+
+	// the reload loop must keep fetching while the URL is unavailable
+	require.Eventually(t, func() bool { return srv.requests.Load() > 2 }, time.Second, time.Millisecond)
+	assert.InDelta(t, DefaultSamplingProbability, probabilityOf(t, provider, "foo"), 0)
+
+	srv.unavailable.Store(false)
+	require.Eventually(t, func() bool {
+		return probabilityOf(t, provider, "foo") == 0.8
+	}, time.Second, time.Millisecond)
+}
+
+func TestReloadServiceUnavailablePreservesStrategies(t *testing.T) {
+	srv := newSwitchableServer(t, strategiesJSON(0.8))
+	ss, err := NewProvider(Options{
+		DefaultSamplingProbability: DefaultSamplingProbability,
+		StrategiesFile:             srv.url,
+		ReloadInterval:             time.Hour,
+	}, zap.NewNop())
+	require.NoError(t, err)
+	provider := ss.(*samplingProvider)
+	defer provider.Close()
+	loader := provider.samplingStrategyLoader(srv.url)
+	assert.InDelta(t, 0.8, probabilityOf(t, provider, "foo"), 0)
+	assert.InDelta(t, 0.5, probabilityOf(t, provider, "unknown"), 0)
+
+	srv.unavailable.Store(true)
+	last := provider.reloadSamplingStrategy(loader, strategiesJSON(0.8))
+	assert.Equal(t, strategiesJSON(0.8), last)
+	assert.InDelta(t, 0.8, probabilityOf(t, provider, "foo"), 0)
+	assert.InDelta(t, 0.5, probabilityOf(t, provider, "unknown"), 0)
+
+	// a later successful reload still applies new strategies
+	v09 := strategiesJSON(0.9)
+	srv.body.Store(&v09)
+	srv.unavailable.Store(false)
+	last = provider.reloadSamplingStrategy(loader, last)
+	assert.Equal(t, v09, last)
+	assert.InDelta(t, 0.9, probabilityOf(t, provider, "foo"), 0)
+}
+
 func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy provider with no specific per operation sampling strategies
 	// and option "sampling.strategies.bugfix-5270=true"
