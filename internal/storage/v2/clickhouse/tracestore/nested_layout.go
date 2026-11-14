@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -24,18 +25,25 @@ func (NestedLayout) GroupType(valueType string) string {
 	return "Nested (key String, value " + valueType + ")"
 }
 
-// Declares accepts the two ways the server lists a Nested group: as the array of its keys,
-// and as the group itself when flatten_nested is off.
 func (NestedLayout) Declares(columnType string) bool {
 	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
 }
 
-func (NestedLayout) hoistedSource(group string, key string) string {
-	return "if(has(" + group + ".key, " + key + "), " + group + ".value[indexOf(" + group + ".key, " + key + ")], NULL)"
+func (NestedLayout) Keys(group AttributeGroup) string {
+	return string(group) + ".key"
 }
 
-func (NestedLayout) columnNames(group string) []string {
-	return []string{group + ".key", group + ".value"}
+func (NestedLayout) Keys2D(group AttributeGroup) string {
+	return string(group) + ".key"
+}
+
+func (NestedLayout) hoistedSource(group AttributeGroup, key string) string {
+	g := string(group)
+	return "if(has(" + g + ".key, " + key + "), " + g + ".value[indexOf(" + g + ".key, " + key + ")], NULL)"
+}
+
+func (NestedLayout) insertSpan() string {
+	return sql.InsertSpan
 }
 
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
@@ -63,33 +71,23 @@ func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes
 	)
 }
 
-func (NestedLayout) Keys(group string) string {
-	return group + ".key"
+func (NestedLayout) selectSpans() string {
+	return sql.SelectSpansQuery
 }
 
-func (NestedLayout) values(group string) string {
-	return group + ".value"
-}
-
-func (NestedLayout) Keys2D(group string) string {
-	return group + ".key"
-}
-
-func (NestedLayout) values2D(group string) string {
-	return group + ".value"
-}
-
-// appendEquals searches the two arrays of the group for an entry with the key and the value,
-// so it matches any value of a key that a span carries more than once.
-func (NestedLayout) appendEquals(q *sqlBuilder, args []any, level expression.Level, tav typedAttributeValue) []any {
+// appendComparison searches the two arrays of the group for an entry with the key and a
+// value that satisfies the comparison, so it matches any value of a key that a span carries
+// more than once.
+func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
+	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
 	if prefix, nested := levelColumns(level); nested {
 		// Events and links are arrays inside the span row, so the condition searches the
-		// attributes of every item.
-		columnType := attributeColumnType(tav.valueType)
-		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
+		// attributes of every event or link.
+		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
+		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + prefix + ")")
 	} else {
-		group := attributeGroup(level, tav.valueType)
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
+		group := "s." + attributeGroup(level, tav.valueType)
+		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
 	}
 	return append(args, tav.key, tav.value)
 }

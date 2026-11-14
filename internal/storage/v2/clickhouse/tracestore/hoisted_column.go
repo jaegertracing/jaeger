@@ -60,7 +60,7 @@ func (c HoistedColumn) NullableType() string {
 // SourceExpression returns the expression that ClickHouse computes the column from: the value
 // stored under Key in the typed group of Level, or NULL when the group has no such key.
 func (c HoistedColumn) SourceExpression() string {
-	return c.Layout.hoistedSource(attributeGroup(c.Level, c.Type), quoteString(c.Key))
+	return c.Layout.hoistedSource(AttributeGroup(attributeGroup(c.Level, c.Type)), quoteString(c.Key))
 }
 
 // quoteString returns s as a ClickHouse string literal.
