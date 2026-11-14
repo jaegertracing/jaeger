@@ -6,6 +6,7 @@ package tracestore
 import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -14,8 +15,8 @@ type MapLayout struct{}
 
 var _ AttributeLayout = MapLayout{}
 
-func (MapLayout) columnNames(group string) []string {
-	return []string{group}
+func (MapLayout) insertSpan() string {
+	return sql.InsertSpanMapLayout
 }
 
 func (MapLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {

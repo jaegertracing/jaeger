@@ -28,7 +28,7 @@ func NewWriter(conn driver.Conn, layout AttributeLayout) *Writer {
 	return &Writer{
 		conn:       conn,
 		layout:     layout,
-		insertSpan: insertSpan(layout),
+		insertSpan: layout.insertSpan(),
 	}
 }
 

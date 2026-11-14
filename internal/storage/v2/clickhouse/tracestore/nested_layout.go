@@ -3,7 +3,10 @@
 
 package tracestore
 
-import "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+import (
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+)
 
 // NestedLayout stores an attribute group as Nested(key String, value T), which is two
 // parallel arrays.
@@ -11,8 +14,8 @@ type NestedLayout struct{}
 
 var _ AttributeLayout = NestedLayout{}
 
-func (NestedLayout) columnNames(group string) []string {
-	return []string{group + ".key", group + ".value"}
+func (NestedLayout) insertSpan() string {
+	return sql.InsertSpan
 }
 
 func (NestedLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {
