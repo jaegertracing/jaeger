@@ -223,7 +223,7 @@ jobs:
           exit 0
         fi
 
-        # The merge queue cannot read labels, the same reason label-check.yml exempts it.
+        # The merge queue cannot read labels, the same reason pr-changelog-label.yml exempts it.
         # A PR reaches the queue only after review, which is where the waiver was granted.
         if [ "$GITHUB_EVENT_NAME" = "merge_group" ]; then
           echo "::warning::binary size grew by $PERCENTAGE_CHANGE%; not failing a merge_group run, which cannot read PR labels"

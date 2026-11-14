@@ -233,11 +233,11 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 ## Integration with GitHub Actions
 
-`.github/workflows/pr-quota-manager.yml` calls the action for the existing
+`.github/workflows/pr-author-quota.yml` calls the action for the existing
 author quota on pull request opened, closed, reopened, or pushed events, and on
 manual workflow dispatch. Manual runs pass `username`, and optionally `dryRun`.
 
-`.github/workflows/pr-per-issue-manager.yml` separately enables the per-issue
+`.github/workflows/pr-duplicates.yml` separately enables the per-issue
 policy on pull request lifecycle events, the `allow-multiple-prs` issue-label
 override, and a daily sweep. The stale workflow uses `GITHUB_TOKEN`, so its label
 changes cannot trigger another workflow; the daily sweep observes those changes.

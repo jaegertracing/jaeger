@@ -147,9 +147,10 @@ The following workflows operate independently and are **not** part of the orches
 
 ### Automated Checks
 - **ci-summary-report.yml** - Fan-in workflow triggered after CI Orchestrator completes; posts a consolidated PR comment with performance metrics comparison and code coverage gating (see `docs/adr/004-migrating-coverage-gating-to-github-actions.md`)
-- **label-check.yml** - Verifies PR labels
-- **pr-quota-manager.yml** - PR management automation
-- **pr-per-issue-manager.yml** - Reconciles the per-issue active PR policy
+- **pr-changelog-label.yml** - Requires a `changelog:` label on every PR
+- **pr-author-quota.yml** - Labels the PRs that exceed their author's limit of open PRs
+- **pr-duplicates.yml** - Labels the PRs that duplicate an older PR linked to the same issue
+- **pr-waiting-for-author.yml** - Adds the `waiting-for-author` label when a maintainer comments in the PR conversation, and removes it when the author replies there or pushes anything other than a merge from the base branch
 - **dco_merge_group.yml** - DCO verification for merge groups
 
 ### Opt-in Checks
@@ -157,7 +158,6 @@ The following workflows operate independently and are **not** part of the orches
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs
-- **waiting-for-author.yml** - PR status management
 - **scorecard.yml** - Security scorecard scanning
 
 ### Special Cases

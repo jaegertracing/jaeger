@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Per-Issue PR Manager
+name: Duplicate PRs
 
 on:
   pull_request_target:
@@ -24,14 +24,14 @@ permissions:
   issues: write
 
 jobs:
-  reconcile:
+  label-duplicate-prs:
     # Only the persistent maintainer override label on issues is relevant here.
     if: >-
       github.event_name != 'issues' ||
       github.event.label.name == 'allow-multiple-prs'
     # Skipped issue-label runs do not acquire this job-level concurrency group.
     concurrency:
-      group: per-issue-pr-policy-${{ github.repository }}
+      group: ${{ github.workflow }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
@@ -40,7 +40,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Reconcile per-issue pull request policy
+      - name: Label duplicate pull requests
         uses: ./.github/actions/pr-quota-manager
         with:
           token: ${{ github.token }}
