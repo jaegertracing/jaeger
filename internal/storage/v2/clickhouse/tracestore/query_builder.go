@@ -84,12 +84,12 @@ func (q *sqlBuilder) appendTimeRange(args []any, from, to time.Time) []any {
 
 // appendSelectSpans writes the statement that reads spans, without the newline that ends it.
 func (q *sqlBuilder) appendSelectSpans() {
-	q.WriteString(strings.TrimRight(selectSpans(q.attrBuilder.attributeLayout()), "\n"))
+	q.WriteString(strings.TrimRight(q.attrBuilder.layout.selectSpans(), "\n"))
 }
 
 func (r *Reader) buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	q := r.newSQLBuilder()
-	q.WriteString(selectSpans(r.attrBuilder.attributeLayout()) + " WHERE s.trace_id = ?")
+	q.WriteString(r.attrBuilder.layout.selectSpans() + " WHERE s.trace_id = ?")
 	args := []any{params.TraceID}
 	args = q.appendTimeRange(args, params.Start, params.End)
 	return q.String(), args
@@ -265,7 +265,7 @@ func (q *sqlBuilder) buildSimpleAttributeCondition(args []any, key string, value
 			q.appendNewlineAndIndent(2)
 			q.WriteString("OR")
 		}
-		args = q.attrBuilder.appendEquals(q, 2, args, level, tav)
+		args = q.attrBuilder.appendComparison(q, 2, args, level, expression.OpEq, tav)
 	}
 	return args
 }
@@ -362,7 +362,7 @@ func (q *sqlBuilder) buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			args = q.attrBuilder.appendEquals(q, 2, args, level, tav)
+			args = q.attrBuilder.appendComparison(q, 2, args, level, expression.OpEq, tav)
 		}
 	}
 

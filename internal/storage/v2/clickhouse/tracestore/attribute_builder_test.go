@@ -54,22 +54,28 @@ func newHoistedColumnReader() *Reader {
 	}
 	config := testReaderConfig
 	config.HoistedColumns = testHoistedColumns
-	return NewReader(driver, config)
+	return NewReader(driver, NestedLayout{}, config)
 }
 
 // nestedSelectSpans and nestedSelectSpansByTraceID are the statements that read spans from
 // a table in the nested layout, which the test driver matches its responses by.
 var (
-	nestedSelectSpans          = selectSpans(NestedLayout{})
+	nestedSelectSpans          = sql.SelectSpansQuery
 	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
 )
 
-func TestAttributeBuilder_AppendEquals(t *testing.T) {
+// newNestedSQLBuilder returns a builder for a table in the nested layout without hoisted
+// columns.
+func newNestedSQLBuilder() sqlBuilder {
+	return sqlBuilder{attrBuilder: newAttributeBuilder(NestedLayout{}, nil)}
+}
+
+func TestAttributeBuilder_AppendComparison(t *testing.T) {
 	tests := []struct {
 		name           string
-		layout         AttributeLayout
 		hoistedColumns []HoistedColumn
 		level          expression.Level
+		op             expression.Operator
 		tav            typedAttributeValue
 		wantArgs       []any
 	}{
@@ -129,6 +135,29 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 			wantArgs: []any{"model", "x"},
 		},
 		{
+			name:           "hoisted attribute below a value",
+			hoistedColumns: testHoistedColumns,
+			level:          expression.LevelResource,
+			op:             expression.OpLt,
+			tav: typedAttributeValue{
+				key:       "shard",
+				value:     int64(8),
+				valueType: pcommon.ValueTypeInt,
+			},
+			wantArgs: []any{int64(8)},
+		},
+		{
+			name:  "event attribute at or above a value",
+			level: expression.LevelEvent,
+			op:    expression.OpGte,
+			tav: typedAttributeValue{
+				key:       "ratio",
+				value:     0.5,
+				valueType: pcommon.ValueTypeDouble,
+			},
+			wantArgs: []any{"ratio", 0.5},
+		},
+		{
 			name:  "no hoisted columns",
 			level: expression.LevelSpan,
 			tav: typedAttributeValue{
@@ -141,18 +170,22 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			op := tt.op
+			if op == "" {
+				op = expression.OpEq
+			}
 			var q sqlBuilder
-			args := newAttributeBuilder(tt.layout, tt.hoistedColumns).appendEquals(&q, 0, nil, tt.level, tt.tav)
+			args := newAttributeBuilder(NestedLayout{}, tt.hoistedColumns).appendComparison(&q, 0, nil, tt.level, op, tt.tav)
 			clickhousetest.VerifyQuerySnapshot(t, q.String())
 			assert.Equal(t, tt.wantArgs, args)
 		})
 	}
 }
 
-// TestAttributeBuilder_AppendEquals_MapLayout snapshots the condition for every level and
-// value type in one file. The span attribute "model" and the resource attribute "shard" are
-// hoisted, and each condition is followed by the values that it binds.
-func TestAttributeBuilder_AppendEquals_MapLayout(t *testing.T) {
+// TestAttributeBuilder_AppendComparison_MapLayout snapshots the condition for every level
+// and value type in one file. The span attribute "model" and the resource attribute "shard"
+// are hoisted, and each condition is followed by the values that it binds.
+func TestAttributeBuilder_AppendComparison_MapLayout(t *testing.T) {
 	levels := []expression.Level{
 		expression.LevelSpan,
 		expression.LevelResource,
@@ -160,34 +193,49 @@ func TestAttributeBuilder_AppendEquals_MapLayout(t *testing.T) {
 		expression.LevelEvent,
 		expression.LevelLink,
 	}
-	attributes := []typedAttributeValue{
+	comparisons := []struct {
+		op  expression.Operator
+		tav typedAttributeValue
+	}{
 		{
-			key:       "model",
-			value:     "x",
-			valueType: pcommon.ValueTypeStr,
+			op: expression.OpEq,
+			tav: typedAttributeValue{
+				key:       "model",
+				value:     "x",
+				valueType: pcommon.ValueTypeStr,
+			},
 		},
 		{
-			key:       "shard",
-			value:     int64(0),
-			valueType: pcommon.ValueTypeInt,
+			op: expression.OpGte,
+			tav: typedAttributeValue{
+				key:       "shard",
+				value:     int64(0),
+				valueType: pcommon.ValueTypeInt,
+			},
 		},
 		{
-			key:       "ratio",
-			value:     0.5,
-			valueType: pcommon.ValueTypeDouble,
+			op: expression.OpLt,
+			tav: typedAttributeValue{
+				key:       "ratio",
+				value:     0.5,
+				valueType: pcommon.ValueTypeDouble,
+			},
 		},
 		{
-			key:       "retry",
-			value:     true,
-			valueType: pcommon.ValueTypeBool,
+			op: expression.OpEq,
+			tav: typedAttributeValue{
+				key:       "retry",
+				value:     true,
+				valueType: pcommon.ValueTypeBool,
+			},
 		},
 	}
 	builder := newAttributeBuilder(MapLayout{}, testHoistedColumns)
 	var q sqlBuilder
 	for _, level := range levels {
-		for _, tav := range attributes {
-			fmt.Fprintf(&q, "\n-- %s attribute %q", level, tav.key)
-			args := builder.appendEquals(&q, 0, nil, level, tav)
+		for _, c := range comparisons {
+			fmt.Fprintf(&q, "\n-- %s attribute %q", level, c.tav.key)
+			args := builder.appendComparison(&q, 0, nil, level, c.op, c.tav)
 			fmt.Fprintf(&q, " -- binds %v", args)
 		}
 	}

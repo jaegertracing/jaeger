@@ -37,8 +37,6 @@ type ReaderConfig struct {
 	// HoistedColumns lists the hoisted columns of the spans table. A search for the attribute
 	// of one of them compares the column.
 	HoistedColumns []HoistedColumn
-	// AttributeLayout is the layout of the typed attribute groups of the spans table.
-	AttributeLayout AttributeLayout
 }
 
 type Reader struct {
@@ -53,11 +51,11 @@ type Reader struct {
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
-// to read trace data.
+// to read trace data from a spans table of the given attribute layout.
 //
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
-func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
+func NewReader(conn driver.Conn, layout AttributeLayout, cfg ReaderConfig) *Reader {
 	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
@@ -65,7 +63,7 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 		conn:          conn,
 		config:        cfg,
 		attrMetaCache: attrMetaCache,
-		attrBuilder:   newAttributeBuilder(cfg.AttributeLayout, cfg.HoistedColumns),
+		attrBuilder:   newAttributeBuilder(layout, cfg.HoistedColumns),
 	}
 }
 

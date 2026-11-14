@@ -201,7 +201,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+	return chtracestore.NewReader(f.conn, chtracestore.NestedLayout{}, chtracestore.ReaderConfig{
 		HoistedColumns:                f.hoistedColumns,
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
