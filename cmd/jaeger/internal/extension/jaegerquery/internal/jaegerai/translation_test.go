@@ -348,3 +348,15 @@ func TestHistoryPromptBlocks(t *testing.T) {
 	require.Len(t, blocks, 1)
 	assert.Equal(t, acp.TextBlock("[Assistant]:\nreply"), blocks[0])
 }
+
+func TestHistoryPromptBlocksDefaultsEmptyRoleToUser(t *testing.T) {
+	// A history message with no role still needs a readable prefix in the
+	// replayed transcript; the replay defaults such messages to the user.
+	messages := []aguitypes.Message{
+		{Content: "question with no role"},
+		{Role: aguitypes.RoleUser, Content: "follow-up"},
+	}
+	blocks := historyPromptBlocks(messages, 1)
+	require.Len(t, blocks, 1)
+	assert.Equal(t, acp.TextBlock("[User]:\nquestion with no role"), blocks[0])
+}

@@ -1173,3 +1173,54 @@ func TestChatEndpointMultiTurnResumeFailureFallsBackToNewSessionWithReplay(t *te
 	assert.Equal(t, acp.TextBlock("[Assistant]:\nfirst reply"), agent.promptReq.Prompt[1])
 	assert.Equal(t, acp.TextBlock("second turn"), agent.promptReq.Prompt[2])
 }
+
+func TestNewChatEndpointWithSessionsDefaultsNilRegistry(t *testing.T) {
+	// Wiring paths that do not care about multi-turn reuse may pass a nil
+	// registry; the constructor must substitute a usable default rather than
+	// panic on the first sessions.get call in ServeHTTP.
+	h := newChatEndpointWithSessions(zap.NewNop(), newTurnRegistry(), nil, "ws://127.0.0.1:0", nil, "", 1<<20)
+	require.NotNil(t, h.sessions, "a nil session registry must be replaced with a default")
+}
+
+func TestChatEndpointMultiTurnPromptFailureEvictsSession(t *testing.T) {
+	// When the agent fails a turn on a thread with a registered session, the
+	// gateway must evict the mapping. Keeping it would pin every later turn on
+	// the thread to a session the agent may already have torn down, turning a
+	// recoverable failure into a permanent one.
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Resume: &acp.SessionResumeCapabilities{},
+			},
+		},
+		promptErr: errors.New("prompt failed"),
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	sessions := newSessionRegistry(0)
+	sessions.set("thread-abc", "sess-stale")
+	handler := newChatEndpointWithSessions(zap.NewNop(), newTurnRegistry(), sessions, wsURL, nil, "", 1<<20)
+
+	body, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-abc",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "is the agent still there?"},
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 1, agent.resumeSessionCalls, "the registered session must be resumed before prompting")
+	assert.Equal(t, 0, agent.newSessionCalls, "a successfully resumed session must not be recreated")
+	assert.Equal(t, 0, sessions.count(), "a failed turn must evict the thread's session from the registry")
+	if _, ok := sessions.get("thread-abc"); ok {
+		t.Fatal("thread-abc must no longer map to the failed session")
+	}
+	require.Contains(t, eventTypes(parseSSEEvents(t, rr.Body.String())), "RUN_ERROR")
+}
