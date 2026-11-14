@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -465,44 +464,61 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 }
 
+// TestCreateSpansTable_HoistedColumns snapshots the spans table with one hoisted column per
+// stored type and level, a key that needs escaping, a column name that is a keyword, and a
+// codec that ClickHouse stores in another spelling.
 func TestCreateSpansTable_HoistedColumns(t *testing.T) {
 	builder, err := newSchemaBuilder(Configuration{
 		CreateSchema: true,
 		TableEngine:  localTableEngine,
 		HoistedAttributes: []HoistedAttribute{
 			{
+				Key:    "gen_ai.request.model",
+				Level:  "span",
+				Type:   "string",
+				Column: "span_str",
+			},
+			{
 				Key:    "gen_ai.usage.input_tokens",
 				Level:  "span",
 				Type:   "int",
-				Column: "input_tokens",
+				Column: "span_int",
 			},
 			{
-				Key:    "it's a key",
+				Key:    "ratio",
+				Level:  "span",
+				Type:   "double",
+				Column: "span_double",
+			},
+			{
+				Key:    "cached",
+				Level:  "span",
+				Type:   "bool",
+				Column: "span_bool",
+			},
+			{
+				Key:    "gen_ai.request.model",
 				Level:  "resource",
 				Type:   "string",
-				Column: "quoted",
+				Column: "resource_str",
+			},
+			{
+				Key:    "shard",
+				Level:  "resource",
+				Type:   "int",
+				Column: "resource_int",
 				Codec:  "ZSTD(03)",
 			},
 			{
-				Key:    "k",
-				Level:  "span",
-				Type:   "bool",
+				Key:    `it's a \key`,
+				Level:  "resource",
+				Type:   "string",
 				Column: "index",
 			},
 		},
 	})
 	require.NoError(t, err)
-	query := builder.statements[0].query
-
-	// The columns follow the last attribute group, in the configured order, and precede the
-	// indexes. The names are quoted because ClickHouse reads a bare index as the start of an
-	// index declaration, and the codec level is written as ClickHouse stores it.
-	// The expected text writes each backtick as a double quote, which a raw string can hold.
-	assert.Contains(t, query, strings.ReplaceAll(`        scope_complex_attributes Nested (key String, value String),
-        "input_tokens" Nullable(Int64) MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'), int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')], NULL) CODEC(ZSTD(1)),
-        "quoted" Nullable(String) MATERIALIZED if(has(resource_str_attributes.key, 'it\'s a key'), resource_str_attributes.value[indexOf(resource_str_attributes.key, 'it\'s a key')], NULL) CODEC(ZSTD(3)),
-        "index" Nullable(Bool) MATERIALIZED if(has(bool_attributes.key, 'k'), bool_attributes.value[indexOf(bool_attributes.key, 'k')], NULL) CODEC(ZSTD(1)),
-        INDEX idx_trace_id`, `"`, "`"))
+	clickhousetest.VerifyQuerySnapshot(t, builder.statements[0].query)
 }
 
 func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
