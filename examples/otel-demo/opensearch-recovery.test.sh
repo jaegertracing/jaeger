@@ -140,6 +140,26 @@ testRestorePvcUsesNewClaimAndSnapshotDataSource() {
   assertContains "$output" "apiGroup: snapshot.storage.k8s.io"
 }
 
+# max_span_age_setting reads a two-space indented YAML document from stdin and
+# prints the parent key and the value of its first max_span_age.
+max_span_age_setting() {
+  awk '
+    { match($0, /^ */); indent = RLENGTH }
+    $1 == "max_span_age:" { print key_at[indent - 2], $2; exit }
+    { key_at[indent] = $1 }
+  '
+}
+
+# max_span_age also bounds the /api/v3/services lookback, so the isolated Jaeger
+# must look back as far as the live demo instead of the 72h default.
+testRestoreConfigKeepsLiveMaxSpanAge() {
+  live=$(max_span_age_setting <"$(dirname "$SCRIPT")/jaeger-config.yaml")
+  restored=$(bash -c 'source "$1"; render_restore_configmap config' _ "$SCRIPT" | max_span_age_setting)
+
+  assertContains "jaeger-config.yaml should set max_span_age on an opensearch backend" "$live" "opensearch: "
+  assertEquals "restore config should carry the live max_span_age" "$live" "$restored"
+}
+
 testRestorePodUsesExactImagesAndNoNetworkService() {
   config=$(bash -c 'source "$1"; render_restore_configmap config' _ "$SCRIPT")
   output=$(bash -c \
@@ -193,6 +213,27 @@ testInventoryValidationAllowsPostBaselineAdditions() {
     _ "$SCRIPT" $'jaeger-2026-08-11\njaeger-2026-08-12' \
     $'jaeger-2026-08-11\njaeger-2026-08-12\njaeger-2026-08-13'
   assertEquals 0 $?
+}
+
+# The first hit of the retained daily service indexes can be a service that no
+# longer reports, which the isolated Jaeger would not list.
+testRepresentativeServiceComesFromNewestSpan() {
+  response='{"hits":{"hits":[{"_source":{"process":{"serviceName":"checkout"}}}]}}'
+  output=$(bash -c '
+    source "$1"
+    response=$2
+    opensearch_api() {
+      echo "$1 $2" >&2
+      echo "$response"
+    }
+    live_recent_service' _ "$SCRIPT" "$response" 2>&1)
+  expected='GET jaeger-main-jaeger-span-*/_search?size=1&_source=process.serviceName&sort=startTime:desc
+checkout'
+  assertEquals "$expected" "$output"
+
+  contents=$(cat "$SCRIPT")
+  assertContains "$contents" "expected_service=\$(live_recent_service)"
+  assertNotContains "$contents" "jaeger-main-jaeger-service-*' 'serviceName'"
 }
 
 testInvalidRecoveryIdIsRejected() {
