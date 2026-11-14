@@ -10,10 +10,10 @@ SELECT
     'event' AS level
 FROM spans
 ARRAY JOIN arrayConcat(
-    arrayMap(k -> (k, 'bool'),   arrayFlatten({{ .Layout.ItemKeys "events.bool_attributes" }})),
-    arrayMap(k -> (k, 'double'), arrayFlatten({{ .Layout.ItemKeys "events.double_attributes" }})),
-    arrayMap(k -> (k, 'int'),    arrayFlatten({{ .Layout.ItemKeys "events.int_attributes" }})),
-    arrayMap(k -> (k, 'str'),    arrayFlatten({{ .Layout.ItemKeys "events.str_attributes" }})),
+    arrayMap(k -> (k, 'bool'),   arrayFlatten({{ .Layout.Keys2D "events.bool_attributes" }})),
+    arrayMap(k -> (k, 'double'), arrayFlatten({{ .Layout.Keys2D "events.double_attributes" }})),
+    arrayMap(k -> (k, 'int'),    arrayFlatten({{ .Layout.Keys2D "events.int_attributes" }})),
+    arrayMap(k -> (k, 'str'),    arrayFlatten({{ .Layout.Keys2D "events.str_attributes" }})),
     arrayMap(k -> (
         multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                 startsWith(k, '@map@'),   substring(k, 6),
@@ -21,6 +21,6 @@ ARRAY JOIN arrayConcat(
         multiIf(startsWith(k, '@bytes@'), 'bytes',
                 startsWith(k, '@map@'),   'map',
                 startsWith(k, '@slice@'), 'slice', '')
-    ), arrayFlatten({{ .Layout.ItemKeys "events.complex_attributes" }}))
+    ), arrayFlatten({{ .Layout.Keys2D "events.complex_attributes" }}))
 ) AS tp
 GROUP BY attribute_key, type, level;
