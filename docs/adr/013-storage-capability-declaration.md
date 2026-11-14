@@ -1,7 +1,7 @@
 # ADR-013: Storage Capability Declaration
 
 * **Status**: Implemented — graduated from [RFC 0013](../rfc/0013-optional-service-name-in-search.md)
-* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, 2026-09-28 with the two families of refusal under [Enforcement](#enforcement), and 2026-10-08 with the api_v3 `Capabilities` service under [Reporting](#reporting)
+* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, 2026-09-28 with the two families of refusal under [Enforcement](#enforcement), 2026-10-08 with the api_v3 `Capabilities` service under [Reporting](#reporting), and 2026-11-13 with the MCP endpoint as a consumer
 
 ## Context
 
@@ -66,9 +66,10 @@ Refusal is not the only answer a capability can produce, and which one applies i
 
 ### Reporting
 
-Three consumers read the declaration, and none of them captures it:
+These consumers read the declaration, and none of them captures it:
 
 * The query service asks the reader on every search that omits the service name.
+* The MCP endpoint asks on every `tools/list`, and leaves out `find_spans` when span search is not declared or the reader cannot report ([ADR-002](./002-mcp-server.md)).
 * The static handler asks on every SPA serve, to build the `JAEGER_BACKEND_CAPABILITIES` blob the UI reads.
 * The api_v3 `Capabilities` service (`GetCapabilities`, bound to `GET /api/v3/capabilities`) asks on every call and returns the declaration to any API client. Its messages mirror `jaeger.storage.v2.SearchCapabilities` field for field rather than importing it, so the storage boundary is not published as part of the public API. A reader that cannot report maps to `Unimplemented` / HTTP 501, as the remote-storage server does, and Jaeger's own e2e test client maps that back to `errors.ErrUnsupported`.
 
