@@ -42,14 +42,24 @@ func TestClickHouseStorage(t *testing.T) {
 func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	integration.RecreateClickHouseDatabase(t, integration.ClickHouseHoistedDatabase)
-	runClickHouseStorageSuite(t, writeClickHouseHoistedConfig(t), "clickhouse_hoisted")
+	config := writeClickHouseHoistedConfig(t, integration.ClickHouseHoistedDatabase, "nested")
+	runClickHouseStorageSuite(t, config, "clickhouse_hoisted")
 }
 
-// writeClickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use the
-// database of the hoisted runs and whose trace backend hoists the shared attribute list, and
-// returns its path. The copy is derived, not committed, so it cannot drift from the config
-// the plain run uses.
-func writeClickHouseHoistedConfig(t *testing.T) string {
+// TestClickHouseStorage_MapLayout runs the same suite against tables in the map attribute
+// layout, which also have the hoisted columns.
+func TestClickHouseStorage_MapLayout(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+	integration.RecreateClickHouseDatabase(t, integration.ClickHouseMapDatabase)
+	config := writeClickHouseHoistedConfig(t, integration.ClickHouseMapDatabase, "map")
+	runClickHouseStorageSuite(t, config, "clickhouse_map")
+}
+
+// writeClickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use
+// database and whose trace backend stores attributes in attributeLayout and hoists the shared
+// attribute list, and returns its path. The copy is derived, not committed, so it cannot
+// drift from the config the plain run uses.
+func writeClickHouseHoistedConfig(t *testing.T, database string, attributeLayout string) string {
 	data, err := os.ReadFile("../../config-clickhouse.yaml")
 	require.NoError(t, err)
 	var config map[string]any
@@ -70,10 +80,13 @@ func writeClickHouseHoistedConfig(t *testing.T) string {
 		hoistedEntries = append(hoistedEntries, entry)
 	}
 	traceBackend := jaegerStorage["backends"].(map[string]any)["some-storage"].(map[string]any)["clickhouse"].(map[string]any)
-	traceBackend["database"] = integration.ClickHouseHoistedDatabase
+	traceBackend["database"] = database
+	traceBackend["attribute_layout"] = attributeLayout
 	traceBackend["hoisted_attributes"] = hoistedEntries
 	metricBackend := jaegerStorage["metric_backends"].(map[string]any)["some-metrics"].(map[string]any)["clickhouse"].(map[string]any)
-	metricBackend["database"] = integration.ClickHouseHoistedDatabase
+	metricBackend["database"] = database
+	// The metric backend opens the same tables, so it has to name their layout as well.
+	metricBackend["attribute_layout"] = attributeLayout
 
 	hoistedYAML, err := yaml.Marshal(config)
 	require.NoError(t, err)
