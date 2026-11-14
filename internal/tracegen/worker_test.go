@@ -64,3 +64,44 @@ func Test_SimulateTraces(t *testing.T) {
 		})
 	}
 }
+
+func Test_SpanDuration(t *testing.T) {
+	t.Run("fixed duration when min equals max", func(t *testing.T) {
+		w := &worker{
+			Config: Config{
+				MinSpanDuration: 200 * time.Millisecond,
+				MaxSpanDuration: 200 * time.Millisecond,
+			},
+		}
+		for i := 0; i < 10; i++ {
+			d := w.spanDuration()
+			assert.Equal(t, 200*time.Millisecond, d)
+		}
+	})
+
+	t.Run("random duration within range when min less than max", func(t *testing.T) {
+		min := 100 * time.Millisecond
+		max := 500 * time.Millisecond
+		w := &worker{
+			Config: Config{
+				MinSpanDuration: min,
+				MaxSpanDuration: max,
+			},
+		}
+		for i := 0; i < 100; i++ {
+			d := w.spanDuration()
+			assert.GreaterOrEqual(t, d, min, "duration should be >= min")
+			assert.Less(t, d, max, "duration should be < max")
+		}
+	})
+
+	t.Run("default 123us backward compatible", func(t *testing.T) {
+		w := &worker{
+			Config: Config{
+				MinSpanDuration: 123 * time.Microsecond,
+				MaxSpanDuration: 123 * time.Microsecond,
+			},
+		}
+		assert.Equal(t, 123*time.Microsecond, w.spanDuration())
+	})
+}

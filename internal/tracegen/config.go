@@ -16,20 +16,22 @@ import (
 
 // Config describes the test scenario.
 type Config struct {
-	Workers       int
-	Services      int
-	Traces        int
-	ChildSpans    int
-	Attributes    int
-	AttrKeys      int
-	AttrValues    int
-	Marshal       bool
-	Debug         bool
-	Firehose      bool
-	Pause         time.Duration
-	Duration      time.Duration
-	Service       string
-	TraceExporter string
+	Workers         int
+	Services        int
+	Traces          int
+	ChildSpans      int
+	Attributes      int
+	AttrKeys        int
+	AttrValues      int
+	Marshal         bool
+	Debug           bool
+	Firehose        bool
+	Pause           time.Duration
+	Duration        time.Duration
+	Service         string
+	TraceExporter   string
+	MinSpanDuration time.Duration
+	MaxSpanDuration time.Duration
 }
 
 // Flags registers config flags.
@@ -47,6 +49,8 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name prefix to use")
 	fs.IntVar(&c.Services, "services", 1, "Number of unique suffixes to add to service name when generating traces, e.g. tracegen-01 (but only one service per trace)")
 	fs.StringVar(&c.TraceExporter, "trace-exporter", "otlp-http", "Trace exporter (otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
+	fs.DurationVar(&c.MinSpanDuration, "min-span-duration", 123*time.Microsecond, "Minimum duration of each generated span when -pause is not used. Must be <= max-span-duration.")
+	fs.DurationVar(&c.MaxSpanDuration, "max-span-duration", 123*time.Microsecond, "Maximum duration of each generated span when -pause is not used. If greater than min-span-duration, actual duration is chosen uniformly at random in [min, max].")
 }
 
 // Run executes the test scenario.
@@ -61,6 +65,12 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 	}
 	if c.AttrValues <= 0 {
 		return errors.New("`attr-values` must be greater than 0")
+	}
+	if c.MinSpanDuration < 0 {
+		return errors.New("`min-span-duration` must be non-negative")
+	}
+	if c.MaxSpanDuration < c.MinSpanDuration {
+		return errors.New("`max-span-duration` must be greater than or equal to `min-span-duration`")
 	}
 
 	wg := sync.WaitGroup{}
