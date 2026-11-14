@@ -20,6 +20,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
+const findSpansToolName = "find_spans"
+
 //go:embed INSTRUCTIONS.md
 var serverInstructions string
 
@@ -66,10 +68,16 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
-	// Innermost, so tracing and metrics record a recovered panic as a failed call.
-	// Middleware added later through Handler.AddReceivingMiddleware wraps this
-	// chain, so the Handler guards it with a recovery of its own.
-	mw = append(mw, createRecoveryMiddleware(telset.Logger))
+	mw = append(
+		mw,
+		// Inside tracing and metrics, so they record a recovered panic as a failed call.
+		// Middleware added later through Handler.AddReceivingMiddleware wraps this
+		// chain, so the Handler guards it with a recovery of its own.
+		createRecoveryMiddleware(telset.Logger),
+		// The filter runs inside the recovery, so a panic in its capability lookup fails
+		// only that request.
+		createFindSpansFilterMiddleware(queryAPI),
+	)
 	server.AddReceivingMiddleware(mw...)
 	return server
 }
@@ -119,7 +127,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "find_spans",
+		Name: findSpansToolName,
 		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
 			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
 			"status) without attributes or events; use get_span_details for those. " +
