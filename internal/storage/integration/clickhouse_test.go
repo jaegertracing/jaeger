@@ -23,10 +23,11 @@ type ClickHouseStorageIntegration struct {
 	factory *ch.Factory
 }
 
-func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
+func (s *ClickHouseStorageIntegration) initialize(t *testing.T, database string, hoistedAttributes []ch.HoistedAttribute) {
 	cfg := ch.DefaultConfiguration()
 	cfg.Addresses = []string{"127.0.0.1:9000"}
-	cfg.Database = "jaeger"
+	cfg.Database = database
+	cfg.HoistedAttributes = hoistedAttributes
 	cfg.CreateSchema = true
 	// The compose file runs a single replica with an embedded Keeper, so this suite creates
 	// the schema with the replicated engines, and requireReplicatedTables checks that it did.
@@ -102,7 +103,9 @@ func (s *ClickHouseStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func TestClickHouseStorage(t *testing.T) {
+// runClickHouseStorageSuite runs the storage suite against the tables of database, which the
+// backend creates with hoistedAttributes.
+func runClickHouseStorageSuite(t *testing.T, database string, hoistedAttributes []ch.HoistedAttribute) {
 	SkipUnlessEnv(t, StorageClickHouse)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
@@ -113,6 +116,18 @@ func TestClickHouseStorage(t *testing.T) {
 		},
 	}
 	s.CleanUp = s.cleanUp
-	s.initialize(t)
+	s.initialize(t, database, hoistedAttributes)
 	s.RunAll(t)
+}
+
+func TestClickHouseStorage(t *testing.T) {
+	runClickHouseStorageSuite(t, "jaeger", nil)
+}
+
+// TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
+// columns, so every search must return what it returns without them.
+func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
+	SkipUnlessEnv(t, StorageClickHouse)
+	RecreateClickHouseDatabase(t, ClickHouseHoistedDatabase)
+	runClickHouseStorageSuite(t, ClickHouseHoistedDatabase, ClickHouseHoistedAttributes)
 }
