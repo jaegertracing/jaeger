@@ -169,6 +169,11 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 // prepended to the path so the caller can identify the attachment point.
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
+// Spans that no root reaches (a parent cycle, or a span that is its own parent) are
+// walked in a second pass, earliest start time first, with the same parentID/spanID
+// path as an orphan. A span that hangs off a cycle and starts before the cycle's own
+// spans is therefore listed first, as its own parentID/spanID entry. Spans that the
+// first pass left out because of maxDepth or maxSpans are not pulled back in.
 func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, maxSpans int) []types.TopologySpan {
 	// Create a map of span ID to span pointer for quick lookup. Only the first span
 	// with a given ID is kept, so each kept span is the child of at most one other
@@ -222,7 +227,53 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, m
 		}
 		h.dfs(root, rootPath, 1, maxDepth, maxSpans, childrenOf, visited, &result)
 	}
+	if maxSpans > 0 && len(result) >= maxSpans {
+		return result
+	}
+
+	// Spans in a parent cycle, or that list themselves as their parent, have no root
+	// above them, so the walk above never reaches them although TotalSpanCount counts
+	// them. Walk them too, starting from the earliest unreached span, with the same
+	// parentID/spanID path as an orphan. Spans the walk above left out because of
+	// maxDepth or maxSpans are reachable from a root, so they are not pulled back in.
+	reached := make(map[string]struct{}, len(unique))
+	for _, root := range roots {
+		markReachable(root, childrenOf, reached)
+	}
+	var unreached []*rawSpan
+	for _, s := range unique {
+		if _, ok := reached[s.spanID]; !ok {
+			unreached = append(unreached, s)
+		}
+	}
+	sortByStartNano(unreached)
+	for _, s := range unreached {
+		if maxSpans > 0 && len(result) >= maxSpans {
+			break
+		}
+		if _, ok := reached[s.spanID]; ok {
+			continue
+		}
+		markReachable(s, childrenOf, reached)
+		h.dfs(s, s.parentID+"/"+s.spanID, 1, maxDepth, maxSpans, childrenOf, visited, &result)
+	}
 	return result
+}
+
+// markReachable adds span and every span below it to reached, ignoring maxDepth and
+// maxSpans. It is iterative and expands each span ID once, so cycles and long
+// chains are fine.
+func markReachable(span *rawSpan, childrenOf map[string][]*rawSpan, reached map[string]struct{}) {
+	stack := []*rawSpan{span}
+	for len(stack) > 0 {
+		s := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if _, ok := reached[s.spanID]; ok {
+			continue
+		}
+		reached[s.spanID] = struct{}{}
+		stack = append(stack, childrenOf[s.spanID]...)
+	}
 }
 
 // dfs appends the current span to result and then recurses into its children.
@@ -252,10 +303,15 @@ func (h *getTraceTopologyHandler) dfs(
 	visited[span.spanID] = struct{}{}
 
 	// Count the children that will not be visited because of maxDepth, so the
-	// caller can tell a leaf from a subtree that was cut off here.
+	// caller can tell a leaf from a subtree that was cut off here. A child that
+	// closes a cycle is already in the output and is not counted.
 	truncated := 0
 	if maxDepth > 0 && depth >= maxDepth {
-		truncated = len(childrenOf[span.spanID])
+		for _, child := range childrenOf[span.spanID] {
+			if _, ok := visited[child.spanID]; !ok {
+				truncated++
+			}
+		}
 	}
 
 	*result = append(*result, toTopologySpan(span, path, truncated))
