@@ -36,6 +36,8 @@ type HoistedColumn struct {
 	Type pcommon.ValueType
 	// Codec is the compression codec of the column.
 	Codec string
+	// Layout is the layout of the typed group that the column copies from.
+	Layout AttributeLayout
 }
 
 // Definition returns the column as CREATE TABLE declares it. The name is quoted because a
@@ -58,9 +60,7 @@ func (c HoistedColumn) NullableType() string {
 // SourceExpression returns the expression that ClickHouse computes the column from: the value
 // stored under Key in the typed group of Level, or NULL when the group has no such key.
 func (c HoistedColumn) SourceExpression() string {
-	group := attributeGroup(c.Level, c.Type)
-	key := quoteString(c.Key)
-	return "if(has(" + group + ".key, " + key + "), " + group + ".value[indexOf(" + group + ".key, " + key + ")], NULL)"
+	return c.Layout.hoistedSource(attributeGroup(c.Level, c.Type), quoteString(c.Key))
 }
 
 // quoteString returns s as a ClickHouse string literal.

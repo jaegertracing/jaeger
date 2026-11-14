@@ -16,6 +16,18 @@ import (
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
 // statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
 type AttributeLayout interface {
+	// Name returns the value of the attribute_layout setting that selects the layout.
+	Name() string
+	// GroupType returns the type of a group that holds values of valueType, as CREATE TABLE
+	// declares it.
+	GroupType(valueType string) string
+	// Declares reports whether columnType, the type that system.columns lists for an
+	// attribute group, is a group of this layout.
+	Declares(columnType string) bool
+	// hoistedSource returns the expression that reads the value under key from an attribute
+	// group of a span or a resource, and yields NULL when the group has no such key. The key
+	// is a quoted string literal.
+	hoistedSource(group string, key string) string
 	// columnNames returns the names of the columns that store one attribute group of a span,
 	// a resource or a scope, as the INSERT statement lists them. For str_attributes they are
 	// str_attributes.key and str_attributes.value in the nested layout, and str_attributes in
@@ -157,4 +169,23 @@ func selectSpans(layout AttributeLayout) string {
 		}
 	}
 	return fmt.Sprintf(selectSpansFormat, indentedList(expressions, 1))
+}
+
+// attributeLayouts lists every layout.
+var attributeLayouts = []AttributeLayout{
+	NestedLayout{},
+	MapLayout{},
+}
+
+// AttributeLayoutByName returns the layout that the given value of the attribute_layout
+// setting selects.
+func AttributeLayoutByName(name string) (AttributeLayout, error) {
+	names := make([]string, 0, len(attributeLayouts))
+	for _, layout := range attributeLayouts {
+		if layout.Name() == name {
+			return layout, nil
+		}
+		names = append(names, layout.Name())
+	}
+	return nil, fmt.Errorf("attribute_layout must be %s, not %q", strings.Join(names, " or "), name)
 }

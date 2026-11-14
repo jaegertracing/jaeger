@@ -78,6 +78,14 @@ SELECT
 FROM system.columns
 WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
 
+// SelectAttributeGroupType returns how the spans table declares the str_attributes group, and
+// no row when the table does not exist. The server lists a Nested group as the array
+// str_attributes.key, or as str_attributes when flatten_nested is off.
+const SelectAttributeGroupType = `
+SELECT type
+FROM system.columns
+WHERE database = currentDatabase() AND table = 'spans' AND name IN ('str_attributes', 'str_attributes.key')`
+
 // SelectSpansTable returns one row when the current database has a spans table.
 const SelectSpansTable = `SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = 'spans'`
 

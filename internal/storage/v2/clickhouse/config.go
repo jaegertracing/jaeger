@@ -13,6 +13,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
 const (
@@ -22,6 +24,7 @@ const (
 	defaultMaxSearchDepth                = 10000
 	defaultAttributeMetadataCacheTTL     = time.Hour
 	defaultAttributeMetadataCacheMaxSize = 1000
+	defaultAttributeLayout               = "nested"
 )
 
 type Configuration struct {
@@ -68,6 +71,21 @@ type Configuration struct {
 	// table is not altered, so the operator adds the columns to it. An empty list leaves the
 	// schema as it is.
 	HoistedAttributes []HoistedAttribute `mapstructure:"hoisted_attributes"`
+	// AttributeLayout is how the spans table stores each typed attribute group: "nested", as
+	// Nested(key, value), or "map", as Map(String, T). The default is "nested". CreateSchema
+	// creates a table in this layout; an existing table is not converted, and the backend
+	// does not start on a table in the other layout.
+	AttributeLayout string `mapstructure:"attribute_layout"`
+}
+
+// attributeLayout returns the layout that AttributeLayout names. An empty value is the
+// default layout, as in a Configuration that was not built from DefaultConfiguration.
+func (cfg *Configuration) attributeLayout() (chtracestore.AttributeLayout, error) {
+	name := cfg.AttributeLayout
+	if name == "" {
+		name = defaultAttributeLayout
+	}
+	return chtracestore.AttributeLayoutByName(name)
 }
 
 // HoistedAttribute selects one attribute to copy into a column of its own. All fields except
@@ -178,6 +196,7 @@ func DefaultConfiguration() Configuration {
 		MaxSearchDepth:                defaultMaxSearchDepth,
 		AttributeMetadataCacheTTL:     defaultAttributeMetadataCacheTTL,
 		AttributeMetadataCacheMaxSize: defaultAttributeMetadataCacheMaxSize,
+		AttributeLayout:               defaultAttributeLayout,
 	}
 }
 
@@ -211,7 +230,11 @@ func (cfg *Configuration) Validate() error {
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
 	}
-	if _, err := newHoistedColumns(cfg.HoistedAttributes); err != nil {
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return err
+	}
+	if _, err := newHoistedColumns(cfg.HoistedAttributes, layout); err != nil {
 		return err
 	}
 	// The table_engine block is ignored without create_schema, because the operator then

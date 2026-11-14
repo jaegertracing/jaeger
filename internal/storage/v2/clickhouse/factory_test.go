@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -187,21 +188,21 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create attribute metadata materialized view",
 		},
 		{
 			name: "event attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateEventAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "event attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create event attribute metadata materialized view",
 		},
 		{
 			name: "link attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateLinkAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "link attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create link attribute metadata materialized view",
 		},
@@ -468,7 +469,7 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree"})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree", Layout: chtracestore.NestedLayout{}})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -571,7 +572,7 @@ func hoistedColumnServer(t *testing.T, state hoistedColumnState) (srv *httptest.
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		*queries = append(*queries, string(body))
-		if !strings.Contains(string(body), "FROM system.columns") {
+		if !strings.Contains(string(body), "same_expression") {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			fakeServer.Config.Handler.ServeHTTP(w, r)
 			return
@@ -623,7 +624,7 @@ func TestNewFactory_HoistedColumns(t *testing.T) {
 		return strings.Contains(q, "IF NOT EXISTS spans (")
 	})
 	checkQueryIndex := slices.IndexFunc(*queries, func(q string) bool {
-		return strings.Contains(q, "FROM system.columns")
+		return strings.Contains(q, "same_expression")
 	})
 	require.NotEqual(t, -1, createQueryIndex)
 	require.Greater(t, checkQueryIndex, createQueryIndex)
@@ -674,6 +675,88 @@ func TestCreateTraceReader_HoistedColumns(t *testing.T) {
 
 	// The driver writes the bind value into the query.
 	assert.Contains(t, (*queries)[len(*queries)-1], "(s.`input_tokens` IS NOT NULL AND s.`input_tokens` = 7)")
+}
+
+// TestSchemaBuilder_MapLayout snapshots the statements that depend on the attribute layout,
+// rendered for the map layout: the spans table with a hoisted column of each level, and the
+// three views that collect attribute keys.
+func TestSchemaBuilder_MapLayout(t *testing.T) {
+	builder, err := newSchemaBuilder(Configuration{
+		CreateSchema:    true,
+		TableEngine:     localTableEngine,
+		AttributeLayout: "map",
+		HoistedAttributes: []HoistedAttribute{
+			{
+				Key:    "gen_ai.request.model",
+				Level:  "span",
+				Type:   "string",
+				Column: "span_str",
+			},
+			{
+				Key:    `it's a \key`,
+				Level:  "resource",
+				Type:   "int",
+				Column: "resource_int",
+			},
+		},
+	})
+	require.NoError(t, err)
+	var queries []string
+	for _, statement := range builder.statements {
+		switch statement.name {
+		case "spans table",
+			"attribute metadata materialized view",
+			"event attribute metadata materialized view",
+			"link attribute metadata materialized view":
+			queries = append(queries, statement.query)
+		default:
+		}
+	}
+	clickhousetest.VerifyQuerySnapshot(t, queries...)
+}
+
+func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
+	_, err := NewFactory(context.Background(), Configuration{AttributeLayout: "json"}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "attribute_layout must be nested or map")
+}
+
+func TestNewSchemaBuilder_InvalidAttributeLayout(t *testing.T) {
+	_, err := newSchemaBuilder(Configuration{
+		CreateSchema:    true,
+		TableEngine:     localTableEngine,
+		AttributeLayout: "json",
+	})
+	require.ErrorContains(t, err, "attribute_layout must be nested or map")
+}
+
+// TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check: the
+// test server reports a spans table in the map layout, and the configuration is nested.
+func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
+	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(fakeServer.Close)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), "name IN ('str_attributes'") {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			fakeServer.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		block := chproto.NewBlock()
+		block.AddColumn("type", "String")
+		block.Append("Map(String, String)")
+		var buf proto.Buffer
+		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(buf.Buf)
+	}))
+	t.Cleanup(srv.Close)
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+
+	require.ErrorContains(t, err, "the spans table declares its string attributes as Map(String, String), which is not the nested layout")
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {

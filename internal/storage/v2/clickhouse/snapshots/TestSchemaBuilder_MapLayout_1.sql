@@ -1,0 +1,56 @@
+CREATE TABLE
+    IF NOT EXISTS spans (
+        id String,
+        trace_id String,
+        trace_state String,
+        parent_span_id String,
+        name String,
+        kind String,
+        start_time DateTime64 (9),
+        status_code String,
+        status_message String,
+        duration Int64,
+        bool_attributes Map(String, Bool),
+        double_attributes Map(String, Float64),
+        int_attributes Map(String, Int64),
+        str_attributes Map(String, String),
+        complex_attributes Map(String, String),
+        events Nested (
+            name String,
+            timestamp DateTime64 (9),
+            bool_attributes Map(String, Bool),
+            double_attributes Map(String, Float64),
+            int_attributes Map(String, Int64),
+            str_attributes Map(String, String),
+            complex_attributes Map(String, String)
+        ),
+        links Nested (
+            trace_id String,
+            span_id String,
+            trace_state String,
+            bool_attributes Map(String, Bool),
+            double_attributes Map(String, Float64),
+            int_attributes Map(String, Int64),
+            str_attributes Map(String, String),
+            complex_attributes Map(String, String)
+        ),
+        service_name String,
+        resource_bool_attributes Map(String, Bool),
+        resource_double_attributes Map(String, Float64),
+        resource_int_attributes Map(String, Int64),
+        resource_str_attributes Map(String, String),
+        resource_complex_attributes Map(String, String),
+        scope_name String,
+        scope_version String,
+        scope_bool_attributes Map(String, Bool),
+        scope_double_attributes Map(String, Float64),
+        scope_int_attributes Map(String, Int64),
+        scope_str_attributes Map(String, String),
+        scope_complex_attributes Map(String, String),
+        `span_str` Nullable(String) MATERIALIZED if(mapContains(str_attributes, 'gen_ai.request.model'), str_attributes['gen_ai.request.model'], NULL) CODEC(ZSTD(1)),
+        `resource_int` Nullable(Int64) MATERIALIZED if(mapContains(resource_int_attributes, 'it\'s a \\key'), resource_int_attributes['it\'s a \\key'], NULL) CODEC(ZSTD(1)),
+        INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_duration duration TYPE minmax GRANULARITY 1
+    ) ENGINE = MergeTree
+PARTITION BY toDate(start_time)
+ORDER BY (service_name, name, toDateTime(start_time))

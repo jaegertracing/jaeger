@@ -21,6 +21,15 @@ func TestValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:   "map attribute layout",
+			mutate: func(cfg *Configuration) { cfg.AttributeLayout = "map" },
+		},
+		{
+			name:    "unknown attribute layout",
+			mutate:  func(cfg *Configuration) { cfg.AttributeLayout = "json" },
+			wantErr: `attribute_layout must be nested or map, not "json"`,
+		},
+		{
 			name:   "defaults with native protocol",
 			mutate: func(cfg *Configuration) { cfg.Protocol = "native" },
 		},

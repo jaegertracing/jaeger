@@ -11,6 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
 func TestNewHoistedColumns(t *testing.T) {
@@ -142,7 +143,7 @@ func TestNewHoistedColumns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := newHoistedColumns(tt.attributes)
+			_, err := newHoistedColumns(tt.attributes, chtracestore.NestedLayout{})
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -196,7 +197,7 @@ func TestNewHoistedColumns_SpansTableColumns(t *testing.T) {
 				Type:   "string",
 				Column: column,
 			},
-		})
+		}, chtracestore.NestedLayout{})
 		require.ErrorContains(t, err, "is already a column of the spans table", column)
 	}
 	assert.Len(t, spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1), len(spansColumns))
@@ -210,7 +211,7 @@ func TestCheckHoistedColumns(t *testing.T) {
 			Type:   "int",
 			Column: "input_tokens",
 		},
-	})
+	}, chtracestore.NestedLayout{})
 	require.NoError(t, err)
 	matchingState := hoistedColumnState{
 		Type:           "Nullable(Int64)",
