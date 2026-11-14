@@ -8,10 +8,12 @@ import (
 	"errors"
 	"iter"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
@@ -915,4 +917,88 @@ func TestGetTraceTopologyHandler_Handle_UnreachedSpansTruncatedChildren(t *testi
 			assert.Equal(t, tt.truncated, truncated)
 		})
 	}
+}
+
+func TestGetTraceTopologyHandler_Handle_UnreachedSpansStartTimeOrder(t *testing.T) {
+	// The spans are created in span ID order, so walking them in input order or in ID
+	// order would give a different result. The start times decide the order.
+	a, b, c := spanIDToHex("spanA01"), spanIDToHex("spanB01"), spanIDToHex("spanC01")
+	x, y := spanIDToHex("spanX01"), spanIDToHex("spanY01")
+
+	tests := []struct {
+		name       string
+		spans      []spanConfig
+		startOrder []string
+		names      []string
+		paths      []string
+	}{
+		{
+			name: "cycle that starts earlier is walked first",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+				{spanID: "spanX01", parentSpanID: "spanY01", operation: "x"},
+				{spanID: "spanY01", parentSpanID: "spanX01", operation: "y"},
+			},
+			startOrder: []string{"spanX01", "spanY01", "spanA01", "spanB01"},
+			names:      []string{"x", "y", "a", "b"},
+			paths:      []string{y + "/" + x, y + "/" + x + "/" + y, b + "/" + a, b + "/" + a + "/" + b},
+		},
+		{
+			name: "span hanging off a cycle that starts before it is listed first",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+				{spanID: "spanC01", parentSpanID: "spanA01", operation: "c"},
+			},
+			startOrder: []string{"spanC01", "spanA01", "spanB01"},
+			names:      []string{"c", "a", "b"},
+			paths:      []string{a + "/" + c, b + "/" + a, b + "/" + a + "/" + b},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := withStartOrder(createTestTraceWithSpans(testTraceID, tt.spans), tt.startOrder...)
+			handler := &getTraceTopologyHandler{
+				queryService:             newMockYieldingTraces(td),
+				maxSpanDetailsPerRequest: 20,
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			names := make([]string, 0, len(output.Spans))
+			paths := make([]string, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				names = append(names, s.SpanName)
+				paths = append(paths, s.Path)
+			}
+			assert.Equal(t, tt.names, names)
+			assert.Equal(t, tt.paths, paths)
+		})
+	}
+}
+
+// withStartOrder gives the listed spans start times one second apart, in the given
+// order, so the start-time order can differ from the order the spans were created in.
+func withStartOrder(td ptrace.Traces, spanIDs ...string) ptrace.Traces {
+	rank := make(map[string]int, len(spanIDs))
+	for i, id := range spanIDs {
+		rank[spanIDToHex(id)] = i
+	}
+	base := pcommon.NewTimestampFromTime(time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC))
+	for _, rs := range td.ResourceSpans().All() {
+		for _, ss := range rs.ScopeSpans().All() {
+			for _, span := range ss.Spans().All() {
+				if i, ok := rank[span.SpanID().String()]; ok {
+					start := base + pcommon.Timestamp(time.Duration(i)*time.Second)
+					span.SetStartTimestamp(start)
+					span.SetEndTimestamp(start + pcommon.Timestamp(time.Millisecond))
+				}
+			}
+		}
+	}
+	return td
 }

@@ -169,6 +169,11 @@ func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.Topol
 // prepended to the path so the caller can identify the attachment point.
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
+// Spans that no root reaches (a parent cycle, or a span that is its own parent) are
+// walked in a second pass, earliest start time first, with the same parentID/spanID
+// path as an orphan. A span that hangs off a cycle and starts before the cycle's own
+// spans is therefore listed first, as its own parentID/spanID entry. Spans that the
+// first pass left out because of maxDepth or maxSpans are not pulled back in.
 func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, maxSpans int) []types.TopologySpan {
 	// Create a map of span ID to span pointer for quick lookup. Only the first span
 	// with a given ID is kept, so each kept span is the child of at most one other
