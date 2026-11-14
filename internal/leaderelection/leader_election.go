@@ -16,6 +16,7 @@ import (
 
 const (
 	acquireLockErrMsg  = "Failed to acquire lock"
+	leaseExpiredMsg    = "Leader lease expired without a successful renewal, stepping down"
 	forfeitLockErrMsg  = "Failed to forfeit lock"
 	forfeitLockWarnMsg = "Lock was not forfeited"
 )
@@ -34,9 +35,12 @@ type DistributedElectionParticipant struct {
 	lock         dl.Lock
 	isLeader     atomic.Bool
 	resourceName string
-	closeChan    chan struct{}
-	closeOnce    sync.Once
-	wg           sync.WaitGroup
+	// leaseExpiry is when the lease last acquired or renewed by this participant expires.
+	// It is only used by the goroutine running acquireLock.
+	leaseExpiry time.Time
+	closeChan   chan struct{}
+	closeOnce   sync.Once
+	wg          sync.WaitGroup
 }
 
 // ElectionParticipantOptions control behavior of the election participant. TODO func applyDefaults(), parameter error checking, etc.
@@ -116,11 +120,24 @@ func (p *DistributedElectionParticipant) runAcquireLockLoop() {
 }
 
 // acquireLock attempts to acquire the lock and returns the interval to sleep before the next retry.
+// A failed attempt keeps the current status while the lease is still valid, but a leader whose
+// lease has expired steps down, since another participant may have acquired the lock by then.
 func (p *DistributedElectionParticipant) acquireLock() time.Duration {
+	// The lease starts no earlier than the request, so measuring from here never overstates it.
+	attemptTime := time.Now()
 	if acquiredLeaderLock, err := p.lock.Acquire(p.resourceName, p.FollowerLeaseRefreshInterval); err == nil {
 		p.setLeader(acquiredLeaderLock)
+		if acquiredLeaderLock {
+			p.leaseExpiry = attemptTime.Add(p.FollowerLeaseRefreshInterval)
+		}
 	} else {
 		p.Logger.Error(acquireLockErrMsg, zap.Error(err))
+		if p.IsLeader() && !time.Now().Before(p.leaseExpiry) {
+			// Only clear the local flag: the lock is not forfeited, because once the lease has
+			// expired it may belong to another participant, and forfeiting could release their lock.
+			p.Logger.Warn(leaseExpiredMsg, zap.String("resource", p.resourceName))
+			p.setLeader(false)
+		}
 	}
 	if p.IsLeader() {
 		// If this process holds the leader lock, retry with a shorter cadence

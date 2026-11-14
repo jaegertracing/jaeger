@@ -60,11 +60,105 @@ func TestAcquireLock(t *testing.T) {
 			}
 
 			p.setLeader(test.isLeader)
+			if test.isLeader {
+				// The lease is still valid, so a failed renewal keeps this participant leader.
+				p.leaseExpiry = time.Now().Add(time.Hour)
+			}
 			assert.Equal(t, test.expectedInterval, p.acquireLock())
 			match, errMsg := testutils.LogMatcher(1, acquireLockErrMsg, logBuffer.Lines())
 			assert.Equal(t, test.expectedError, match, errMsg)
 		})
 	}
+}
+
+func TestAcquireLockLeaseExpiry(t *testing.T) {
+	const (
+		leaderInterval   = time.Millisecond
+		followerInterval = 5 * time.Millisecond
+	)
+	newParticipant := func(mockLock *lmocks.Lock) (*DistributedElectionParticipant, *testutils.Buffer) {
+		logger, logBuffer := testutils.NewLogger()
+		return &DistributedElectionParticipant{
+			ElectionParticipantOptions: ElectionParticipantOptions{
+				LeaderLeaseRefreshInterval:   leaderInterval,
+				FollowerLeaseRefreshInterval: followerInterval,
+				Logger:                       logger,
+			},
+			lock:         mockLock,
+			resourceName: "sampling_lock",
+		}, logBuffer
+	}
+
+	t.Run("acquire sets lease expiry", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(true, nil)
+		p, _ := newParticipant(mockLock)
+
+		before := time.Now()
+		assert.Equal(t, leaderInterval, p.acquireLock())
+		assert.True(t, p.IsLeader())
+		assert.False(t, p.leaseExpiry.Before(before.Add(followerInterval)))
+		assert.False(t, p.leaseExpiry.After(time.Now().Add(followerInterval)))
+	})
+
+	t.Run("leader steps down after its lease expires", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(true, nil).Once()
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)
+		p, logBuffer := newParticipant(mockLock)
+
+		p.acquireLock()
+		require.True(t, p.IsLeader())
+
+		time.Sleep(2 * followerInterval)
+		assert.Equal(t, followerInterval, p.acquireLock())
+		assert.False(t, p.IsLeader())
+		match, errMsg := testutils.LogMatcher(1, leaseExpiredMsg, logBuffer.Lines())
+		assert.True(t, match, errMsg)
+	})
+
+	t.Run("leader with expired lease steps down", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)
+		p, _ := newParticipant(mockLock)
+		p.setLeader(true)
+		p.leaseExpiry = time.Now().Add(-time.Millisecond)
+
+		assert.Equal(t, followerInterval, p.acquireLock())
+		assert.False(t, p.IsLeader())
+	})
+
+	t.Run("failed renewals keep the lease until it expires, then step down", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)
+		p, _ := newParticipant(mockLock)
+		p.setLeader(true)
+		leaseExpiry := time.Now().Add(time.Hour)
+		p.leaseExpiry = leaseExpiry
+
+		// renewal fails within the lease: still leader, and the expiry is not moved
+		assert.Equal(t, leaderInterval, p.acquireLock())
+		require.True(t, p.IsLeader())
+		assert.Equal(t, leaseExpiry, p.leaseExpiry)
+
+		// renewal fails after the lease expired: step down
+		p.leaseExpiry = time.Now().Add(-time.Millisecond)
+		assert.Equal(t, followerInterval, p.acquireLock())
+		require.False(t, p.IsLeader())
+	})
+
+	t.Run("leader keeps a valid lease on a failed renewal", func(t *testing.T) {
+		mockLock := &lmocks.Lock{}
+		mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, errTestLock)
+		p, logBuffer := newParticipant(mockLock)
+		p.setLeader(true)
+		p.leaseExpiry = time.Now().Add(time.Hour)
+
+		assert.Equal(t, leaderInterval, p.acquireLock())
+		assert.True(t, p.IsLeader())
+		match, _ := testutils.LogMatcher(1, leaseExpiredMsg, logBuffer.Lines())
+		assert.False(t, match)
+	})
 }
 
 func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
