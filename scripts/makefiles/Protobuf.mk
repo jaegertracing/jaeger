@@ -111,7 +111,8 @@ proto: \
 	proto-zipkin \
 	proto-openmetrics \
 	proto-api-v3 \
-	proto-api-v3-python
+	proto-api-v3-python \
+	proto-go
 
 EXPRESSION_PATCHED_DIR=$(PROTO_GEN)/.patched/expression/v1
 EXPRESSION_PATCHED=$(EXPRESSION_PATCHED_DIR)/expression.proto
@@ -298,3 +299,47 @@ proto-api-v3-python: patch-api-v3-python
 	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/*_pb2.py || \
 		(echo "ERROR: an annotation import survived into the generated Python"; exit 1)
 	@echo "🏗️  OK: generated Python imports only the protobuf runtime and opentelemetry-proto"
+
+# protoc-gen-go targets for decoding HTTP parameters with protojson (#10010)
+PROTO_GO_DIR=$(PROTO_GEN)/go
+PROTO_GO_EXPRESSION_DIR=$(PROTO_GO_DIR)/expression/v1
+PROTO_GO_APIV3_DIR=$(PROTO_GO_DIR)/api_v3
+
+PROTO_GO_OPTS := \
+	--go_opt=module=github.com/jaegertracing/jaeger/internal/proto-gen/go \
+	--go_opt=Mexpression/v1/vocabulary.proto=github.com/jaegertracing/jaeger/internal/proto-gen/go/expression/v1 \
+	--go_opt=Mexpression/v1/expression.proto=github.com/jaegertracing/jaeger/internal/proto-gen/go/expression/v1 \
+	--go_opt=Mapi_v3/capabilities.proto=github.com/jaegertracing/jaeger/internal/proto-gen/go/api_v3 \
+	--go_opt=Mapi_v3/query_service.proto=github.com/jaegertracing/jaeger/internal/proto-gen/go/api_v3 \
+	--go_opt=Mgnostic/openapiv3/annotations.proto=github.com/google/gnostic-models/openapiv3 \
+	--go_opt=Mopentelemetry/proto/trace/v1/trace.proto=go.opentelemetry.io/proto/otlp/trace/v1 \
+	--go_opt=Mgoogle/api/annotations.proto=google.golang.org/genproto/googleapis/api/annotations\;annotations \
+	--go_opt=Mgoogle/api/http.proto=google.golang.org/genproto/googleapis/api/annotations\;annotations \
+	--go_opt=Mgoogle/api/field_behavior.proto=google.golang.org/genproto/googleapis/api/annotations\;annotations
+
+.PHONY: proto-go
+proto-go: proto-go-expression proto-go-api-v3
+
+.PHONY: proto-go-expression
+proto-go-expression:
+	$(call print_caption, "Processing expression/v1 --> $(PROTO_GO_EXPRESSION_DIR)")
+	mkdir -p $(PROTO_GO_EXPRESSION_DIR)
+	$(PROTOC_WITH_GNOSTIC) \
+		-Iidl/proto \
+		-I/gnostic -I/gnostic/gnostic \
+		--go_out=$(PWD)/$(PROTO_GEN)/go \
+		$(PROTO_GO_OPTS) \
+		idl/proto/expression/v1/vocabulary.proto idl/proto/expression/v1/expression.proto
+
+.PHONY: proto-go-api-v3
+proto-go-api-v3:
+	$(call print_caption, "Processing api_v3 --> $(PROTO_GO_APIV3_DIR)")
+	mkdir -p $(PROTO_GO_APIV3_DIR)
+	$(PROTOC_WITH_GNOSTIC) \
+		-Iidl/proto \
+		-Iidl/opentelemetry-proto \
+		-I/gnostic -I/gnostic/gnostic \
+		--go_out=$(PWD)/$(PROTO_GEN)/go \
+		$(PROTO_GO_OPTS) \
+		idl/proto/api_v3/capabilities.proto idl/proto/api_v3/query_service.proto
+
