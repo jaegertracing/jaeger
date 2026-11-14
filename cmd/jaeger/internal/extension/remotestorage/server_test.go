@@ -25,6 +25,7 @@ import (
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 type fakeTraceStorageFactory struct {
@@ -69,6 +70,38 @@ func newFakeFactory(name string) *fakeFactory {
 }
 
 type fakeStorageExt struct{}
+
+func (fakeStorageExt) SetTenancyOptions(tenancy.Options, ...string) error { return nil }
+
+type recordingStorageExt struct {
+	fakeStorageExt
+	options      tenancy.Options
+	storageNames []string
+}
+
+func (s *recordingStorageExt) SetTenancyOptions(options tenancy.Options, storageNames ...string) error {
+	s.options = options
+	s.storageNames = storageNames
+	return errors.New("tenancy rejected")
+}
+
+func TestServerPassesTenancyToStorage(t *testing.T) {
+	options := tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}
+	cfg := createDefaultConfig().(*Config)
+	cfg.Tenancy = options
+	cfg.Storage = "storage"
+	ext := &recordingStorageExt{}
+	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, ext)
+	s := newServer(cfg, component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+	})
+	err := s.Start(t.Context(), host)
+	require.ErrorContains(t, err, "tenancy rejected")
+	require.Equal(t, options, ext.options)
+	require.Equal(t, []string{"storage"}, ext.storageNames)
+}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
