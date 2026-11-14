@@ -191,7 +191,7 @@ Three observations.
 | --- | --- | --- |
 | Per-trace time bounds | `trace_id_timestamps`: `AggregatingMergeTree`, `ORDER BY trace_id`, `SimpleAggregateFunction(min/max, DateTime64(9))`, no partition, TTL on `end` | `otel_traces_trace_id_ts`: `MergeTree`, `PARTITION BY toDate(Start)`, `ORDER BY (TraceId, Start)`, `DateTime` (second) precision, own `bloom_filter(0.01)` on `TraceId` |
 | Services | `services` (`AggregatingMergeTree`) | none; `SELECT DISTINCT ServiceName` on the main table |
-| Operations | `operations` keyed `(service_name, span_kind)` | none; `GROUP BY SpanName` on the main table |
+| Operations | `operations` keyed `(service_name, span_kind, name)` | none; `GROUP BY SpanName` on the main table |
 | Attribute metadata | `attribute_metadata` (`(key, type, level)` triples) | none; not needed for untyped `Map` |
 | Dependencies | `dependencies` (JSON written by the dependency writer, not by a materialized view) | none |
 

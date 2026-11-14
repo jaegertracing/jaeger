@@ -1,7 +1,7 @@
 # ADR-008: ClickHouse Storage Schema
 
 * **Status**: Implemented
-* **Date**: 2026-04-25 (limitations extended 2026-10-08)
+* **Date**: 2026-04-25 (limitations extended 2026-10-08; operations sort key extended 2026-11-07)
 
 ## Context
 
@@ -192,7 +192,7 @@ Two skip indexes are defined on the `spans` table:
 
 The `spans` and `trace_id_timestamps` tables accept an optional TTL on their time columns (`start_time` and `end`, respectively). When configured, ClickHouse automatically deletes rows past the TTL during background merges, so retention has no separate write path.
 
-The remaining tables (`services`, `operations`, `attribute_metadata`, `dependencies`) do not carry a TTL. They are small relative to `spans` — they accumulate at most one row per unique `(service)`, `(service, span_kind)`, or `(attribute_key, type, level)` triple — and `AggregatingMergeTree` deduplicates them in the background, so unbounded growth is not a practical concern in the alpha. If a service or attribute key permanently disappears from the workload, its row in these tables will linger; that is an accepted trade-off for the simpler write path. Adding TTL (or a periodic compaction step) to these tables is something we may revisit if long-running deployments accumulate enough stale entries to hurt query-builder performance.
+The remaining tables (`services`, `operations`, `attribute_metadata`, `dependencies`) do not carry a TTL. They are small relative to `spans` — they accumulate at most one row per unique `(service)`, `(service, span_kind, name)`, or `(attribute_key, type, level)` triple — and `AggregatingMergeTree` deduplicates them in the background, so unbounded growth is not a practical concern in the alpha. If a service or attribute key permanently disappears from the workload, its row in these tables will linger; that is an accepted trade-off for the simpler write path. Adding TTL (or a periodic compaction step) to these tables is something we may revisit if long-running deployments accumulate enough stale entries to hurt query-builder performance.
 
 ---
 
@@ -208,9 +208,64 @@ DDL: [`create_services_table.sql`](../../internal/storage/v2/clickhouse/sql/crea
 
 ### `operations`
 
-Used by `GetOperations`. The composite key `(service_name, span_kind)` covers both query patterns supported by the API: filtering by service alone, or by service + span kind.
+Used by `GetOperations`. The composite key `(service_name, span_kind, name)` deduplicates each unique operation while covering both query patterns supported by the API: filtering by service alone, or by service + span kind.
 
 DDL: [`create_operations_table.sql`](../../internal/storage/v2/clickhouse/sql/create_operations_table.sql), populated by [`create_operations_mv.sql`](../../internal/storage/v2/clickhouse/sql/create_operations_mv.sql).
+
+#### Upgrading Existing Schemas
+
+Schema creation uses `CREATE TABLE IF NOT EXISTS`, so changing the `operations` table definition only affects new ClickHouse deployments. Existing deployments that already created `operations` with the old `(service_name, span_kind)` sorting key must rebuild the derived table and materialized view manually.
+
+Because `operations` is derived entirely from `spans`, the safest upgrade path is to recreate it and backfill from retained span data. Run the steps in the Jaeger database, off-peak: the backfill `INSERT ... SELECT` scans every retained row of `spans`.
+
+Before dropping anything, capture the table's current definition with `SHOW CREATE TABLE operations`.
+The DDL template renders `ENGINE = {{ .AggregatingMergeTree }}`, which is `AggregatingMergeTree` for local tables but `ReplicatedAggregatingMergeTree(...)` on a replicated deployment;
+pasting the local form on a replicated deployment would silently create a table that misses operation names written through other replicas.
+The following snippet is for single-node deployments using `AggregatingMergeTree` only. Replicated deployments must follow the ordered steps below it instead:
+
+```sql
+DROP VIEW IF EXISTS operations_mv;
+DROP TABLE IF EXISTS operations;
+
+CREATE TABLE IF NOT EXISTS operations (
+    service_name String,
+    name String,
+    span_kind String
+) ENGINE = AggregatingMergeTree
+ORDER BY (service_name, span_kind, name);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv TO operations AS
+SELECT
+    name,
+    kind AS span_kind,
+    service_name
+FROM spans
+GROUP BY
+    service_name,
+    name,
+    kind;
+
+INSERT INTO operations (service_name, name, span_kind)
+SELECT
+    service_name,
+    name,
+    kind AS span_kind
+FROM spans
+GROUP BY
+    service_name,
+    name,
+    kind;
+```
+
+For replicated deployments, complete each of steps 1–4 on every replica before proceeding to the next step; step 5 runs only once per shard. Jaeger does not emit `ON CLUSTER` DDL, and `operations_mv` is a local view, so table and view DDL must be run explicitly on each replica:
+
+1. Drop `operations_mv` on every replica with `DROP VIEW IF EXISTS operations_mv`.
+2. Drop `operations` on every replica with `DROP TABLE IF EXISTS operations SYNC`. Wait for all drops to complete before recreating the table on any replica. The sorting key is stored in Keeper and must match across replicas sharing a Keeper path; recreating while any replica still has the old table causes a metadata mismatch. `SYNC` also waits for the old replica entry to be removed, which a plain `DROP` can defer in an Atomic database.
+3. Recreate `operations` on every replica using its saved `SHOW CREATE TABLE` definition, preserving the `ENGINE` clause, including the Keeper path and replica parameters, and changing only `ORDER BY` to `(service_name, span_kind, name)`.
+4. Recreate `operations_mv` on every replica using the materialized-view definition in the snippet above.
+5. Run the backfill `INSERT ... SELECT` from the snippet above **once per shard**, on one replica of that shard, after all tables and views have been recreated. The inserted operation rows replicate to the other replicas; running the backfill on every replica would unnecessarily scan `spans` once per replica.
+
+If the source spans have already expired due to TTL, operation names that only existed in expired data cannot be recovered by the backfill.
 
 ### `trace_id_timestamps`
 
