@@ -137,7 +137,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 			params: tracestore.GetTraceParams{
 				TraceID: traceID,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID,
+			expectedSQL:  nestedSelectSpansByTraceID,
 			expectedArgs: []any{traceID},
 		},
 		{
@@ -147,7 +147,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				Start:   now.Add(-1 * time.Hour),
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano(), now.UnixNano()},
 		},
 		{
@@ -156,7 +156,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				Start:   now.Add(-1 * time.Hour),
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano()},
 		},
 		{
@@ -165,14 +165,14 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.UnixNano()},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			query, args := buildGetTracesQuery(tt.params)
+			query, args := (&Reader{}).buildGetTracesQuery(tt.params)
 			require.Equal(t, tt.expectedSQL, query)
 			require.Equal(t, tt.expectedArgs, args)
 		})
@@ -290,8 +290,8 @@ func TestBuildFindTracesQuery(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			q, args := buildFindTracesQuery(tc.bounds)
-			require.Equal(t, strings.TrimRight(sql.SelectSpansQuery, "\n")+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
+			q, args := (&Reader{}).buildFindTracesQuery(tc.bounds)
+			require.Equal(t, strings.TrimRight(nestedSelectSpans, "\n")+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
 			require.Equal(t, tc.args, args)
 		})
 	}

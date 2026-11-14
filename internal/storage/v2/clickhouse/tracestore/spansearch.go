@@ -7,14 +7,12 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -200,7 +198,7 @@ func (r *Reader) buildFindSpansQuery(
 	pageSize uint32,
 ) (string, []any, error) {
 	q := r.newSQLBuilder()
-	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
+	q.appendSelectSpans()
 	q.WriteString("\nWHERE 1=1")
 	args := q.appendTimeRange(nil, query.StartTimeMin, query.StartTimeMax)
 	if query.Filter != nil {

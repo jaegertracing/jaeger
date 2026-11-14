@@ -37,6 +37,8 @@ type ReaderConfig struct {
 	// HoistedColumns lists the hoisted columns of the spans table. A search for the attribute
 	// of one of them compares the column.
 	HoistedColumns []HoistedColumn
+	// AttributeLayout is the layout of the typed attribute groups of the spans table.
+	AttributeLayout AttributeLayout
 }
 
 type Reader struct {
@@ -63,7 +65,7 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 		conn:          conn,
 		config:        cfg,
 		attrMetaCache: attrMetaCache,
-		attrBuilder:   newAttributeBuilder(cfg.HoistedColumns),
+		attrBuilder:   newAttributeBuilder(cfg.AttributeLayout, cfg.HoistedColumns),
 	}
 }
 
@@ -100,7 +102,7 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			query, args := buildGetTracesQuery(traceID)
+			query, args := r.buildGetTracesQuery(traceID)
 			rows, err := r.conn.Query(ctx, query, args...)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
@@ -183,7 +185,7 @@ func (r *Reader) FindTraces(
 		if len(traceIDs) == 0 {
 			return
 		}
-		q, args := buildFindTracesQuery(traceIDs)
+		q, args := r.buildFindTracesQuery(traceIDs)
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))

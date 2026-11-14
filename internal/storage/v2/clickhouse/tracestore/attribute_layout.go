@@ -48,7 +48,8 @@ type spanColumn struct {
 // attributeColumnTypes lists the typed attribute groups in the order of the columns.
 var attributeColumnTypes = []string{"bool", "double", "int", "str", "complex"}
 
-// spanColumns lists the columns of a span in the order in which the writer binds them.
+// spanColumns lists the columns of a span in the order in which the writer binds them and
+// the reader scans them.
 func spanColumns() []spanColumn {
 	var columns []spanColumn
 	plain := func(names ...string) {
@@ -115,4 +116,27 @@ func insertSpan(layout AttributeLayout) string {
 	}
 	placeholders := slices.Repeat([]string{"?"}, len(names))
 	return fmt.Sprintf(insertSpanFormat, indentedList(names, 2), indentedList(placeholders, 2))
+}
+
+// selectSpans returns the statement that reads spans, up to and including its FROM clause.
+// An attribute group is read as its keys and its values in both layouts, so a span is
+// scanned the same way from either.
+func (l AttributeLayout) selectSpans() string {
+	var expressions []string
+	for _, column := range spanColumns() {
+		switch {
+		case column.kind == plainColumn:
+			expressions = append(expressions, column.name)
+		case l != AttributeLayoutMap:
+			expressions = append(expressions, column.name+".key", column.name+".value")
+		case column.kind == rowAttributes:
+			expressions = append(expressions, "mapKeys("+column.name+")", "mapValues("+column.name+")")
+		default: // itemAttributes
+			expressions = append(expressions,
+				"arrayMap(m -> mapKeys(m), "+column.name+")",
+				"arrayMap(m -> mapValues(m), "+column.name+")",
+			)
+		}
+	}
+	return "\nSELECT\n    " + strings.Join(expressions, ",\n    ") + "\nFROM\n    spans s\n"
 }
