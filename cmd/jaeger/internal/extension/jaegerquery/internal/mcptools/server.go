@@ -20,6 +20,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
+const findSpansToolName = "find_spans"
+
 //go:embed INSTRUCTIONS.md
 var serverInstructions string
 
@@ -29,6 +31,15 @@ var serverInstructions string
 //
 //go:embed all:skills
 var skillsEmbedFS embed.FS
+
+// toolAnnotations marks every tool as read-only and closed-world, because each one
+// only queries Jaeger's own storage or serves a skill file. The MCP defaults for a
+// tool without annotations say that it may modify its environment and may reach
+// external systems.
+var toolAnnotations = &mcp.ToolAnnotations{
+	ReadOnlyHint:  true,
+	OpenWorldHint: new(false),
+}
 
 // newServer builds an *mcp.Server with the Jaeger telemetry tools and the
 // tracing/metrics/recovery middleware registered. It takes *querysvc.QueryService
@@ -57,10 +68,16 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
-	// Innermost, so tracing and metrics record a recovered panic as a failed call.
-	// Middleware added later through Handler.AddReceivingMiddleware wraps this
-	// chain, so the Handler guards it with a recovery of its own.
-	mw = append(mw, createRecoveryMiddleware(telset.Logger))
+	mw = append(
+		mw,
+		// Inside tracing and metrics, so they record a recovered panic as a failed call.
+		// Middleware added later through Handler.AddReceivingMiddleware wraps this
+		// chain, so the Handler guards it with a recovery of its own.
+		createRecoveryMiddleware(telset.Logger),
+		// The filter runs inside the recovery, so a panic in its capability lookup fails
+		// only that request.
+		createFindSpansFilterMiddleware(queryAPI),
+	)
 	server.AddReceivingMiddleware(mw...)
 	return server
 }
@@ -82,12 +99,14 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_services",
 		Description: "List service names known to Jaeger. Supports optional regex filtering via 'pattern'.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetServicesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_names",
 		Description: "List span/operation names for a given service, with their span kinds " +
 			"(SERVER, CLIENT, INTERNAL, etc.)",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -97,21 +116,24 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 			"The statement is SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces " +
 			"WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...), with both bounds on start_time. " +
 			types.NoColumnList,
+		Annotations: toolAnnotations,
 	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
 		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
 			"Returns verbose output per span.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "find_spans",
+		Name: findSpansToolName,
 		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
 			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
 			"status) without attributes or events; use get_span_details for those. " +
 			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time. " +
 			types.NoColumnList,
+		Annotations: toolAnnotations,
 	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -119,6 +141,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -130,6 +153,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 			"(later roots and sibling subtrees are omitted); " +
 			"compare total_span_count with the number of returned spans to detect truncation. " +
 			"Does NOT include attributes, events, or links.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -137,12 +161,14 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Identify the critical latency path through a trace: the chain of spans " +
 			"that determined end-to-end duration. " +
 			"Higher self_time_us values indicate where time is concentrated on the critical path.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_service_dependencies",
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 
 	// error not possible because we embed /skills dir
@@ -152,5 +178,6 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
+		Annotations: toolAnnotations,
 	}, handlers.NewReadSkillHandler(s.skillsFS, s.params.CustomSkillsFS, s.params.MaxReadFileSize))
 }

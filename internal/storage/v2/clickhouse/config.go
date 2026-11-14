@@ -63,6 +63,30 @@ type Configuration struct {
 	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
 	TTL time.Duration `mapstructure:"ttl"`
+	// HoistedAttributes lists the attributes that the spans table copies into dedicated
+	// MATERIALIZED columns. CreateSchema adds the columns to a table it creates; an existing
+	// table is not altered, so the operator adds the columns to it. An empty list leaves the
+	// schema as it is.
+	HoistedAttributes []HoistedAttribute `mapstructure:"hoisted_attributes"`
+}
+
+// HoistedAttribute selects one attribute to copy into a column of its own. All fields except
+// Codec are required.
+type HoistedAttribute struct {
+	// Key is the attribute key. It is an opaque string, not a column name or an expression.
+	Key string `mapstructure:"key"`
+	// Level is where the attribute is stored: "span" or "resource".
+	Level string `mapstructure:"level"`
+	// Type is the stored type of the attribute: "string", "int", "double" or "bool". It selects
+	// the typed group to copy from and is not a conversion: a value stored under the same key
+	// with another type is not copied.
+	Type string `mapstructure:"type"`
+	// Column is the name of the dedicated column. It must match [a-z][a-z0-9_]* and must not
+	// be a column the spans table already has.
+	Column string `mapstructure:"column"`
+	// Codec is the compression codec of the column, in the form ZSTD(level) with a level from
+	// 1 through 22. The default is ZSTD(1).
+	Codec string `mapstructure:"codec"`
 }
 
 type Authentication struct {
@@ -186,6 +210,9 @@ func (cfg *Configuration) Validate() error {
 	}
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
+	}
+	if _, err := newHoistedColumns(cfg.HoistedAttributes); err != nil {
+		return err
 	}
 	// The table_engine block is ignored without create_schema, because the operator then
 	// owns the tables.

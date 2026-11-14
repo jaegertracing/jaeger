@@ -150,6 +150,79 @@ testMainIsGuardedWhenSourced() {
   assertEquals "sourced-only" "$output"
 }
 
+testSharedUIConfigPassesPreflight() {
+  output=$(bash -c 'source "$1"; check_required_files' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertEquals "shared UI config should pass preflight" 0 "$rc"
+  assertEquals "" "$output"
+}
+
+testMissingUIConfigStopsBeforeClusterAccess() {
+  output=$(bash -c '
+    source "$1"
+    UI_CONFIG_FILE="$2/missing-ui-config.json"
+    MODE=upgrade
+    DEPLOY_SCOPE=jaeger
+    log() { :; }
+    need() { :; }
+    check_cluster() { printf "unsafe cluster access\n"; exit 1; }
+    main
+  ' _ "$SCRIPT" "$SHUNIT_TMPDIR" 2>&1)
+  rc=$?
+
+  assertNotEquals "missing UI config must stop deployment" 0 "$rc"
+  assertContains "$output" "Missing required file: $SHUNIT_TMPDIR/missing-ui-config.json"
+  assertNotContains "$output" "unsafe cluster access"
+}
+
+run_jaeger_deploy() {
+  bash -c '
+    source "$1"
+    MODE="$2"
+    DEPLOY_SCOPE=jaeger
+    RUN_PUBLIC_SMOKE_TESTS=false
+    log() { :; }
+    need() { :; }
+    check_cluster() { :; }
+    cleanup() { :; }
+    clone_jaeger_v2() { :; }
+    deploy_opensearch_releases() { :; }
+    adopt_resource_for_helm_release() { :; }
+    delete_deployment_before_helm_upgrade() { :; }
+    wait_for_deployment() { :; }
+    wait_for_service_endpoints() { :; }
+    wait_for_daemonset() { :; }
+    deploy_ingress() { :; }
+    kubectl() { :; }
+    helm() {
+      if [[ "$1" != repo ]]; then
+        printf "helm"; printf " %s" "$@"; printf "\n"
+      fi
+    }
+    main
+  ' _ "$SCRIPT" "$1"
+}
+
+testJaegerUpgradeIncludesSharedUIConfig() {
+  output=$(run_jaeger_deploy upgrade)
+  rc=$?
+
+  assertEquals "Jaeger upgrade should succeed" 0 "$rc"
+  assertContains "$output" "helm upgrade --install --wait --atomic jaeger"
+  assertContains "$output" "--set-file uiconfig=$(dirname "$SCRIPT")/../oci/ui-config.json"
+  assertContains "$output" "--set-file userconfig=$(dirname "$SCRIPT")/jaeger-config.yaml"
+}
+
+testJaegerCleanInstallIncludesSharedUIConfig() {
+  output=$(run_jaeger_deploy clean)
+  rc=$?
+
+  assertEquals "Jaeger install should succeed" 0 "$rc"
+  assertContains "$output" "helm install --wait jaeger"
+  assertContains "$output" "--set-file uiconfig=$(dirname "$SCRIPT")/../oci/ui-config.json"
+}
+
 testPinsCompatibleOtelDemoChart() {
   output=$(bash -c 'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' _ "$SCRIPT")
   assertTrue "OTel demo should pin an explicit chart release" "[[ '$output' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"

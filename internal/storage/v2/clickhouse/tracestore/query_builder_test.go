@@ -125,21 +125,6 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	}
 }
 
-func TestAttributeColumnType(t *testing.T) {
-	for valueType, want := range map[pcommon.ValueType]string{
-		pcommon.ValueTypeBool:   "bool",
-		pcommon.ValueTypeDouble: "double",
-		pcommon.ValueTypeInt:    "int",
-		pcommon.ValueTypeStr:    "str",
-		pcommon.ValueTypeBytes:  "complex",
-		pcommon.ValueTypeMap:    "complex",
-		pcommon.ValueTypeSlice:  "complex",
-		pcommon.ValueTypeEmpty:  "",
-	} {
-		assert.Equal(t, want, attributeColumnType(valueType), valueType.String())
-	}
-}
-
 func TestBuildGetTracesQuery(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -310,4 +295,31 @@ func TestBuildFindTracesQuery(t *testing.T) {
 			require.Equal(t, tc.args, args)
 		})
 	}
+}
+
+// TestBuildSimpleAttributeCondition_HoistedColumn checks that the tag search reads the column
+// at the hoisted level and still searches every other level in the typed groups.
+func TestBuildSimpleAttributeCondition_HoistedColumn(t *testing.T) {
+	q := newHoistedColumnReader().newSQLBuilder()
+
+	args := q.buildSimpleAttributeCondition(nil, "model", pcommon.ValueTypeStr, "x")
+
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
+	assert.Equal(t, []any{"x", "model", "x", "model", "x", "model", "x", "model", "x"}, args)
+}
+
+// TestBuildStringAttributeCondition_HoistedColumn checks that a tag value sent as a string is
+// converted to the type of the hoisted column before it is compared there.
+func TestBuildStringAttributeCondition_HoistedColumn(t *testing.T) {
+	reader := newHoistedColumnReader()
+	attributes := pcommon.NewMap()
+	attributes.PutStr("shard", "7")
+	metadata, err := reader.getAttributeMetadata(t.Context(), attributes)
+	require.NoError(t, err)
+	q := reader.newSQLBuilder()
+
+	args := q.buildStringAttributeCondition(nil, "shard", pcommon.NewValueStr("7"), metadata)
+
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
+	assert.Equal(t, []any{int64(7)}, args)
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -21,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -185,6 +187,33 @@ func createRecoveryMiddleware(logger *zap.Logger) mcp.Middleware {
 				result, err = nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "internal error"}
 			}()
 			return next(ctx, method, req)
+		}
+	}
+}
+
+type searchCapabilitiesQueryService interface {
+	SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error)
+}
+
+// createFindSpansFilterMiddleware removes find_spans from a tools/list result when the storage
+// backend does not declare span search, so that an agent is not offered a tool whose every
+// call the query service refuses. A backend that cannot report its capabilities is read as
+// one without span search.
+func createFindSpansFilterMiddleware(queryAPI searchCapabilitiesQueryService) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			result, err := next(ctx, method, req)
+			toolList, ok := result.(*mcp.ListToolsResult)
+			if err != nil || !ok {
+				return result, err
+			}
+			if caps, capsErr := queryAPI.SearchCapabilities(ctx); capsErr == nil && caps.SpanSearch {
+				return toolList, nil
+			}
+			toolList.Tools = slices.DeleteFunc(toolList.Tools, func(tool *mcp.Tool) bool {
+				return tool.Name == findSpansToolName
+			})
+			return toolList, nil
 		}
 	}
 }

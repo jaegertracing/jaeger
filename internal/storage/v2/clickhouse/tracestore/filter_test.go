@@ -80,7 +80,7 @@ func TestBuildFilterCondition_And(t *testing.T) {
 	)
 	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{"checkout", "cart"}, args)
 }
 
@@ -93,7 +93,7 @@ func TestBuildFilterCondition_Or(t *testing.T) {
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 }
 
 func TestBuildFilterCondition_Not(t *testing.T) {
@@ -104,7 +104,7 @@ func TestBuildFilterCondition_Not(t *testing.T) {
 	)
 	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{"checkout"}, args)
 }
 
@@ -122,7 +122,7 @@ func TestBuildFilterCondition_NestedBoolean(t *testing.T) {
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 }
 
 func TestBuildFilterCondition_UnsupportedOperator(t *testing.T) {
@@ -282,7 +282,7 @@ func TestBuildFilterCondition_DurationRange(t *testing.T) {
 	)
 	args, err := lowerFilter(t, r, &q, predicate)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{int64(5 * time.Millisecond), int64(40 * time.Millisecond)}, args)
 }
 
@@ -412,7 +412,7 @@ func TestBuildAttributeComparison_NestedLevels(t *testing.T) {
 			var q sqlBuilder
 			_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(level, "k"), str("v")))
 			require.NoError(t, err)
-			verifyQuerySnapshot(t, q.String())
+			clickhousetest.VerifyQuerySnapshot(t, q.String())
 		})
 	}
 }
@@ -443,7 +443,7 @@ func TestBuildUntypedAttributeEq_ResolvesAgainstMetadata(t *testing.T) {
 	var q sqlBuilder
 	args, err := lowerFilter(t, r, &q, p.Span().Attr("http.status_code").Eq("500"))
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, q.String())
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	require.Len(t, args, 2)
 	assert.Equal(t, int64(500), args[1])
 }
@@ -485,7 +485,7 @@ func TestBuildFindTraceIDsQuery_WithFilter(t *testing.T) {
 	}
 	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, sqlText)
+	clickhousetest.VerifyQuerySnapshot(t, sqlText)
 	assert.Equal(t, []any{"cart", time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
 }
 
@@ -521,7 +521,7 @@ func TestBuildFindTraceIDsQuery_WithNestedFilter(t *testing.T) {
 	}
 	sqlText, args, err := r.buildFindTraceIDsQuery(t.Context(), query)
 	require.NoError(t, err)
-	verifyQuerySnapshot(t, sqlText)
+	clickhousetest.VerifyQuerySnapshot(t, sqlText)
 	assert.Equal(t, []any{"checkout", "http.status_code", int64(500), int64(time.Second), time.Unix(0, 0), time.Unix(100, 0), testReaderConfig.DefaultSearchDepth}, args)
 }
 
@@ -845,4 +845,40 @@ func TestBuildFindTraceIDsQuery_OneMetadataQueryForKeysWithNoMetadata(t *testing
 		}
 	}
 	assert.Equal(t, 1, metadataQueries, "three unknown keys cost one query, not one each")
+}
+
+// TestBuildAttributeComparison_HoistedColumn checks that a negated equality keeps the
+// IS NOT NULL test inside the NOT, and that an unqualified reference reads the column at the
+// span level and the typed group at the resource level.
+func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
+	reader := newHoistedColumnReader()
+
+	t.Run("negation", func(t *testing.T) {
+		q := reader.newSQLBuilder()
+		args, err := lowerFilter(t, reader, q, p.Not(p.Span().Attr("model").Eq(p.String("x"))))
+		require.NoError(t, err)
+		clickhousetest.VerifyQuerySnapshot(t, q.String())
+		assert.Equal(t, []any{"x"}, args)
+	})
+
+	t.Run("unqualified reference", func(t *testing.T) {
+		q := reader.newSQLBuilder()
+		args, err := lowerFilter(t, reader, q, p.Attr("model").Eq(p.String("x")))
+		require.NoError(t, err)
+		clickhousetest.VerifyQuerySnapshot(t, q.String())
+		assert.Equal(t, []any{"x", "model", "x"}, args)
+	})
+}
+
+// TestBuildUntypedAttributeEq_HoistedColumn checks that a filter value whose type comes from
+// the attribute metadata is converted to the type of the hoisted column.
+func TestBuildUntypedAttributeEq_HoistedColumn(t *testing.T) {
+	reader := newHoistedColumnReader()
+	q := reader.newSQLBuilder()
+
+	args, err := lowerFilter(t, reader, q, p.Resource().Attr("shard").Eq("7"))
+
+	require.NoError(t, err)
+	clickhousetest.VerifyQuerySnapshot(t, q.String())
+	assert.Equal(t, []any{int64(7)}, args)
 }

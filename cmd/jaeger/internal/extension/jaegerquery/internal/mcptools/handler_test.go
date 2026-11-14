@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -49,18 +50,34 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 	return session
 }
 
-// TestNewHandler_ListTools drives the full in-process serving stack (mcp.Server
-// + middleware + tenancy + otelhttp) over HTTP and asserts that tools/list is
-// answered. ListTools does not touch storage, so the QueryService is backed by
-// empty mocks.
-func TestNewHandler_ListTools(t *testing.T) {
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+// newQueryServiceWithCapabilities returns a QueryService whose trace reader answers
+// SearchCapabilities with caps, which is the only storage call tools/list makes.
+func newQueryServiceWithCapabilities(caps tracestore.SearchCapabilities) *querysvc.QueryService {
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).Return(caps, nil).Maybe()
+	return querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+}
 
-	session := connectTestClient(t, handler)
-	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err)
-	assert.NotEmpty(t, listed.Tools)
+// TestNewHandler_ListTools drives the full in-process serving stack (mcp.Server
+// + middleware + tenancy + otelhttp) over HTTP and asserts that tools/list offers
+// find_spans only when the backend declares span search.
+func TestNewHandler_ListTools(t *testing.T) {
+	for _, spanSearch := range []bool{true, false} {
+		t.Run(fmt.Sprintf("spanSearch=%t", spanSearch), func(t *testing.T) {
+			svc := newQueryServiceWithCapabilities(tracestore.SearchCapabilities{SpanSearch: spanSearch})
+			handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+
+			session := connectTestClient(t, handler)
+			listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+			require.NoError(t, err)
+			names := make([]string, 0, len(listed.Tools))
+			for _, tool := range listed.Tools {
+				names = append(names, tool.Name)
+			}
+			assert.Contains(t, names, "find_traces")
+			assert.Equal(t, spanSearch, slices.Contains(names, findSpansToolName))
+		})
+	}
 }
 
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
@@ -117,8 +134,27 @@ func TestNewHandler_ToolPanicFailsOnlyThatCall(t *testing.T) {
 	assertHasStringAttribute(t, toolSpans[0].Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
 }
 
+// TestNewHandler_CapabilityLookupPanicFailsOnlyThatList covers the order of the server's
+// middleware: the capability lookup runs inside the recovery, so a reader that panics
+// while tools/list asks for its capabilities fails that request and not the process.
+func TestNewHandler_CapabilityLookupPanicFailsOnlyThatList(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil)
+	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
+
+	session := connectTestClient(t, handler)
+	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.Error(t, err)
+
+	toolList, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err, "the session must keep serving after a panic")
+	assert.NotEmpty(t, toolList.Tools)
+}
+
 func TestHandlerAddReceivingMiddleware(t *testing.T) {
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	svc := newQueryServiceWithCapabilities(tracestore.SearchCapabilities{})
 	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultServerParams())
 
 	var saw atomic.Bool
@@ -227,7 +263,7 @@ func TestNewHandler_Sessionless(t *testing.T) {
 		h.ServeHTTP(rr, req)
 		return rr.Result()
 	}
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	svc := newQueryServiceWithCapabilities(tracestore.SearchCapabilities{})
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 	newReplica := func() *Handler {
 		return NewHandler(telemetry.NoopSettings(), svc, tenancyMgr, DefaultServerParams())
@@ -293,7 +329,7 @@ func TestNewHandler_Sessionless(t *testing.T) {
 // session against the JSON form.
 func TestNewHandler_JSONResponse(t *testing.T) {
 	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	svc := newQueryServiceWithCapabilities(tracestore.SearchCapabilities{})
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 	contentType := func(t *testing.T, h http.Handler) string {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(initialize))

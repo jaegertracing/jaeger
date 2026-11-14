@@ -264,6 +264,24 @@ SELECT
 FROM
     attribute_metadata`
 
+// SelectHoistedColumn reads how the spans table declares one column. The server formats the
+// stored expression and the configured one before it compares their text, so a difference in
+// spacing or in how a string literal is escaped does not count as a difference. An ordinary
+// column has no expression to format, which formatQuerySingleLineOrNull reports as NULL and
+// not as an error.
+const SelectHoistedColumn = `
+SELECT
+    type,
+    default_kind,
+    default_expression,
+    compression_codec,
+    ifNull(formatQuerySingleLineOrNull(concat('SELECT ', default_expression)) = formatQuerySingleLine(concat('SELECT ', ?)), 0) AS same_expression
+FROM system.columns
+WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
+
+// SelectSpansTable returns one row when the current database has a spans table.
+const SelectSpansTable = `SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = 'spans'`
+
 const (
 	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
 	TruncateServices          = `TRUNCATE TABLE IF EXISTS services`

@@ -39,8 +39,8 @@ var toolNamePattern = regexp.MustCompile(`^(get|find|read)_[a-z]+(_[a-z]+)*$`)
 
 // TestRegisterTools verifies that every registered tool reaches a client through
 // tools/list on a bare server (in-memory transport, no HTTP stack) with a name that
-// follows the convention and a description. Registration only, so the QueryService
-// is backed by empty mocks that are never invoked.
+// follows the convention, a description, and the read-only, closed-world annotations.
+// Registration only, so the QueryService is backed by empty mocks that are never invoked.
 func TestRegisterTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 
@@ -68,6 +68,10 @@ func TestRegisterTools(t *testing.T) {
 		assert.Regexp(t, toolNamePattern, tool.Name)
 		assert.NotEmpty(t, tool.Description, tool.Name)
 		assert.NotNil(t, tool.InputSchema, tool.Name)
+		require.NotNil(t, tool.Annotations, tool.Name)
+		assert.True(t, tool.Annotations.ReadOnlyHint, tool.Name)
+		require.NotNil(t, tool.Annotations.OpenWorldHint, tool.Name)
+		assert.False(t, *tool.Annotations.OpenWorldHint, tool.Name)
 	}
 }
 

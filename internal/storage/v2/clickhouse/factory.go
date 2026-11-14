@@ -43,6 +43,8 @@ type schemaTemplateParams struct {
 	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
 	// collapse on their sort key.
 	AggregatingMergeTree string
+	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
+	HoistedColumns []string
 }
 
 type schemaStatement struct {
@@ -63,10 +65,17 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
+	if err != nil {
+		return nil, err
+	}
 	params := schemaTemplateParams{
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
+	}
+	for _, column := range hoistedColumns {
+		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
 	// The materialized views carry no engine of their own, because each writes TO its
 	// target table, so only the tables are templates.
@@ -115,12 +124,18 @@ type Factory struct {
 	config Configuration
 	telset telemetry.Settings
 	conn   driver.Conn
+	// hoistedColumns holds the configured hoisted columns. It is set only after the startup
+	// check passes, which is what lets the reader search them.
+	hoistedColumns []chtracestore.HoistedColumn
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes)
+	if err != nil {
+		return nil, err
+	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		var err error
 		builder, err = newSchemaBuilder(cfg)
 		if err != nil {
 			return nil, err
@@ -173,13 +188,21 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		}
 	}
 
+	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the check runs whether
+	// or not the schema was just built.
+	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
+		return nil, err
+	}
+
 	success = true
 	f.conn = conn
+	f.hoistedColumns = hoistedColumns
 	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+		HoistedColumns:                f.hoistedColumns,
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
 		AttributeMetadataCacheTTL:     f.config.AttributeMetadataCacheTTL,
