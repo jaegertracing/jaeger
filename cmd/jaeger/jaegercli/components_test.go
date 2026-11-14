@@ -34,7 +34,7 @@ func TestComponents(t *testing.T) {
 	}, keys(factories.Exporters))
 	assert.Equal(t, []string{
 		"adaptive_sampling", "attributes", "batch", "filter",
-		"memory_limiter", "tail_sampling",
+		"memory_limiter", "queue_batch", "tail_sampling",
 	}, keys(factories.Processors))
 	assert.Equal(t, []string{
 		"forward", "jaeger_storage_exporter", "span_metrics", "spanmetrics",

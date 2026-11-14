@@ -264,3 +264,16 @@ jobs:
           -v $PWD/renovate.json:/usr/src/app/renovate.json \
           ghcr.io/renovatebot/renovate:latest \
           renovate-config-validator
+
+    - name: Verify hosted demo dependency discovery
+      run: |
+        docker run --rm \
+          -v "$PWD:/repo" -w /repo \
+          -e LOG_LEVEL=debug -e LOG_FORMAT=json \
+          -e RENOVATE_PLATFORM=local -e RENOVATE_DRY_RUN=extract \
+          -e RENOVATE_ONBOARDING=false -e RENOVATE_REQUIRE_CONFIG=required \
+          -e RENOVATE_ENABLED_MANAGERS=custom.regex,kubernetes,helm-values,pip_requirements \
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
+          ghcr.io/renovatebot/renovate:latest \
+          renovate > /tmp/renovate-extraction.jsonl
+        python3 scripts/demo/check-renovate-extraction.py /tmp/renovate-extraction.jsonl

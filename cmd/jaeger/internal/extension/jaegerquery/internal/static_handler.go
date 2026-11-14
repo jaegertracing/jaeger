@@ -104,7 +104,11 @@ func newStaticAssetsHandler(
 ) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		var err error
+		assetsFS, err = openAssetsFS(qOpts.UIConfig.AssetsPath, logger)
+		if err != nil {
+			return nil, err
+		}
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {

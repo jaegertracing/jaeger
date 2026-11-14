@@ -530,7 +530,8 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.DurationMin = time.Minute
 	tsp.DurationMax = time.Hour
 	err = validateQuery(tsp)
-	require.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
+	require.ErrorIs(t, err, ErrDurationAndTagQueryNotSupported)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 
 	tsp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tsp.StartTimeMax = time.Time{}

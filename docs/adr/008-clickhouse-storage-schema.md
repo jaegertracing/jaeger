@@ -1,7 +1,7 @@
 # ADR-008: ClickHouse Storage Schema
 
 * **Status**: Implemented
-* **Date**: 2026-04-25 (limitations extended 2026-10-08)
+* **Date**: 2026-04-25 (limitations extended 2026-10-08; hoisted attributes added 2026-11-10)
 
 ## Context
 
@@ -142,7 +142,44 @@ The result tells the query builder, for each requested string key, exactly which
 
 If `attribute_metadata` has no entry for a key (newly-seen key, or the materialized view hasn't caught up yet), or if the supplied value can't be parsed as any of the observed types, the builder falls back to "string at every level" — preserving correctness at the cost of a wider scan. The fallback path is in [`query_builder.go`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go), in `buildStringAttributeCondition`.
 
+### Hoisted Attributes
+
+The typed groups make every attribute searchable, at the cost of reading a group's whole key and value arrays for each span. A deployment that searches a few attributes far more often than the rest can list them in `hoisted_attributes` ([RFC 0017 §5.2](../rfc/0017-clickhouse-schema-vs-clickstack.md)). For each entry, identified by level, key and stored type, the `spans` table has a `MATERIALIZED` column that ClickHouse computes from the typed group on insert:
+
+```sql
+input_tokens Nullable(Int64) MATERIALIZED
+    if(has(int_attributes.key, 'gen_ai.usage.input_tokens'),
+       int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')],
+       NULL) CODEC(ZSTD(1))
+```
+
+The typed groups remain the source of truth. The column is a copy: traces are read from the groups, and `attribute_metadata` is filled from them. Only the span and resource levels and the four scalar types can be hoisted.
+
+The column holds one value per span, so hoisting treats the attributes of a level as a map with unique keys, as OTLP requires. If a span carries the same key twice in one typed group, the column holds the first value, and a search for the second value finds that span only while the attribute is not hoisted.
+
+The reader resolves an attribute's type exactly as before, and then, for each level and type it would search, compares the dedicated column when one is configured and the typed group otherwise. A key hoisted at one level or type is still searched in the groups at the others. The condition on the column is `(column IS NOT NULL AND column = ?)`, not a bare equality: a bare equality is `NULL` on a span without the attribute and stays `NULL` under `NOT`, which would drop a span that the array condition keeps.
+
+At startup the backend compares every configured column with `system.columns` and refuses to start on a missing or different column, because a reader that compared a column holding another attribute would return wrong results without an error. It adds the columns only to a table it creates, and it never rewrites existing parts; the operator runs the `ALTER TABLE` and the optional `MATERIALIZE COLUMN` (see the [backend README](../../internal/storage/v2/clickhouse/README.md#hoisted-attributes)).
+
 ---
+
+#### Naming the Hoisted Columns
+
+The operator names each hoisted column, and the columns share the `spans` table with the backend's own. A later release can therefore add a column whose name an operator already gave to a hoisted column. Three ways to name the columns were compared (🟢 good, 🟨 partial, ❌ poor):
+
+| Criterion | No prefix ✅ (chosen) | Required prefix, such as `mat_` | Prefix recommended, not enforced |
+| --- | --- | --- | --- |
+| A name is short in SQL written by hand and in a UI that lists columns | 🟢 | ❌ | 🟨¹ |
+| An upgrade that adds a column cannot collide with a hoisted column | ❌² | 🟢 | 🟨¹ |
+| A collision is reported, not silent | 🟢³ | 🟢 | 🟢³ |
+| The rule can change after a release without breaking a configuration | 🟨⁴ | 🟢 | 🟨⁴ |
+
+- ¹ It holds only for the operators who follow the recommendation.
+- ² The collision needs the operator to have chosen exactly the name of the new column. A name derived from the attribute key, such as `gen_ai_request_model`, is unlikely to be one.
+- ³ The backend compares the configured names with the columns of its table template at startup, refuses to start on a match and names the entry. A test pins the list of columns that this comparison reads from the template.
+- ⁴ A prefix required later would invalidate every configuration written without one.
+
+The columns have no prefix. The first row decided it: the name is typed in every query against the table and shown wherever columns are listed, while a collision needs a specific coincidence, is reported at startup, and is repaired by dropping the hoisted column and adding it under another name, which rewrites that one column. The cost accepted is that such an upgrade does not start until the operator renames the column.
 
 ## Table Schema
 

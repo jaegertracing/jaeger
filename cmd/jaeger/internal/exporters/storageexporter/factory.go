@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
@@ -40,6 +41,11 @@ func createDefaultConfig() component.Config {
 	cfg.Enabled = false
 	return &Config{
 		RetryConfig: cfg,
+		// Default leaves the queue disabled until a queue section is present.
+		// A present section unmarshals onto the exporterhelper defaults, so an
+		// omitted field such as batch.partition keeps idle_timeout and cache_size
+		// instead of the zero value. An omitted batch section stays disabled.
+		QueueConfig: configoptional.Default(exporterhelper.NewDefaultQueueConfig()),
 	}
 }
 

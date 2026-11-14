@@ -41,11 +41,21 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 	return b
 }
 
+// newSpanSearchReaderMock returns a trace reader that declares span search, which tools/list
+// asks about before it offers find_spans.
+func newSpanSearchReaderMock() *tracestoremocks.Reader {
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).
+		Maybe()
+	return reader
+}
+
 // sharedMCPHandler builds the shared telemetry MCP endpoint the query server owns
 // and hands to the gateway — the same server both mounts are served from.
 func sharedMCPHandler(t *testing.T) *mcptools.Handler {
 	t.Helper()
-	return sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), &tracestoremocks.Reader{})
+	return sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), newSpanSearchReaderMock())
 }
 
 func sharedMCPHandlerWithReader(t *testing.T, params mcptools.ServerParams, reader tracestore.Reader) *mcptools.Handler {
@@ -96,7 +106,7 @@ func newTurnMCPFixture(t *testing.T, opts turnMCPOptions) turnMCPFixture {
 
 	reader := opts.reader
 	if reader == nil {
-		reader = &tracestoremocks.Reader{}
+		reader = newSpanSearchReaderMock()
 	}
 	shared := sharedMCPHandlerWithReader(t, mcptools.DefaultServerParams(), reader)
 	h := turnScopedEndpointBuilder{
@@ -137,7 +147,7 @@ func identityFixture(t *testing.T) (f turnMCPFixture, forwarded []headerforwardi
 	t.Helper()
 	forwarded = []headerforwarding.ForwardedHeader{{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"}}
 	calls = make(chan callerSeen, 4)
-	reader := &tracestoremocks.Reader{}
+	reader := newSpanSearchReaderMock()
 	reader.On("GetServices", mock.Anything).Run(func(args mock.Arguments) {
 		ctx := args.Get(0).(context.Context)
 		seen := callerSeen{}

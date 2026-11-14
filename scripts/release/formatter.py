@@ -38,11 +38,15 @@ def replace_version(ui_text, backend_text, doc_text, pattern, ver):
     doc_text = re.sub(pattern, ver, doc_text)
     return ui_text, backend_text, doc_text
 
-def fetch_content(file_name):
-    start_marker = "<!-- BEGIN_CHECKLIST -->"
-    end_marker = "<!-- END_CHECKLIST -->"
+def fetch_content(file_name, name="CHECKLIST"):
+    start_marker = f"<!-- BEGIN_{name} -->"
+    end_marker = f"<!-- END_{name} -->"
     text = extract_section_from_file(file_name, start_marker, end_marker)
     return text
+
+def fetch_backend_list(name):
+    text = fetch_content("RELEASE.md", name)
+    return replace_num(replace_star(text))
 
 def main():
 
@@ -51,12 +55,11 @@ def main():
     loc = sys.argv[3]
 
     try:
-        backend_file_name = "RELEASE.md"
-        backend_section = fetch_content(backend_file_name)
+        backend_section = fetch_backend_list("CHECKLIST")
+        preflight_section = fetch_backend_list("PREFLIGHT")
+        wrapup_section = fetch_backend_list("WRAPUP")
     except Exception as e:
         sys.exit(f"Failed to extract backendSection: {e}")
-    backend_section = replace_star(backend_section)
-    backend_section = replace_num(backend_section)
     try:
         doc_filename = loc
         doc_section = fetch_content(doc_filename)
@@ -75,13 +78,19 @@ def main():
     # Concrete version - replace version patterns with the single version
     version_pattern = r'(?:X\.Y\.Z|[0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.x\.x)'
     ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, version_pattern, version)
+    preflight_section = re.sub(version_pattern, version, preflight_section)
+    wrapup_section = re.sub(version_pattern, version, wrapup_section)
 
+    print("# Preflight")
+    print(preflight_section)
     print("# UI Release")
     print(ui_section)
     print("# Backend Release")
     print(backend_section)
     print("# Doc Release")
     print(doc_section)
+    print("# Wrap-up")
+    print(wrapup_section)
 
 if __name__ == "__main__":
     main()
