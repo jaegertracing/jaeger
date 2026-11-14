@@ -6,7 +6,10 @@ package clickhouse
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
 func TestNewHoistedColumns(t *testing.T) {
@@ -146,4 +149,54 @@ func TestNewHoistedColumns(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewHoistedColumns_SpansTableColumns pins the columns of the spans table that a hoisted
+// column must not take. The names are read from the table template, so a change in the layout
+// of the template that hid a column from that scan would fail here.
+func TestNewHoistedColumns_SpansTableColumns(t *testing.T) {
+	spansColumns := []string{
+		"id",
+		"trace_id",
+		"trace_state",
+		"parent_span_id",
+		"name",
+		"kind",
+		"start_time",
+		"status_code",
+		"status_message",
+		"duration",
+		"bool_attributes",
+		"double_attributes",
+		"int_attributes",
+		"str_attributes",
+		"complex_attributes",
+		"events",
+		"links",
+		"service_name",
+		"resource_bool_attributes",
+		"resource_double_attributes",
+		"resource_int_attributes",
+		"resource_str_attributes",
+		"resource_complex_attributes",
+		"scope_name",
+		"scope_version",
+		"scope_bool_attributes",
+		"scope_double_attributes",
+		"scope_int_attributes",
+		"scope_str_attributes",
+		"scope_complex_attributes",
+	}
+	for _, column := range spansColumns {
+		_, err := newHoistedColumns([]HoistedAttribute{
+			{
+				Key:    "k",
+				Level:  "span",
+				Type:   "string",
+				Column: column,
+			},
+		})
+		require.ErrorContains(t, err, "is already a column of the spans table", column)
+	}
+	assert.Len(t, spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1), len(spansColumns))
 }
