@@ -4,7 +4,7 @@
 package tracestore
 
 import (
-	"strings"
+	"slices"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -91,7 +91,13 @@ func insertSpan(layout AttributeLayout) string {
 			names = append(names, column.name)
 		}
 	}
-	const separator = ",\n        "
-	return "\nINSERT INTO\n    spans (\n        " + strings.Join(names, separator) +
-		"\n    )\nVALUES\n    (\n        ?" + strings.Repeat(separator+"?", len(names)-1) + "\n    )\n"
+	var q sqlBuilder
+	q.WriteString("INSERT INTO spans (")
+	q.appendCommaSeparated(1, names)
+	q.appendNewlineAndIndent(0)
+	q.WriteString(") VALUES (")
+	q.appendCommaSeparated(1, slices.Repeat([]string{"?"}, len(names)))
+	q.appendNewlineAndIndent(0)
+	q.WriteString(")")
+	return q.String()
 }
