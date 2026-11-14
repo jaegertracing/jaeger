@@ -163,6 +163,24 @@ At startup the backend compares every configured column with `system.columns` an
 
 ---
 
+#### Naming the Hoisted Columns
+
+The operator names each hoisted column, and the columns share the `spans` table with the backend's own. A later release can therefore add a column whose name an operator already gave to a hoisted column. Three ways to name the columns were compared (🟢 good, 🟨 partial, ❌ poor):
+
+| Criterion | No prefix ✅ (chosen) | Required prefix, such as `mat_` | Prefix recommended, not enforced |
+| --- | --- | --- | --- |
+| A name is short in SQL written by hand and in a UI that lists columns | 🟢 | ❌ | 🟨¹ |
+| An upgrade that adds a column cannot collide with a hoisted column | ❌² | 🟢 | 🟨¹ |
+| A collision is reported, not silent | 🟢³ | 🟢 | 🟢³ |
+| The rule can change after a release without breaking a configuration | 🟨⁴ | 🟢 | 🟨⁴ |
+
+- ¹ It holds only for the operators who follow the recommendation.
+- ² The collision needs the operator to have chosen exactly the name of the new column. A name derived from the attribute key, such as `gen_ai_request_model`, is unlikely to be one.
+- ³ The backend compares the configured names with the columns of its table template at startup, refuses to start on a match and names the entry. A test pins the list of columns that this comparison reads from the template.
+- ⁴ A prefix required later would invalidate every configuration written without one.
+
+The columns have no prefix. The first row decided it: the name is typed in every query against the table and shown wherever columns are listed, while a collision needs a specific coincidence, is reported at startup, and is repaired by dropping the hoisted column and adding it under another name, which rewrites that one column. The cost accepted is that such an upgrade does not start until the operator renames the column.
+
 ## Table Schema
 
 ### `spans` Table

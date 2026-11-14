@@ -65,8 +65,9 @@ The column is `MATERIALIZED`: ClickHouse computes it from the typed attribute gr
 
 An equality search on a hoisted attribute compares the column instead of scanning the key and value arrays, in both the tag search and the structured filter. The same key at another level or with another type, and every attribute that is not hoisted, is searched as before. The copy costs the storage of a second copy of the value and the CPU to compute it on insert.
 
-Two properties of the column matter to an operator:
+Three properties of the column matter to an operator:
 
+- The column shares the `spans` table with the backend's own columns and has no prefix. If a later release adds a column with the same name, the backend refuses to start and names the entry; the remedy is to remove the hoisted attribute and add it under another name, as described below. A name derived from the attribute key, such as `gen_ai_request_model`, is unlikely to collide.
 - If a span carries the same key twice in one typed group, which OTLP forbids, the column holds the first value, and a search for the second finds the span only when the attribute is not hoisted.
 - The backend creates no index on the column. An operator who wants granule pruning adds a skip index (`bloom_filter`, `minmax`, or another type that suits the values) and materializes it for existing parts.
 
