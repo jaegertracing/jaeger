@@ -47,7 +47,7 @@ func TestWriter_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, conn.RecordedQueries, 1)
-	verifyQuerySnapshot(t, conn.RecordedQueries[0])
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries[0])
 	require.True(t, b.SendCalled)
 	require.Len(t, b.Appended, len(multipleSpans))
 

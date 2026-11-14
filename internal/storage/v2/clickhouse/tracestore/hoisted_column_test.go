@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 )
 
 // TestHoistedColumn_Definition snapshots the column definitions that CREATE TABLE gets, one
@@ -63,5 +64,5 @@ func TestHoistedColumn_Definition(t *testing.T) {
 	for _, column := range columns {
 		definitions = append(definitions, column.Definition())
 	}
-	verifyQuerySnapshot(t, strings.Join(definitions, ",\n"))
+	clickhousetest.VerifyQuerySnapshot(t, strings.Join(definitions, ",\n"))
 }
