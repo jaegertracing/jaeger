@@ -1,7 +1,7 @@
 # Cassandra FindTraceIDs Duration Query Behavior
 
 * **Status**: Documented existing implementation
-* **Date**: 2026-01-03
+* **Date**: 2026-01-03, extended 2026-11-13: the refusal of a duration bound combined with tags is marked unsupported
 
 ## Context
 
@@ -54,7 +54,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 }
 ```
 
-This early return means that when a duration query is detected, **all other query parameters except ServiceName and OperationName are effectively ignored** (tags, for instance, are not processed).
+This early return means that, of the query's predicates other than the time range, a duration query applies only `ServiceName`, `OperationName` and the duration bounds. The tag index is never consulted, so `validateQuery` refuses a query that has both a duration bound and tags before it reaches this path.
 
 The `queryByDuration` method (lines 333-375) iterates over hourly buckets within the query time range and issues a Cassandra query for each bucket:
 
@@ -118,7 +118,7 @@ Badger uses an embedded key-value store where range scans and in-memory filterin
 When a `TraceQueryParameters` contains `DurationMin` or `DurationMax`:
 - The query will use the `duration_index` table exclusively
 - Only `ServiceName` and `OperationName` parameters will be respected (used as partition key components)
-- Tag filters and other parameters will be ignored
+- A query that also has tag filters is refused with `ErrDurationAndTagQueryNotSupported`, which matches `errors.ErrUnsupported` so that the API answers `Unimplemented` / HTTP 501 ([ADR-013](./013-storage-capability-declaration.md))
 - The code will iterate over hourly time buckets within the query time range
 
 This approach is documented in code comments and in this ADR to set proper expectations.
@@ -142,7 +142,7 @@ This approach is documented in code comments and in this ADR to set proper expec
 
 ### Guidance for Users
 
-- **When using Cassandra spanstore**: Be aware that specifying `DurationMin` or `DurationMax` will cause tag filters to be ignored. Validate that `ErrDurationAndTagQueryNotSupported` is returned if both are specified (enforced in `validateQuery` at line 227-229 in reader.go).
+- **When using Cassandra spanstore**: A query that specifies `DurationMin` or `DurationMax` together with tag filters is refused with `ErrDurationAndTagQueryNotSupported` (enforced in `validateQuery` in reader.go).
 
 - **For combined filtering needs**: Consider using the Badger backend, or implement client-side filtering by:
   1. Querying with duration filters to get a candidate set of trace IDs
@@ -166,4 +166,4 @@ This approach is documented in code comments and in this ADR to set proper expec
   - `durationIndex` constant (writer.go line 47-50): CQL insert statement
   - `queryByDuration` constant (reader.go line 51-55): CQL select statement
   - `durationBucketSize` constant (writer.go line 57): Hourly bucketing
-  - Error `ErrDurationAndTagQueryNotSupported` (reader.go line 77): Validation that prevents combining duration and tag queries
+  - Error `ErrDurationAndTagQueryNotSupported` (reader.go): Validation that prevents combining duration and tag queries
