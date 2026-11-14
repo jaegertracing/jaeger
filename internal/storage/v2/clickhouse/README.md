@@ -36,6 +36,23 @@ The `Value` type here actually refers to the `pdata` data types from the `otel-c
 The OTel-contrib implementation uses `database/sql` for writing data. Using the provided generic interface is unnecessary; using the client provided by Clickhouse is a better choice.
 For write operations, `ch-go`'s `chpool` is used in batch mode. For read operations, `clickhouse-go` is used.
 
+### Attribute layout
+
+The `spans` table stores the attributes of each level in typed groups, such as `str_attributes` and `resource_int_attributes`. The `attribute_layout` setting selects the ClickHouse type of every group:
+
+| `attribute_layout` | Type of a group | Equality search |
+| --- | --- | --- |
+| `nested` (default) | `Nested(key String, value T)`, which is two parallel arrays | `arrayExists` over the keys and the values |
+| `map` | `Map(String, T)` | `mapContains(group, key) AND group[key] = value` |
+
+The setting changes how ClickHouse stores and searches the groups, and nothing else. A trace read from a table in either layout is the same, including the order of its attributes, and hoisted attributes work in both. The `map` layout is experimental.
+
+Three properties of the setting matter to an operator:
+
+- The layout belongs to the table. `create_schema` creates a new table in the configured layout and leaves an existing table as it is, and the backend does not convert spans from one layout to the other. At startup the backend reads the layout of the `spans` table and refuses to start when it differs from `attribute_layout`. A deployment that changes the layout therefore creates its tables again, for example in a new database, and the spans of the old tables are not searched from the new ones.
+- Every backend entry that opens the database states the layout. A ClickHouse entry under `metric_backends` reads the same `spans` table and runs the same check, so it needs the same `attribute_layout` as the entry under `backends`.
+- If a span carries the same key twice in one typed group, which OTLP forbids, a search in the `map` layout compares the first value only, and a search in the `nested` layout matches either value. Both layouts store and return both values.
+
 ### Hoisted attributes
 
 A deployment can copy attributes that it searches often into dedicated columns of the `spans` table. The backend calls such an attribute "hoisted". Each entry of `hoisted_attributes` names one attribute by its key, level and stored type, and the column that receives the copy:

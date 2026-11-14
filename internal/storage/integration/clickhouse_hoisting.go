@@ -17,6 +17,10 @@ import (
 // need tables of their own, because the backend never adds a column to an existing table.
 const ClickHouseHoistedDatabase = "jaeger_hoisted"
 
+// ClickHouseMapDatabase is the database of the runs in the map attribute layout, which need
+// tables of their own for the same reason.
+const ClickHouseMapDatabase = "jaeger_map"
+
 // ClickHouseHoistedAttributes hoists a subset of the corpus attributes that the tag and filter
 // searches look for: all four scalar types, a key present at both levels, a key stored with
 // two types, and a key whose only value is zero. The last entry is in no span; its key needs
