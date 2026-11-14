@@ -116,12 +116,31 @@ in GA4 Realtime, then verify the Hostname breakdown after the data is processed.
 A hostname may only become selectable for a saved comparison after GA4 has
 received events for it.
 
-### OpenSearch recovery gate
+### Disposable demo data and deployment verification
 
-The isolated OpenSearch upgrade scope fails closed unless a recent OCI CSI
-volume snapshot has passed an isolated restore test against the exact live
-OpenSearch image. Run the manual `Verify OTel Demo OpenSearch Recovery`
-workflow before an OpenSearch version upgrade. The workflow:
+Both hosted Jaeger demos contain synthetic traces generated continuously by
+the demo applications and load generators. Historical trace data is disposable:
+it may be discarded and regenerated, and preserving it is not a requirement for
+routine maintenance.
+
+The hosted `Deploy Jaeger Demo to OKE` workflow defaults to
+`opensearch_recovery=waive` for scheduled, post-merge, and manual deployments,
+including full-stack upgrades. It skips backup creation and restore testing.
+It does not automatically delete existing data, run `clean`, or change the
+OpenSearch-before-Dashboards rollout order. Health waits, version verification,
+and a fresh trace write/read remain required. Extra cluster capacity solely for
+backup restoration is not a prerequisite for routine demo maintenance.
+
+Standalone deployment scripts retain `required` as their default; explicitly
+set `JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive` when using them with disposable
+data.
+
+### Optional backup and recovery testing
+
+Select `opensearch_recovery=required` only when explicitly choosing to preserve
+existing data. The deployment then requires an isolated restore test against
+the exact live OpenSearch and Jaeger image digests. The manual
+`Verify OTel Demo OpenSearch Recovery` workflow can also run this test. It:
 
 1. verifies that the live volume uses the OCI Block Volume CSI driver;
 2. flushes OpenSearch and creates a retained `VolumeSnapshot`;
@@ -132,11 +151,11 @@ workflow before an OpenSearch version upgrade. The workflow:
    alias mapping, document floors, and representative service and trace queries
    before marking the snapshot tested.
 
-Ingestion remains active, so the flushed provider backup is crash-consistent,
-not application-consistent. The isolated restore test is therefore mandatory.
-The restore pod requests the target OpenSearch memory sizing and must run on a
-different worker from the live OpenSearch pod, so it also proves that current
-cluster capacity can host the recovery test without colocating both databases.
+Ingestion remains active, so the flushed provider backup is crash-consistent.
+An isolated restore test is required before treating that backup as a tested
+recovery point. Its pod requests 1.25 CPU and 6.5 GiB of memory and must run on
+a different worker from live OpenSearch. That capacity is needed only when
+opting into backup/restore verification.
 
 The snapshot and restored PVC are retained deliberately. The workflow removes
 only the exact run-specific disposable restore pod after the test, including on
@@ -148,17 +167,9 @@ instead. See the
 [OpenSearch recovery procedure](./OPENSEARCH_RECOVERY.md) for both intact- and
 replaced-namespace recovery.
 
-If the trace data is disposable, a maintainer may explicitly select
-`opensearch_recovery=waive` for a manual workflow dispatch from `main` whose
-other inputs are exactly `demo_stack=otel`, `deploy_mode=upgrade`, and
-`otel_deploy_scope=opensearch`. No other event, branch, stack, mode, or scope
-accepts the waiver. This skips only the recovery-point check: it does not run
-`clean`, delete data or storage, change the OpenSearch-before-Dashboards rollout
-order, or remove health waits. The waived upgrade has no tested rollback or
-data-recovery path if the existing persistent data becomes unusable.
-
-The waiver does not waive cluster-capacity checks. Confirm sufficient memory
-and disk headroom separately before dispatching the upgrade.
+With `waive`, historical data has no tested recovery path if it becomes
+unusable. Regenerate demo traffic after discarding that data. The live
+OpenSearch workload still needs sufficient memory and disk for normal operation.
 
 ### OpenSearch volume expansion
 

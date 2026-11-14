@@ -63,15 +63,6 @@ validate_options() {
       ;;
   esac
 
-  if [[ "$OPENSEARCH_RECOVERY" == "waive" ]] &&
-    { [[ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ]] ||
-      [[ "${GITHUB_REF:-}" != "refs/heads/main" ]] ||
-      [[ "${JAEGER_DEMO_STACK:-}" != "otel" ]] ||
-      [[ "$MODE" != "upgrade" ]] ||
-      [[ "$DEPLOY_SCOPE" != "opensearch" ]]; }; then
-    echo "Error: OpenSearch recovery may be waived only by a manual isolated otel/upgrade/opensearch run from main" >&2
-    return 1
-  fi
 }
 
 configure_jaeger_helm_command() {
@@ -418,7 +409,7 @@ deploy_opensearch_releases() {
         bash "$SCRIPT_DIR/opensearch-recovery.sh" verify
         ;;
       waive)
-        log "WARNING: OpenSearch recovery was explicitly waived; this upgrade has no tested rollback or data-recovery path"
+        log "Skipping backup/restore verification for disposable demo traces"
         ;;
       *)
         err "Invalid OpenSearch recovery policy '$OPENSEARCH_RECOVERY'"

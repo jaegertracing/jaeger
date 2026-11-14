@@ -5,6 +5,22 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenSearch recovery procedure
 
+## Scope: optional data preservation
+
+The hosted demos contain synthetic traces generated automatically by demo
+applications and load generators. Historical data is disposable and may be
+discarded and regenerated. Routine hosted maintenance uses
+`opensearch_recovery=waive` and verifies healthy services plus a fresh trace
+write/read. It does not create a backup or run this restore test.
+
+Use this procedure only when explicitly choosing to preserve existing data or
+test backup recovery. Select `opensearch_recovery=required` for that deployment,
+or run the manual `Verify OTel Demo OpenSearch Recovery` workflow. The isolated
+test requires a separate worker with at least 1.25 CPU and 6.5 GiB of schedulable
+memory for its pod, in addition to the live demo's resource reservations.
+
+## Backup and isolated restore test
+
 The recovery workflow creates a full OCI Block Volume backup, restores it to a
 new PVC, and tests it with the exact OpenSearch and Jaeger image digests running
 in production. It does not modify the live PVC or expose the restored database

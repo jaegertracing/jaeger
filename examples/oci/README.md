@@ -2,6 +2,17 @@
 
 This guide walks you through deploying **Jaeger** (using the v2 Helm chart), **Prometheus**, and the **HotROD demo app** on Kubernetes.
 
+## Disposable demo data
+
+Both hosted Jaeger demos contain synthetic traces generated continuously by
+the demo applications and load generators. Historical trace data is disposable
+and may be discarded and regenerated. Routine maintenance verifies service
+health and fresh trace ingestion/querying; it does not require preserving old
+traces or running a database restore test. The hosted deployment workflow uses
+`opensearch_recovery=waive` for the OTel demo's OpenSearch storage. Backup/restore
+testing is an explicit opt-in, described in the
+[OTel demo documentation](../otel-demo/README.md#optional-backup-and-recovery-testing).
+
 ## Prerequisites
 
 Ensure the following tools are installed and configured:

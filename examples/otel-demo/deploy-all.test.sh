@@ -104,7 +104,7 @@ testInvalidOpenSearchRecoveryPolicyIsRejected() {
   assertContains "$output" "Invalid OpenSearch recovery policy 'invalid'"
 }
 
-testOpenSearchRecoveryWaiverAcceptsOnlyManualMainIsolatedUpgrade() {
+testOpenSearchRecoveryWaiverAcceptsManualIsolatedUpgrade() {
   output=$(GITHUB_EVENT_NAME=workflow_dispatch \
     GITHUB_REF=refs/heads/main \
     JAEGER_DEMO_STACK=otel \
@@ -117,9 +117,10 @@ testOpenSearchRecoveryWaiverAcceptsOnlyManualMainIsolatedUpgrade() {
   assertEquals "" "$output"
 }
 
-testOpenSearchRecoveryWaiverRejectsOtherRoutes() {
+testDisposableDataWaiverAcceptsAutomaticAndFullUpgradeRoutes() {
   local cases=(
     "schedule|refs/heads/main|otel|upgrade|opensearch"
+    "push|refs/heads/main|otel|upgrade|opensearch"
     "workflow_dispatch|refs/heads/feature|otel|upgrade|opensearch"
     "workflow_dispatch|refs/heads/main|oci|upgrade|opensearch"
     "workflow_dispatch|refs/heads/main|otel|clean|opensearch"
@@ -137,8 +138,8 @@ testOpenSearchRecoveryWaiverRejectsOtherRoutes() {
       bash -c 'source "$1"; MODE="$2"; validate_options' _ "$SCRIPT" "$mode" 2>&1)
     rc=$?
 
-    assertEquals "$values should reject the waiver" 1 $rc
-    assertContains "$output" "OpenSearch recovery may be waived only"
+    assertEquals "$values should accept the explicit disposable-data waiver" 0 $rc
+    assertEquals "" "$output"
   done
 }
 
@@ -532,7 +533,7 @@ testRecoveryWaiverSkipsOnlyRecoveryGate() {
     deploy_opensearch_releases
   ' _ "$SCRIPT")
 
-  assertContains "$output" "WARNING: OpenSearch recovery was explicitly waived"
+  assertContains "$output" "Skipping backup/restore verification for disposable demo traces"
   assertNotContains "$output" "unsafe recovery call"
   assertContains "$output" "helm upgrade --install opensearch opensearch/opensearch"
   assertContains "$output" "wait-for-statefulset opensearch opensearch-cluster-single 600s"

@@ -92,6 +92,16 @@ Storage behavior belongs in the shared `internal/storage/integration` corpus and
 - Do not change CI workflows or release tooling unless explicitly asked.
 - Before adding a flag or field that controls behavior, find the mechanism that already owns that decision and extend it. Expressing one decision in two places is worse than either place alone, and replacing an established mechanism is a maintainer's call.
 
+## Hosted Demo Data
+
+The public demos in `examples/oci` and `examples/otel-demo` contain synthetic
+traces generated continuously by the demo applications and load generators.
+Historical trace data is disposable and may be regenerated. Routine maintenance
+uses `opensearch_recovery=waive`; verify healthy services and a fresh trace
+write/read rather than requiring backup restoration or extra cluster capacity
+to preserve this data. Run backup/restore verification only when explicitly
+requested. See the demo README and `examples/otel-demo/OPENSEARCH_RECOVERY.md`.
+
 ## RFC / ADR Documents
 
 RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.
