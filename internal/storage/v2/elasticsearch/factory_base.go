@@ -273,13 +273,12 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 	return err
 }
 
-// TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	return indices.BuildRotation(
 		f.config.Indices.IndexPrefix,
 		config.SamplingIndexName,
 		f.config.ResolvedSamplingRotation(),
-		nil,
+		f.config.RemoteReadClusters,
 		f.logger,
 	)
 }
