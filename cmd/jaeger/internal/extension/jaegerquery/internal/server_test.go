@@ -785,6 +785,31 @@ func TestServerGracefulExit(t *testing.T) {
 	}
 }
 
+func TestServerGRPCServeError(t *testing.T) {
+	zapCore, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(zapCore), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+		&QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP},
+			},
+		},
+		noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+
+	// Serve returns ErrServerStopped when the server is stopped before it starts.
+	server.grpcServer.Stop()
+	require.NoError(t, server.Start(context.Background()))
+	require.NoError(t, server.Close())
+
+	entries := logs.FilterMessage("Could not start GRPC server").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, grpc.ErrServerStopped.Error(), entries[0].ContextMap()["error"])
+}
+
 func TestServerHandlesPortZero(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
