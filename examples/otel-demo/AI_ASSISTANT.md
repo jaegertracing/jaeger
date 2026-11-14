@@ -127,11 +127,9 @@ token, with a read-only root filesystem and bounded writable volume. It receives
 only Jaeger's tools, including browser navigation tools.
 
 For OKE VCN-native pod networking, Oracle documents a separate Calico policy
-engine alongside the existing CNI. Follow the
-[OKE network-policy procedure](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengsettingupcalico.htm)
-and its Kubernetes-version compatibility table. Installing the policy engine
-affects shared cluster networking and needs its own reviewed rollout. Do not
-enable Goose when the negative connectivity probe still succeeds.
+engine alongside the existing CNI. See the
+[OKE prerequisite](#oke-network-policy-prerequisite) below. Do not enable Goose
+when the negative connectivity probe still succeeds.
 
 The separate chat ingress and its current request, connection, burst, and timeout
 limits are defined in [`ingress-jaeger.yaml`](ingress/ingress-jaeger.yaml).
@@ -153,6 +151,48 @@ The proxy timeouts limit idle connections, not total turn duration. Output and
 turn limits bound ordinary model loops; a canceled request may still incur
 charges for work already submitted to OpenAI. Do not automatically replay a
 partially consumed streamed answer after an error.
+
+## OKE network-policy prerequisite
+
+Goose stays in a separate Deployment so stopping it does not restart Jaeger's
+pod. Its network isolation requires a policy engine; OCI VCN-native networking
+alone does not enforce the declared NetworkPolicy.
+
+1. Check the Kubernetes version, worker OS, and node-pool type. Select a Calico
+   version from Oracle's
+   [tested compatibility table and policy-only procedure](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengsettingupcalico.htm).
+   This procedure retains the OCI CNI. Do not install a replacement CNI or apply
+   the unmodified full Calico networking manifest to the running demo.
+2. Freeze the upstream policy-only manifest to a commit, verify its checksum,
+   and pin its container images by registry digest. Apply Oracle's VCN-specific
+   changes, removing CNI installation init containers and CNI write mounts,
+   disabling address-pool creation, and using the documented OCI interface and
+   packet-filter settings. Preserve both the upstream and prepared manifests.
+3. Inventory existing NetworkPolicies before enforcement starts, since policies
+   previously ignored by the CNI can begin restricting unrelated workloads.
+   Save the current CNI, kube-proxy, ingress, and Jaeger workload configuration
+   in a private backup directory. Validate the prepared manifest with an
+   explicit context:
+
+   ```bash
+   kubectl --context YOUR_OKE_CONTEXT create --dry-run=server -f REVIEWED_POLICY_MANIFEST
+   ```
+
+4. Review the privileged node agents, service accounts, and cluster-wide RBAC
+   before the first installation. Install only the reviewed manifest, then wait
+   for its DaemonSet and controllers. Keep Goose stopped and monitor public
+   Jaeger, HotROD, shop, and OpenSearch Dashboards access throughout the change.
+5. Repeat the allowed/denied pod probes below and verify service discovery,
+   trace search, retrieval, and browser timelines. Oracle notes that existing
+   pods can require recreation after policy-engine installation. Recreate only
+   the workloads that require it, with a maintenance plan; do not restart every
+   demo workload automatically.
+
+Treat policy-engine upgrades as separate cluster operations, independent of
+the Jaeger image refresh. Keep the prepared manifest and image digests with the
+cluster's operational records. If validation fails, keep Goose stopped and
+inspect the node agents and packet-filter state. Deleting CRDs, the OCI CNI,
+the ingress Service, or the load balancer is not an AI rollback procedure.
 
 ## Verify the rollout
 
