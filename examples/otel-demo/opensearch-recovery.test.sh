@@ -293,8 +293,14 @@ testRestoreWaitsJudgeJaegerCrashLoopOnlyOnceOpenSearchIsHealthy() {
     READY_AFTER=3 OPENSEARCH_RECOVERY_TIMEOUT_SECONDS=60 runRestoreWait jaeger)
   assertEquals "polls=3" "$output"
 
-  # A run that started with OpenSearch healthy and still exited will not recover.
+  # The wait records health at 00:00:00Z in whole seconds, so a run that started
+  # in that second may have started before OpenSearch was healthy.
   output=$(RESTORE_POD_JSON=$(restorePodWaiting jaeger-query CrashLoopBackOff 2026-01-01T00:00:00Z) \
+    READY_AFTER=3 OPENSEARCH_RECOVERY_TIMEOUT_SECONDS=60 runRestoreWait jaeger)
+  assertEquals "polls=3" "$output"
+
+  # A run that started after OpenSearch was healthy and still exited will not recover.
+  output=$(RESTORE_POD_JSON=$(restorePodWaiting jaeger-query CrashLoopBackOff 2026-01-01T00:00:01Z) \
     OPENSEARCH_RECOVERY_TIMEOUT_SECONDS=60 runRestoreWait jaeger)
   rc=$?
   assertNotEquals 0 "$rc"
@@ -356,7 +362,8 @@ testRestoreWaitTimeoutReportsLastErrorAndTermination() {
     "lastState": {"terminated": {"reason": "OOMKilled", "exitCode": 137}}
   }, {
     "name": "jaeger-query",
-    "state": {"terminated": {"reason": "Error", "exitCode": 2, "message": "no OpenSearch"}}
+    "state": {"terminated": {"reason": "Error", "exitCode": 2, "message": "no OpenSearch"}},
+    "lastState": {"terminated": {"reason": "Completed", "exitCode": 0, "message": "previous run"}}
   }]}}'
 
   for wait in pvc opensearch jaeger; do
@@ -379,6 +386,8 @@ testRestoreWaitTimeoutReportsLastErrorAndTermination() {
       "Container opensearch last terminated: reason=OOMKilled, exit code=137, message=none"
     assertContains "$wait" "$diagnostics" \
       "Container jaeger-query last terminated: reason=Error, exit code=2, message=no OpenSearch"
+    # A container that exited again reports that newest exit, not the run before.
+    assertNotContains "$wait" "$diagnostics" "previous run"
     # Every container line carries its own timestamp.
     assertContains "$wait" "$diagnostics" "UTC] Container opensearch last terminated"
     assertContains "$wait" "$diagnostics" "UTC] Container jaeger-query last terminated"

@@ -154,6 +154,8 @@ restore_pod_json() {
 # phase cannot tell, because restartPolicy is OnFailure. jaeger-query exits
 # until OpenSearch answers, so its crash loop only counts for a container that
 # was started after jaeger_ready_since, the time OpenSearch was known healthy.
+# Both times are whole seconds, so a start in the same second may have preceded
+# health and is not counted; if that run fails anyway, the next one is.
 restore_pod_blocker() {
   local pod_json=$1
   local jaeger_ready_since=${2:-null}
@@ -174,7 +176,7 @@ restore_pod_blocker() {
             or ($reason == "CrashLoopBackOff" and (
               .name != "jaeger-query"
               or ($jaeger_ready_since != null
-                and (.lastState.terminated.startedAt // empty | fromdateiso8601) >= $jaeger_ready_since))))
+                and (.lastState.terminated.startedAt // empty | fromdateiso8601) > $jaeger_ready_since))))
         | "container \(.name) is waiting in \($reason) (\(.state.waiting.message // "no message"))")
     ]
     | join("; ")
@@ -185,6 +187,7 @@ restore_pod_blocker() {
 # wait must call this before it exits, because the EXIT trap deletes the pod.
 # The termination message carries the container's final log lines, because
 # render_restore_pod sets terminationMessagePolicy: FallbackToLogsOnError.
+# A terminated current state is the newest exit; lastState is the run before it.
 report_restore_pod_failure() {
   local last_error=$1
   local pod_json=$2
@@ -194,7 +197,7 @@ report_restore_pod_failure() {
   [[ -z "$last_error" ]] || log "Last request error: $last_error" >&2
   terminations=$(jq -r '
     .status.containerStatuses[]?
-    | (.lastState.terminated // .state.terminated) as $terminated
+    | (.state.terminated // .lastState.terminated) as $terminated
     | select($terminated != null)
     | "Container \(.name) last terminated: reason=\($terminated.reason // "unknown"), exit code=\($terminated.exitCode), message=\($terminated.message // "none")"
   ' 2>/dev/null <<<"$pod_json" || true)
