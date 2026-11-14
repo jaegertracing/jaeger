@@ -188,28 +188,24 @@ func TestForfeit(t *testing.T) {
 	testCases := []struct {
 		caption        string
 		applied        bool
-		retVals        []string
 		errScan        error
 		expectedErrMsg string
 	}{
 		{
 			caption:        "cassandra error",
 			applied:        false,
-			retVals:        []string{"", ""},
 			errScan:        errors.New("Failed to delete lock"),
 			expectedErrMsg: "failed to forfeit resource lock due to cassandra error: Failed to delete lock",
 		},
 		{
 			caption:        "successfully forfeited lock",
 			applied:        true,
-			retVals:        []string{samplingLock, localhost},
 			errScan:        nil,
 			expectedErrMsg: "",
 		},
 		{
 			caption:        "failed to delete lock",
 			applied:        false,
-			retVals:        []string{samplingLock, "otherhost"},
 			errScan:        nil,
 			expectedErrMsg: "failed to forfeit resource lock: this host does not own the resource lock",
 		},
@@ -219,7 +215,9 @@ func TestForfeit(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
 				query := &mocks.Query{}
-				query.On("ScanCAS", mock.Anything).Return(testCase.applied, testCase.errScan)
+				query.On("ScanCAS", mock.MatchedBy(func(dest []any) bool {
+					return len(dest) == 1
+				})).Return(testCase.applied, testCase.errScan)
 
 				s.session.On("Query", mock.AnythingOfType("string"), []any{samplingLock, localhost}).Return(query)
 				applied, err := s.lock.Forfeit(samplingLock)

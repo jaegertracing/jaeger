@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
 
@@ -138,23 +139,37 @@ func TestCassandraDistributedLock(t *testing.T) {
 		require.True(t, acquired)
 	})
 
-	t.Run("renewal and expiry", func(t *testing.T) {
+	t.Run("renewal", func(t *testing.T) {
 		resource := uuid.NewString()
 		acquired, err := first.Acquire(resource, time.Minute)
 		require.NoError(t, err)
 		require.True(t, acquired)
 
-		// Renew with a shorter TTL so the handoff can only succeed if Cassandra applied the renewal.
-		acquired, err = first.Acquire(resource, 3*time.Second)
+		acquired, err = first.Acquire(resource, 5*time.Minute)
 		require.NoError(t, err)
 		require.True(t, acquired)
+
+		rows := session.Query("SELECT TTL(owner) FROM leases WHERE name = ?", resource).Iter()
+		var ttlSeconds int
+		found := rows.Scan(&ttlSeconds)
+		require.NoError(t, rows.Close())
+		require.True(t, found)
+		require.Greater(t, ttlSeconds, 60)
 		acquired, err = second.Acquire(resource, time.Minute)
 		require.NoError(t, err)
 		require.False(t, acquired)
+	})
 
-		require.Eventually(t, func() bool {
+	t.Run("expiry", func(t *testing.T) {
+		resource := uuid.NewString()
+		acquired, err := first.Acquire(resource, 2*time.Second)
+		require.NoError(t, err)
+		require.True(t, acquired)
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			acquired, err := second.Acquire(resource, time.Minute)
-			return err == nil && acquired
+			assert.NoError(c, err)
+			assert.True(c, acquired)
 		}, 20*time.Second, 250*time.Millisecond)
 	})
 }
