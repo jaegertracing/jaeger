@@ -37,9 +37,11 @@ pairs fail. Direct script callers can select a scope through
 
 For the initial catch-up, review and merge the paired OpenSearch/Dashboards 3.9.0
 Renovate update first. Keep other component updates separate. Major database
-changes require a tested migration in their reviewed change. Existing missing or
-failed OCI monitoring releases must be repaired under #10002; an upgrade reports
-that failure instead of skipping monitoring and reporting success.
+changes require a tested migration in their reviewed change. Existing missing
+OCI monitoring releases and pending Helm operations must be repaired under
+#10002; an upgrade reports that failure instead of skipping monitoring and
+reporting success. A `failed` monitoring release is upgraded in place by the
+next reconciliation or `monitoring`-scope run.
 
 Run the maintenance tests through `scripts/utils/run-tests.sh`, alongside the
 repository-required formatting, lint, and test targets. To inspect discovery

@@ -15,6 +15,9 @@ prometheus:
 
 
 grafana:
+  # Allow index creation and plugin installation to finish before liveness checks.
+  livenessProbe:
+    initialDelaySeconds: 600
   grafana.ini:
     server:
       domain: demo.jaegertracing.io

@@ -98,10 +98,17 @@ if [[ "$MODE" == "upgrade" ]]; then
   fi
   if deploy_monitoring; then
     PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
-    if [[ "$PROMETHEUS_RELEASE_STATUS" != "deployed" ]]; then
-      echo "Prometheus is not deployed (status: ${PROMETHEUS_RELEASE_STATUS:-missing}); repair it separately before upgrading" >&2
-      exit 1
-    fi
+    # Unlike Jaeger, a failed Prometheus release is upgraded in place instead of
+    # being reinstalled: its pods usually recover after the readiness timeout
+    # that failed the release, and an upgrade leaves them running. Helm refuses
+    # to upgrade while another operation is pending.
+    case "$PROMETHEUS_RELEASE_STATUS" in
+      deployed|failed) ;;
+      *)
+        echo "Prometheus cannot be upgraded (status: ${PROMETHEUS_RELEASE_STATUS:-missing}); repair it separately before upgrading" >&2
+        exit 1
+        ;;
+    esac
   fi
   HELM_JAEGER_CMD="upgrade --install --wait --atomic"
   HELM_PROM_CMD="upgrade --install --wait"
@@ -176,7 +183,7 @@ if deploy_monitoring; then
   helm repo update prometheus-community
   echo "🟢 Deploying Prometheus..."
   kubectl apply -f prometheus-svc.yaml
-  helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
+  helm $HELM_PROM_CMD --timeout 20m0s prometheus "$PROMETHEUS_STACK_CHART" \
     --version "$PROMETHEUS_STACK_CHART_VERSION" \
     --set crds.upgradeJob.enabled=true \
     --set crds.upgradeJob.forceConflicts=true \
