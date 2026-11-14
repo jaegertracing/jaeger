@@ -4,18 +4,18 @@
 package tracestore
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
-
-var _ AttributeLayout = NestedLayout{}
 
 // NestedLayout stores an attribute group as Nested(key String, value T), which is two
 // parallel arrays.
 type NestedLayout struct{}
 
-func (NestedLayout) insertSpanSQL() string {
-	return sql.InsertSpanNestedLayout
+var _ AttributeLayout = NestedLayout{}
+
+func (NestedLayout) columnNames(group string) []string {
+	return []string{group + ".key", group + ".value"}
 }
 
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
@@ -41,6 +41,37 @@ func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes
 		toTuple(attributes.StrKeys, attributes.StrValues),
 		toTuple(attributes.ComplexKeys, attributes.ComplexValues),
 	)
+}
+
+func (NestedLayout) Keys(group string) string {
+	return group + ".key"
+}
+
+func (NestedLayout) values(group string) string {
+	return group + ".value"
+}
+
+func (NestedLayout) Keys2D(group string) string {
+	return group + ".key"
+}
+
+func (NestedLayout) values2D(group string) string {
+	return group + ".value"
+}
+
+// appendEquals searches the two arrays of the group for an entry with the key and the value,
+// so it matches any value of a key that a span carries more than once.
+func (NestedLayout) appendEquals(q *sqlBuilder, args []any, level expression.Level, tav typedAttributeValue) []any {
+	if prefix, nested := levelColumns(level); nested {
+		// Events and links are arrays inside the span row, so the condition searches the
+		// attributes of every item.
+		columnType := attributeColumnType(tav.valueType)
+		q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + columnType + "_attributes.key, x." + columnType + "_attributes.value), s." + prefix + ")")
+	} else {
+		group := attributeGroup(level, tav.valueType)
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + group + ".key, s." + group + ".value)")
+	}
+	return append(args, tav.key, tav.value)
 }
 
 func toTuple[T any](keys [][]string, values [][]T) [][][]any {

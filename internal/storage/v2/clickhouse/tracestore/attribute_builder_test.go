@@ -59,7 +59,7 @@ func newHoistedColumnReader() *Reader {
 // nestedSelectSpans and nestedSelectSpansByTraceID are the statements that read spans from
 // a table in the nested layout, which the test driver matches its responses by.
 var (
-	nestedSelectSpans          = AttributeLayoutNested.selectSpans()
+	nestedSelectSpans          = selectSpans(NestedLayout{})
 	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
 )
 
@@ -139,7 +139,7 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 		},
 		{
 			name:   "map layout span attribute",
-			layout: AttributeLayoutMap,
+			layout: MapLayout{},
 			level:  expression.LevelSpan,
 			tav: typedAttributeValue{
 				key:       "model",
@@ -150,7 +150,7 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 		},
 		{
 			name:   "map layout resource attribute",
-			layout: AttributeLayoutMap,
+			layout: MapLayout{},
 			level:  expression.LevelResource,
 			tav: typedAttributeValue{
 				key:       "shard",
@@ -161,7 +161,7 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 		},
 		{
 			name:   "map layout link attribute",
-			layout: AttributeLayoutMap,
+			layout: MapLayout{},
 			level:  expression.LevelLink,
 			tav: typedAttributeValue{
 				key:       "retry",
@@ -172,7 +172,7 @@ func TestAttributeBuilder_AppendEquals(t *testing.T) {
 		},
 		{
 			name:           "map layout hoisted span attribute",
-			layout:         AttributeLayoutMap,
+			layout:         MapLayout{},
 			hoistedColumns: testHoistedColumns,
 			level:          expression.LevelSpan,
 			tav: typedAttributeValue{
