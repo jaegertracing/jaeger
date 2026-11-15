@@ -5,7 +5,9 @@ package sql
 
 import _ "embed"
 
-const InsertSpan = `
+// InsertSpanNestedLayout inserts a span into a spans table in the Nested attribute layout, where
+// an attribute group is a pair of parallel key and value columns.
+const InsertSpanNestedLayout = `
 INSERT INTO
     spans (
         id,
@@ -130,7 +132,7 @@ VALUES
     )
 `
 
-// InsertSpanMapLayout is InsertSpan for a spans table in the Map attribute layout, where an
+// InsertSpanMapLayout inserts a span into a spans table in the Map attribute layout, where an
 // attribute group of a span, a resource or a scope is one column.
 const InsertSpanMapLayout = `
 INSERT INTO

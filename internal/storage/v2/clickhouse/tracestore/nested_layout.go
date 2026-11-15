@@ -15,7 +15,7 @@ type NestedLayout struct{}
 var _ AttributeLayout = NestedLayout{}
 
 func (NestedLayout) insertSpanSQL() string {
-	return sql.InsertSpan
+	return sql.InsertSpanNestedLayout
 }
 
 func (NestedLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {
