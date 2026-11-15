@@ -15,28 +15,24 @@
 # generated from "goose info -v" and not checked in, because each Goose version
 # has its own extension list and a fixed list would leave a new extension
 # enabled.
+#
+# The script owns the Goose config file. It is written for a container that
+# brings no config file of its own and configures Goose through environment
+# variables, so it writes the file at the default path under the home directory
+# and replaces it on every start.
 set -eu
 
-# The report is captured before the config file is opened for writing, so that
-# Goose reads the settings of an existing file before the file is truncated.
+config="$HOME/.config/goose/config.yaml"
 report=$(goose info -v)
-config=$(printf '%s\n' "$report" | sed -n 's/^Config yaml: *\(.*\/config\.yaml\).*/\1/p')
-if [ -z "$config" ]; then
-  echo "FAIL: \"goose info -v\" did not report the path of the Goose config file" >&2
-  exit 1
-fi
 mkdir -p "$(dirname "$config")"
-# Only the entries under "extensions" are changed, because other sections of
-# the configuration, such as providers, have "enabled" settings of their own.
 printf '%s\n' "$report" \
   | sed -n '/^goose Configuration:/,$p' \
-  | sed '1d; s/^  //' \
-  | sed '/^extensions:/,/^[^ ]/ s/^\(    enabled:\) true$/\1 false/' \
+  | sed '1d; s/^  //; s/enabled: true/enabled: false/' \
   > "$config"
 # The check asks Goose again, so that it covers the configuration Goose loads
 # and not only the file written above.
-loaded=$(goose info -v | sed -n '/^  extensions:/,/^  [^ ]/p')
-if ! printf '%s\n' "$loaded" | grep -q '^      enabled: false$' || printf '%s\n' "$loaded" | grep -q '^      enabled: true$'; then
+loaded=$(goose info -v)
+if ! printf '%s\n' "$loaded" | grep -q "enabled: false" || printf '%s\n' "$loaded" | grep -q "enabled: true"; then
   echo "FAIL: Goose does not report every bundled extension as disabled:" >&2
   printf '%s\n' "$loaded" >&2
   exit 1
