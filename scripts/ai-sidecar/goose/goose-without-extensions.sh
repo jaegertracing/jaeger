@@ -26,14 +26,17 @@ if [ -z "$config" ]; then
   exit 1
 fi
 mkdir -p "$(dirname "$config")"
+# Only the entries under "extensions" are changed, because other sections of
+# the configuration, such as providers, have "enabled" settings of their own.
 printf '%s\n' "$report" \
   | sed -n '/^goose Configuration:/,$p' \
-  | sed '1d; s/^  //; s/enabled: true/enabled: false/' \
+  | sed '1d; s/^  //' \
+  | sed '/^extensions:/,/^[^ ]/ s/^\(    enabled:\) true$/\1 false/' \
   > "$config"
 # The check asks Goose again, so that it covers the configuration Goose loads
 # and not only the file written above.
-loaded=$(goose info -v)
-if ! printf '%s\n' "$loaded" | grep -q "enabled: false" || printf '%s\n' "$loaded" | grep -q "enabled: true"; then
+loaded=$(goose info -v | sed -n '/^  extensions:/,/^  [^ ]/p')
+if ! printf '%s\n' "$loaded" | grep -q '^      enabled: false$' || printf '%s\n' "$loaded" | grep -q '^      enabled: true$'; then
   echo "FAIL: Goose does not report every bundled extension as disabled:" >&2
   printf '%s\n' "$loaded" >&2
   exit 1
