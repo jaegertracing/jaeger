@@ -1,4 +1,4 @@
--- hoisted span attribute "model" of type Str
+-- span attribute "model" of type Str, hoisted into the column model_column
 (s.`model_column` IS NOT NULL AND s.`model_column` = ?) -- binds [x]
 -- span attribute "model" of type Int
 arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value) -- binds [model 1]
@@ -12,7 +12,7 @@ arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool
 arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value) -- binds [model x]
 -- resource attribute "model" of type Int
 arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value) -- binds [model 1]
--- hoisted resource attribute "shard" of type Int
+-- resource attribute "shard" of type Int, hoisted into the column shard_column
 (s.`shard_column` IS NOT NULL AND s.`shard_column` >= ?) -- binds [0]
 -- resource attribute "ratio" of type Double
 arrayExists((key, value) -> key = ? AND value < ?, s.resource_double_attributes.key, s.resource_double_attributes.value) -- binds [ratio 0.5]

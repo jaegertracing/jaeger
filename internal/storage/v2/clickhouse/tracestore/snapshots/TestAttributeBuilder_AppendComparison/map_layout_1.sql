@@ -1,4 +1,4 @@
--- hoisted span attribute "model" of type Str
+-- span attribute "model" of type Str, hoisted into the column model_column
 (s.`model_column` IS NOT NULL AND s.`model_column` = ?) -- binds [x]
 -- span attribute "model" of type Int
 (mapContains(s.int_attributes, ?) AND s.int_attributes[?] = ?) -- binds [model model 1]
@@ -12,7 +12,7 @@
 (mapContains(s.resource_str_attributes, ?) AND s.resource_str_attributes[?] = ?) -- binds [model model x]
 -- resource attribute "model" of type Int
 (mapContains(s.resource_int_attributes, ?) AND s.resource_int_attributes[?] = ?) -- binds [model model 1]
--- hoisted resource attribute "shard" of type Int
+-- resource attribute "shard" of type Int, hoisted into the column shard_column
 (s.`shard_column` IS NOT NULL AND s.`shard_column` >= ?) -- binds [0]
 -- resource attribute "ratio" of type Double
 (mapContains(s.resource_double_attributes, ?) AND s.resource_double_attributes[?] < ?) -- binds [ratio ratio 0.5]
