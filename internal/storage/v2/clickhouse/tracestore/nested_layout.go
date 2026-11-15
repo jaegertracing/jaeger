@@ -21,20 +21,12 @@ func (NestedLayout) Name() string {
 	return "nested"
 }
 
-func (NestedLayout) Declares(columnType string) bool {
-	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
-}
-
-func (NestedLayout) ColumnTypeFn(valueType AttributeValueType) string {
+func (NestedLayout) ColumnTypeSQL(valueType AttributeValueType) string {
 	return "Nested (key String, value " + string(valueType) + ")"
 }
 
-func (NestedLayout) KeysFn(group AttributeGroup) string {
-	return string(group) + ".key"
-}
-
-func (NestedLayout) Keys2DFn(group AttributeGroup) string {
-	return string(group) + ".key"
+func (NestedLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
 }
 
 func (NestedLayout) insertSpanSQL() string {
@@ -43,6 +35,14 @@ func (NestedLayout) insertSpanSQL() string {
 
 func (NestedLayout) selectSpansSQL() string {
 	return sql.SelectSpansNestedLayout
+}
+
+func (NestedLayout) KeysSQL(group AttributeGroup) string {
+	return string(group) + ".key"
+}
+
+func (NestedLayout) Keys2DSQL(group AttributeGroup) string {
+	return string(group) + ".key"
 }
 
 func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
@@ -61,7 +61,7 @@ func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression
 		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
 		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + prefix + ")")
 	} else {
-		group := "s." + attributeGroup(level, tav.valueType)
+		group := "s." + string(attributeGroup(level, tav.valueType))
 		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
 	}
 	return append(args, tav.key, tav.value)

@@ -84,12 +84,12 @@ func levelColumns(level expression.Level) (prefix string, nested bool) {
 
 // attributeGroup names the column group that stores the attributes of valueType at a level
 // whose attributes are columns of the span row: span, resource or scope.
-func attributeGroup(level expression.Level, valueType pcommon.ValueType) string {
+func attributeGroup(level expression.Level, valueType pcommon.ValueType) AttributeGroup {
 	prefix, _ := levelColumns(level)
 	if prefix != "" {
 		prefix += "_"
 	}
-	return prefix + attributeColumnType(valueType) + "_attributes"
+	return AttributeGroup(prefix + attributeColumnType(valueType) + "_attributes")
 }
 
 // appendComparison writes to q the condition that an attribute of the given level has the

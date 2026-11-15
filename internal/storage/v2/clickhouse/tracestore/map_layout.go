@@ -20,20 +20,12 @@ func (MapLayout) Name() string {
 	return "map"
 }
 
-func (MapLayout) Declares(columnType string) bool {
-	return strings.HasPrefix(columnType, "Map(")
-}
-
-func (MapLayout) ColumnTypeFn(valueType AttributeValueType) string {
+func (MapLayout) ColumnTypeSQL(valueType AttributeValueType) string {
 	return "Map(String, " + string(valueType) + ")"
 }
 
-func (MapLayout) KeysFn(group AttributeGroup) string {
-	return "mapKeys(" + string(group) + ")"
-}
-
-func (MapLayout) Keys2DFn(group AttributeGroup) string {
-	return "arrayMap(m -> mapKeys(m), " + string(group) + ")"
+func (MapLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Map(")
 }
 
 func (MapLayout) insertSpanSQL() string {
@@ -42,6 +34,14 @@ func (MapLayout) insertSpanSQL() string {
 
 func (MapLayout) selectSpansSQL() string {
 	return sql.SelectSpansMapLayout
+}
+
+func (MapLayout) KeysSQL(group AttributeGroup) string {
+	return "mapKeys(" + string(group) + ")"
+}
+
+func (MapLayout) Keys2DSQL(group AttributeGroup) string {
+	return "arrayMap(m -> mapKeys(m), " + string(group) + ")"
 }
 
 func (MapLayout) valueSQL(group AttributeGroup, key string) string {
@@ -62,7 +62,7 @@ func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Le
 		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
 		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + prefix + ")")
 	} else {
-		group := "s." + attributeGroup(level, tav.valueType)
+		group := "s." + string(attributeGroup(level, tav.valueType))
 		q.WriteString("(mapContains(" + group + ", ?) AND " + group + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)

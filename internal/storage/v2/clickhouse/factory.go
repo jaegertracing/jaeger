@@ -45,8 +45,35 @@ type schemaTemplateParams struct {
 	AggregatingMergeTree string
 	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
 	HoistedColumns []string
-	// Layout is the layout of the typed attribute groups of the spans table.
-	Layout chtracestore.AttributeLayout
+	// layout is the layout of the typed attribute groups of the spans table. The templates
+	// reach it through the methods below.
+	layout chtracestore.AttributeLayout
+}
+
+// ColumnTypeFn is the template function that renders the type of an attribute group column.
+func (p schemaTemplateParams) ColumnTypeFn(valueType chtracestore.AttributeValueType) (string, error) {
+	if !valueType.Valid() {
+		return "", fmt.Errorf("%q is not a value type of an attribute group", valueType)
+	}
+	return p.layout.ColumnTypeSQL(valueType), nil
+}
+
+// KeysFn is the template function that renders the keys of a group of a span, a resource or
+// a scope.
+func (p schemaTemplateParams) KeysFn(group chtracestore.AttributeGroup) (string, error) {
+	if !group.Valid() {
+		return "", fmt.Errorf("%q is not an attribute group", group)
+	}
+	return p.layout.KeysSQL(group), nil
+}
+
+// Keys2DFn is the template function that renders the keys of a group of the events or of
+// the links.
+func (p schemaTemplateParams) Keys2DFn(group chtracestore.AttributeGroup) (string, error) {
+	if !group.Valid() {
+		return "", fmt.Errorf("%q is not an attribute group", group)
+	}
+	return p.layout.Keys2DSQL(group), nil
 }
 
 type schemaStatement struct {
@@ -74,7 +101,7 @@ func newSchemaBuilder(
 		return nil, err
 	}
 	params := schemaTemplateParams{
-		Layout:               layout,
+		layout:               layout,
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
