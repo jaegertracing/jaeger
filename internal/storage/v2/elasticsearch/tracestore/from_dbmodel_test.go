@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/ptracetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -445,28 +446,31 @@ func TestDbSpanToSpan(t *testing.T) {
 		mod(&s)
 		return s
 	}
+	baseWant := func() ptrace.Span {
+		span := ptrace.NewSpan()
+		span.SetTraceID(pcommon.TraceID(traceID))
+		span.SetSpanID(pcommon.SpanID(spanID))
+		span.SetName("test-operation")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(durationMicros * time.Microsecond)))
+		span.SetFlags(1)
+		return span
+	}
+	wantSpan := func(mod func(ptrace.Span)) ptrace.Span {
+		span := baseWant()
+		mod(span)
+		return span
+	}
 
 	tests := []struct {
-		name       string
-		wantKind   ptrace.SpanKind
-		dbSpan     dbmodel.Span
-		assertSpan func(t *testing.T, span ptrace.Span)
+		name   string
+		dbSpan dbmodel.Span
+		want   ptrace.Span
 	}{
 		{
 			name:   "span with no tags",
 			dbSpan: baseSpan(),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, pcommon.TraceID(traceID), span.TraceID())
-				assert.Equal(t, pcommon.SpanID(spanID), span.SpanID())
-				assert.Equal(t, "test-operation", span.Name())
-				assert.Equal(t, uint32(1), span.Flags())
-				assert.Equal(t, startTime, span.StartTimestamp().AsTime())
-				assert.Equal(t, startTime.Add(durationMicros*time.Microsecond), span.EndTimestamp().AsTime())
-				assert.Equal(t, ptrace.StatusCodeUnset, span.Status().Code())
-				assert.Empty(t, span.Status().Message())
-				assert.Empty(t, span.TraceState().AsRaw())
-				assert.Equal(t, 0, span.Attributes().Len())
-			},
+			want:   baseWant(),
 		},
 		{
 			name: "span with only non-special tags",
@@ -478,14 +482,12 @@ func TestDbSpanToSpan(t *testing.T) {
 					{Key: "double-key", Type: dbmodel.Float64Type, Value: 3.14},
 				}
 			}),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, map[string]any{
-					"string-key": "string-value",
-					"int-key":    int64(42),
-					"bool-key":   true,
-					"double-key": 3.14,
-				}, span.Attributes().AsRaw())
-			},
+			want: wantSpan(func(span ptrace.Span) {
+				span.Attributes().PutStr("string-key", "string-value")
+				span.Attributes().PutInt("int-key", 42)
+				span.Attributes().PutBool("bool-key", true)
+				span.Attributes().PutDouble("double-key", 3.14)
+			}),
 		},
 		{
 			name: "span with lowercase otel status code tag",
@@ -494,35 +496,30 @@ func TestDbSpanToSpan(t *testing.T) {
 					{Key: conventions.OtelStatusCode, Type: dbmodel.StringType, Value: "error"},
 				}
 			}),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, ptrace.StatusCodeError, span.Status().Code())
-				assert.Empty(t, span.Status().Message())
-				assert.Equal(t, 0, span.Attributes().Len())
-			},
+			want: wantSpan(func(span ptrace.Span) {
+				span.Status().SetCode(ptrace.StatusCodeError)
+			}),
 		},
 		{
-			name:     "span with client kind",
-			wantKind: ptrace.SpanKindClient,
-			dbSpan:   withSpanKind("client"),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, 0, span.Attributes().Len())
-			},
+			name:   "span with client kind",
+			dbSpan: withSpanKind("client"),
+			want: wantSpan(func(span ptrace.Span) {
+				span.SetKind(ptrace.SpanKindClient)
+			}),
 		},
 		{
-			name:     "span with server kind",
-			wantKind: ptrace.SpanKindServer,
-			dbSpan:   withSpanKind("server"),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, 0, span.Attributes().Len())
-			},
+			name:   "span with server kind",
+			dbSpan: withSpanKind("server"),
+			want: wantSpan(func(span ptrace.Span) {
+				span.SetKind(ptrace.SpanKindServer)
+			}),
 		},
 		{
-			name:     "span with unspecified kind",
-			wantKind: ptrace.SpanKindUnspecified,
-			dbSpan:   withSpanKind("unknown"),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				assert.Equal(t, 0, span.Attributes().Len())
-			},
+			name:   "span with unspecified kind",
+			dbSpan: withSpanKind("unknown"),
+			want: wantSpan(func(span ptrace.Span) {
+				span.SetKind(ptrace.SpanKindUnspecified)
+			}),
 		},
 		{
 			name: "span with logs and references",
@@ -540,23 +537,21 @@ func TestDbSpanToSpan(t *testing.T) {
 					SpanID:  getDbSpanIdFromByteArray(otherSpanID),
 				}}
 			}),
-			assertSpan: func(t *testing.T, span ptrace.Span) {
-				require.Equal(t, 1, span.Events().Len())
-				event := span.Events().At(0)
-				assert.Equal(t, eventTime, event.Timestamp().AsTime())
-				assert.Equal(t, "log-event", event.Name())
-				assert.Equal(t, map[string]any{"log-key": "log-value"}, event.Attributes().AsRaw())
+			want: wantSpan(func(span ptrace.Span) {
+				event := span.Events().AppendEmpty()
+				event.SetTimestamp(pcommon.NewTimestampFromTime(eventTime))
+				event.SetName("log-event")
+				event.Attributes().PutStr("log-key", "log-value")
 
-				require.Equal(t, 1, span.Links().Len())
-				link := span.Links().At(0)
-				assert.Equal(t, pcommon.TraceID(otherTraceID), link.TraceID())
-				assert.Equal(t, pcommon.SpanID(otherSpanID), link.SpanID())
-				refType, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
-				require.True(t, ok)
-				assert.Equal(t, conventions.AttributeOpentracingRefTypeFollowsFrom, refType.Str())
-				// a cross-trace reference does not become the parent
-				assert.True(t, span.ParentSpanID().IsEmpty())
-			},
+				// a cross-trace reference becomes a link, not the parent span
+				link := span.Links().AppendEmpty()
+				link.SetTraceID(pcommon.TraceID(otherTraceID))
+				link.SetSpanID(pcommon.SpanID(otherSpanID))
+				link.Attributes().PutStr(
+					conventions.AttributeOpentracingRefType,
+					conventions.AttributeOpentracingRefTypeFollowsFrom,
+				)
+			}),
 		},
 	}
 
@@ -564,11 +559,9 @@ func TestDbSpanToSpan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
 			require.NoError(t, dbSpanToSpan(&tt.dbSpan, span))
-			assert.Equal(t, tt.wantKind, span.Kind())
-			// the span kind tag is converted into the span field and removed
-			_, exists := span.Attributes().Get(model.SpanKindKey)
-			assert.False(t, exists, "span kind attribute should be removed")
-			tt.assertSpan(t, span)
+			require.NoError(t, ptracetest.CompareSpan(tt.want, span), "converted span does not match the expected span")
+			// CompareSpan does not look at the flags field, so pin it explicitly.
+			assert.Equal(t, tt.want.Flags(), span.Flags())
 		})
 	}
 }
