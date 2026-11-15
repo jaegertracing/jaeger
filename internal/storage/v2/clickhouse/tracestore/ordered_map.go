@@ -7,8 +7,8 @@ import "github.com/ClickHouse/clickhouse-go/v2/lib/column"
 
 var _ column.IterableOrderedMap = orderedMap[string]{}
 
-// orderedMap exists because a Go map can neither hold a repeated attribute key nor keep the keys
-// in the order of the span, and the ClickHouse driver otherwise writes a Map column from a Go map.
+// orderedMap is the value of a Map column that the writer gives to the ClickHouse driver in place
+// of a Go map, which can neither hold a repeated attribute key nor keep the keys in span order.
 type orderedMap[T any] struct {
 	keys   []string
 	values []T
