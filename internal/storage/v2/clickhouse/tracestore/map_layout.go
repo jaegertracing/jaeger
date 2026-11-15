@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"strings"
+
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -14,12 +16,36 @@ var _ AttributeLayout = MapLayout{}
 // MapLayout stores an attribute group as Map(String, T).
 type MapLayout struct{}
 
+func (MapLayout) Name() string {
+	return "map"
+}
+
+func (MapLayout) ColumnTypeSQL(attributeType AttributeType) string {
+	return "Map(String, " + attributeType.valueTypeSQL() + ")"
+}
+
+func (MapLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Map(")
+}
+
 func (MapLayout) insertSpanSQL() string {
 	return sql.InsertSpanMapLayout
 }
 
 func (MapLayout) selectSpansSQL() string {
 	return sql.SelectSpansMapLayout
+}
+
+func (MapLayout) KeysSQL(group AttributeGroup) string {
+	if group.arrayColumn() != "" {
+		return "arrayMap(m -> mapKeys(m), " + group.column() + ")"
+	}
+	return "mapKeys(" + group.column() + ")"
+}
+
+func (MapLayout) valueSQL(group AttributeGroup, key string) string {
+	g := group.column()
+	return "if(mapContains(" + g + ", " + key + "), " + g + "[" + key + "], NULL)"
 }
 
 // appendComparison compares the value that the map holds under the key. The subscript of a
@@ -29,14 +55,15 @@ func (MapLayout) selectSpansSQL() string {
 // search for a later value does not match, unlike in the nested layout.
 func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
-	if prefix, nested := levelColumns(level); nested {
+	group := attributeGroup(level, tav.valueType)
+	if arrayColumn := group.arrayColumn(); arrayColumn != "" {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
-		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + prefix + ")")
+		column := "x." + group.field()
+		q.WriteString("arrayExists(x -> mapContains(" + column + ", ?) AND " + column + comparison + ", s." + arrayColumn + ")")
 	} else {
-		group := "s." + attributeGroup(level, tav.valueType)
-		q.WriteString("(mapContains(" + group + ", ?) AND " + group + comparison + ")")
+		column := "s." + group.column()
+		q.WriteString("(mapContains(" + column + ", ?) AND " + column + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)
 }

@@ -43,55 +43,6 @@ func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attrib
 	return builder
 }
 
-// attributeColumnType names the typed column group that stores values of valueType. Bytes, maps
-// and slices share the complex group, where the key carries a prefix that tells them apart.
-// The names are spelled out because they are column names of the spans table, which must not
-// change when a library changes how it prints a value type.
-func attributeColumnType(valueType pcommon.ValueType) string {
-	switch valueType {
-	case pcommon.ValueTypeBool:
-		return "bool"
-	case pcommon.ValueTypeDouble:
-		return "double"
-	case pcommon.ValueTypeInt:
-		return "int"
-	case pcommon.ValueTypeStr:
-		return "str"
-	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		return "complex"
-	default:
-		// No column group stores an empty value, and no caller passes one.
-		return ""
-	}
-}
-
-// levelColumns returns the column prefix of a level, and whether the level is a nested array
-// (event, link) rather than a set of columns of the span row (span, resource, scope).
-func levelColumns(level expression.Level) (prefix string, nested bool) {
-	switch level {
-	case expression.LevelResource:
-		return "resource", false
-	case expression.LevelScope:
-		return "scope", false
-	case expression.LevelEvent:
-		return "events", true
-	case expression.LevelLink:
-		return "links", true
-	default: // expression.LevelSpan
-		return "", false
-	}
-}
-
-// attributeGroup names the column group that stores the attributes of valueType at a level
-// whose attributes are columns of the span row: span, resource or scope.
-func attributeGroup(level expression.Level, valueType pcommon.ValueType) string {
-	prefix, _ := levelColumns(level)
-	if prefix != "" {
-		prefix += "_"
-	}
-	return prefix + attributeColumnType(valueType) + "_attributes"
-}
-
 // appendComparison writes to q the condition that an attribute of the given level has the
 // key of tav and a value that compares to the value of tav as op says, and returns args
 // extended with the values that the condition binds. It is the only place that writes the

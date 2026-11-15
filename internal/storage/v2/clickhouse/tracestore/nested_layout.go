@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"strings"
+
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -15,6 +17,18 @@ var _ AttributeLayout = NestedLayout{}
 // parallel arrays.
 type NestedLayout struct{}
 
+func (NestedLayout) Name() string {
+	return "nested"
+}
+
+func (NestedLayout) ColumnTypeSQL(attributeType AttributeType) string {
+	return "Nested (key String, value " + attributeType.valueTypeSQL() + ")"
+}
+
+func (NestedLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
+}
+
 func (NestedLayout) insertSpanSQL() string {
 	return sql.InsertSpanNestedLayout
 }
@@ -23,19 +37,29 @@ func (NestedLayout) selectSpansSQL() string {
 	return sql.SelectSpansNestedLayout
 }
 
+func (NestedLayout) KeysSQL(group AttributeGroup) string {
+	return group.column() + ".key"
+}
+
+func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
+	g := group.column()
+	return "if(has(" + g + ".key, " + key + "), " + g + ".value[indexOf(" + g + ".key, " + key + ")], NULL)"
+}
+
 // appendComparison searches the two arrays of the group for an entry with the key and a
 // value that satisfies the comparison, so it matches any value of a key that a span carries
 // more than once.
 func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
-	if prefix, nested := levelColumns(level); nested {
+	group := attributeGroup(level, tav.valueType)
+	if arrayColumn := group.arrayColumn(); arrayColumn != "" {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
-		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + prefix + ")")
+		column := "x." + group.field()
+		q.WriteString("arrayExists(x -> " + entryMatches + column + ".key, " + column + ".value), s." + arrayColumn + ")")
 	} else {
-		group := "s." + attributeGroup(level, tav.valueType)
-		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
+		column := "s." + group.column()
+		q.WriteString(entryMatches + column + ".key, " + column + ".value)")
 	}
 	return append(args, tav.key, tav.value)
 }

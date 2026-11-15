@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -101,10 +103,24 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
+// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and the
+// hoisted columns that cfg selects.
+func buildSchema(cfg Configuration) (*schemaBuilder, error) {
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return nil, err
+	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
+	if err != nil {
+		return nil, err
+	}
+	return newSchemaBuilder(cfg, layout, hoistedColumns)
+}
+
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for
 // localTableEngine and no TTL, so the tests expect exactly what the factory executes.
 func schemaQuery(t *testing.T, name string) string {
-	builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: localTableEngine})
+	builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: localTableEngine})
 	require.NoError(t, err)
 	for _, stmt := range builder.statements {
 		if stmt.name == name {
@@ -187,21 +203,21 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create attribute metadata materialized view",
 		},
 		{
 			name: "event attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateEventAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "event attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create event attribute metadata materialized view",
 		},
 		{
 			name: "link attribute metadata materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateLinkAttributeMetadataMaterializedView: assert.AnError,
+				schemaQuery(t, "link attribute metadata materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create link attribute metadata materialized view",
 		},
@@ -468,76 +484,84 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree"})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400, MergeTree: "MergeTree", layout: chtracestore.NestedLayout{}})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
 }
 
-// TestCreateSpansTable_HoistedColumns snapshots the spans table with one hoisted column per
-// stored type and level, a key that needs escaping, a column name that is a keyword, and a
-// codec that ClickHouse stores in another spelling.
-func TestCreateSpansTable_HoistedColumns(t *testing.T) {
-	builder, err := newSchemaBuilder(Configuration{
-		CreateSchema: true,
-		TableEngine:  localTableEngine,
-		HoistedAttributes: []HoistedAttribute{
-			{
-				Key:    "gen_ai.request.model",
-				Level:  "span",
-				Type:   "string",
-				Column: "span_str",
-			},
-			{
-				Key:    "gen_ai.usage.input_tokens",
-				Level:  "span",
-				Type:   "int",
-				Column: "span_int",
-			},
-			{
-				Key:    "ratio",
-				Level:  "span",
-				Type:   "double",
-				Column: "span_double",
-			},
-			{
-				Key:    "cached",
-				Level:  "span",
-				Type:   "bool",
-				Column: "span_bool",
-			},
-			{
-				Key:    "gen_ai.request.model",
-				Level:  "resource",
-				Type:   "string",
-				Column: "resource_str",
-			},
-			{
-				Key:    "shard",
-				Level:  "resource",
-				Type:   "int",
-				Column: "resource_int",
-				Codec:  "ZSTD(03)",
-			},
-			{
-				Key:    `it's a \key`,
-				Level:  "resource",
-				Type:   "string",
-				Column: "index",
-			},
-		},
-	})
-	require.NoError(t, err)
-	clickhousetest.VerifyQuerySnapshot(t, builder.statements[0].query)
-}
-
-func TestNewSchemaBuilder_InvalidHoistedAttribute(t *testing.T) {
-	_, err := newSchemaBuilder(Configuration{
-		CreateSchema:      true,
-		TableEngine:       localTableEngine,
-		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
-	})
-	require.ErrorContains(t, err, "hoisted_attributes[0]")
+// TestSchemaBuilder_AttributeLayout snapshots, for each attribute layout, the statements
+// that depend on it: the spans table and the three views that collect attribute keys. The
+// spans table has one hoisted column per stored type and level, a key that needs escaping,
+// a column name that is a keyword, and a codec that ClickHouse stores in another spelling.
+func TestSchemaBuilder_AttributeLayout(t *testing.T) {
+	for _, layout := range []string{"nested", "map"} {
+		t.Run(layout+" layout", func(t *testing.T) {
+			builder, err := buildSchema(Configuration{
+				CreateSchema:    true,
+				TableEngine:     localTableEngine,
+				AttributeLayout: layout,
+				HoistedAttributes: []HoistedAttribute{
+					{
+						Key:    "gen_ai.request.model",
+						Level:  "span",
+						Type:   "string",
+						Column: "span_str",
+					},
+					{
+						Key:    "gen_ai.usage.input_tokens",
+						Level:  "span",
+						Type:   "int",
+						Column: "span_int",
+					},
+					{
+						Key:    "ratio",
+						Level:  "span",
+						Type:   "double",
+						Column: "span_double",
+					},
+					{
+						Key:    "cached",
+						Level:  "span",
+						Type:   "bool",
+						Column: "span_bool",
+					},
+					{
+						Key:    "gen_ai.request.model",
+						Level:  "resource",
+						Type:   "string",
+						Column: "resource_str",
+					},
+					{
+						Key:    "shard",
+						Level:  "resource",
+						Type:   "int",
+						Column: "resource_int",
+						Codec:  "ZSTD(03)",
+					},
+					{
+						Key:    `it's a \key`,
+						Level:  "resource",
+						Type:   "string",
+						Column: "index",
+					},
+				},
+			})
+			require.NoError(t, err)
+			var queries []string
+			for _, statement := range builder.statements {
+				switch statement.name {
+				case "spans table",
+					"attribute metadata materialized view",
+					"event attribute metadata materialized view",
+					"link attribute metadata materialized view":
+					queries = append(queries, statement.query)
+				default:
+				}
+			}
+			clickhousetest.VerifyQuerySnapshot(t, queries...)
+		})
+	}
 }
 
 // TestNewFactory_SpansTableMissing checks that the factory runs the check: the test server
@@ -571,7 +595,7 @@ func hoistedColumnServer(t *testing.T, state hoistedColumnState) (srv *httptest.
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		*queries = append(*queries, string(body))
-		if !strings.Contains(string(body), "FROM system.columns") {
+		if !strings.Contains(string(body), "same_expression") {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			fakeServer.Config.Handler.ServeHTTP(w, r)
 			return
@@ -623,7 +647,7 @@ func TestNewFactory_HoistedColumns(t *testing.T) {
 		return strings.Contains(q, "IF NOT EXISTS spans (")
 	})
 	checkQueryIndex := slices.IndexFunc(*queries, func(q string) bool {
-		return strings.Contains(q, "FROM system.columns")
+		return strings.Contains(q, "same_expression")
 	})
 	require.NotEqual(t, -1, createQueryIndex)
 	require.Greater(t, checkQueryIndex, createQueryIndex)
@@ -674,6 +698,50 @@ func TestCreateTraceReader_HoistedColumns(t *testing.T) {
 
 	// The driver writes the bind value into the query.
 	assert.Contains(t, (*queries)[len(*queries)-1], "(s.`input_tokens` IS NOT NULL AND s.`input_tokens` = 7)")
+}
+
+func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
+	_, err := NewFactory(context.Background(), Configuration{AttributeLayout: "json"}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "attribute_layout must be nested or map")
+}
+
+// TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check
+// before it creates the schema: the test server reports a spans table in the map layout, and
+// the configuration is nested. A view of the other layout would fail to create with an error
+// that does not name the layout.
+func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
+	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(fakeServer.Close)
+	var schemaStatements atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "CREATE ") {
+			schemaStatements.Add(1)
+		}
+		if !strings.Contains(string(body), "name IN ('str_attributes'") {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			fakeServer.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		block := chproto.NewBlock()
+		block.AddColumn("type", "String")
+		block.Append("Map(String, String)")
+		var buf proto.Buffer
+		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(buf.Buf)
+	}))
+	t.Cleanup(srv.Close)
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.CreateSchema = true
+	cfg.TableEngine = localTableEngine
+
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+
+	require.ErrorContains(t, err, "the spans table declares its string attributes as Map(String, String), which is not the nested layout")
+	assert.Zero(t, schemaStatements.Load())
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
@@ -736,7 +804,7 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder, err := newSchemaBuilder(Configuration{CreateSchema: true, TableEngine: tt.engine})
+			builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: tt.engine})
 			require.NoError(t, err)
 			seen := 0
 			for _, stmt := range builder.statements {
@@ -759,7 +827,7 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	}
 
 	t.Run("unset engine is refused", func(t *testing.T) {
-		_, err := newSchemaBuilder(Configuration{CreateSchema: true})
+		_, err := buildSchema(Configuration{CreateSchema: true})
 		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
 	})
 }
@@ -780,4 +848,18 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 
 	assert.Zero(t, f.config.AttributeMetadataCacheTTL)
 	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
+}
+
+// TestSchemaTemplateFunctions_UnknownValue checks that a template which names a level or a
+// type of attribute group that does not exist fails to render.
+func TestSchemaTemplateFunctions_UnknownValue(t *testing.T) {
+	params := schemaTemplateParams{layout: chtracestore.MapLayout{}}
+	for template, wantErr := range map[string]string{
+		`{{ .ColumnTypeFn "bytes" }}`: `"bytes" is not a type of attribute group`,
+		`{{ .KeysFn "span" "text" }}`: `"text" is not a type of attribute group`,
+		`{{ .KeysFn "trace" "str" }}`: `"trace" is not a level of attributes`,
+	} {
+		_, err := loadTemplate("test", template, params)
+		require.ErrorContains(t, err, wantErr)
+	}
 }
