@@ -103,35 +103,31 @@ func newSchemaBuilder(
 	for _, column := range hoistedColumns {
 		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
-	// The materialized views carry no engine of their own, because each writes TO its
-	// target table. The attribute metadata views are templates because they read the
-	// attribute groups, whose layout is configured.
+	// Every statement is rendered as a template, and one without template actions renders
+	// to itself. The materialized views carry no engine of their own, because each writes
+	// TO its target table.
 	schema := []struct {
-		name     string
-		query    string
-		template bool
+		name  string
+		query string
 	}{
-		{"spans table", sql.CreateSpansTable, true},
-		{"services table", sql.CreateServicesTable, true},
-		{"services materialized view", sql.CreateServicesMaterializedView, false},
-		{"operations table", sql.CreateOperationsTable, true},
-		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
-		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
-		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
-		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
-		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, true},
-		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, true},
-		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, true},
-		{"dependencies table", sql.CreateDependenciesTable, true},
+		{"spans table", sql.CreateSpansTable},
+		{"services table", sql.CreateServicesTable},
+		{"services materialized view", sql.CreateServicesMaterializedView},
+		{"operations table", sql.CreateOperationsTable},
+		{"operations materialized view", sql.CreateOperationsMaterializedView},
+		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
+		{"attribute metadata table", sql.CreateAttributeMetadataTable},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+		{"dependencies table", sql.CreateDependenciesTable},
 	}
 	builder := &schemaBuilder{}
 	for _, s := range schema {
-		query := s.query
-		if s.template {
-			query, err = loadTemplate(s.name, s.query, params)
-			if err != nil {
-				return nil, err
-			}
+		query, err := loadTemplate(s.name, s.query, params)
+		if err != nil {
+			return nil, err
 		}
 		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
 	}
