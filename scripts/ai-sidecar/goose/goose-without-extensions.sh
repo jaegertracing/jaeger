@@ -11,9 +11,10 @@
 #
 # Goose has no switch that turns the extensions off, only an entry for each in
 # its config file; https://github.com/aaif-goose/goose/issues/11728 asks for
-# one, and this script reduces to passing it once it exists. The file is generated from "goose info -v" and not checked
-# in, because each Goose version has its own extension list and a fixed list
-# would leave a new extension enabled.
+# one, and this script reduces to passing it once it exists. The file is
+# generated from "goose info -v" and not checked in, because each Goose version
+# has its own extension list and a fixed list would leave a new extension
+# enabled.
 set -eu
 
 config=$(goose info -v | sed -n 's/^Config yaml: *\([^ ]*\).*/\1/p')
