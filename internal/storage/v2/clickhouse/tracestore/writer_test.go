@@ -106,8 +106,6 @@ func valuesByColumn(t *testing.T, insertStatement string, values []any) map[stri
 	return byColumn
 }
 
-// requireNonAttributeColumns asserts the columns that hold no attributes, which every layout stores
-// the same way.
 func requireNonAttributeColumns(t *testing.T, row map[string]any, expected *dbmodel.SpanRow) {
 	t.Helper()
 	require.Equal(t, expected.ID, row["id"])
@@ -130,8 +128,6 @@ func requireNonAttributeColumns(t *testing.T, row map[string]any, expected *dbmo
 	require.Equal(t, expected.ScopeVersion, row["scope_version"])
 }
 
-// requireNestedGroups asserts that every typed group under the prefix is a key column and a
-// value column.
 func requireNestedGroups(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes) {
 	t.Helper()
 	require.Equal(t, attributes.BoolKeys, row[prefix+"bool_attributes.key"])
@@ -146,8 +142,6 @@ func requireNestedGroups(t *testing.T, row map[string]any, prefix string, attrib
 	require.Equal(t, attributes.ComplexValues, row[prefix+"complex_attributes.value"])
 }
 
-// requireNestedGroups2D asserts that every typed group under the prefix holds the key and
-// value pairs of each event or link.
 func requireNestedGroups2D(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes2D) {
 	t.Helper()
 	require.Equal(t, toTuple(attributes.BoolKeys, attributes.BoolValues), row[prefix+"bool_attributes"])
@@ -157,7 +151,6 @@ func requireNestedGroups2D(t *testing.T, row map[string]any, prefix string, attr
 	require.Equal(t, toTuple(attributes.ComplexKeys, attributes.ComplexValues), row[prefix+"complex_attributes"])
 }
 
-// requireMapGroups asserts that every typed group under the prefix is one map value.
 func requireMapGroups(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes) {
 	t.Helper()
 	require.Equal(t, orderedMap[bool]{keys: attributes.BoolKeys, values: attributes.BoolValues}, row[prefix+"bool_attributes"])
@@ -167,7 +160,6 @@ func requireMapGroups(t *testing.T, row map[string]any, prefix string, attribute
 	require.Equal(t, orderedMap[string]{keys: attributes.ComplexKeys, values: attributes.ComplexValues}, row[prefix+"complex_attributes"])
 }
 
-// requireMapGroups2D asserts that every typed group under the prefix is one map per event or link.
 func requireMapGroups2D(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes2D) {
 	t.Helper()
 	require.Equal(t, orderedMaps(attributes.BoolKeys, attributes.BoolValues), row[prefix+"bool_attributes"])
