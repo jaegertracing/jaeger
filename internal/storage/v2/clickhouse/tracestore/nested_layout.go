@@ -14,7 +14,7 @@ type NestedLayout struct{}
 
 var _ AttributeLayout = NestedLayout{}
 
-func (NestedLayout) insertSpan() string {
+func (NestedLayout) insertSpanSQL() string {
 	return sql.InsertSpan
 }
 

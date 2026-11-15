@@ -9,8 +9,8 @@ import "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestor
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
 // statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
 type AttributeLayout interface {
-	// insertSpan returns the statement that inserts a span.
-	insertSpan() string
+	// insertSpanSQL returns the SQL statement that inserts a span.
+	insertSpanSQL() string
 	// appendAttributes appends the values that the INSERT statement binds for the five typed
 	// attribute groups of a span, a resource or a scope.
 	appendAttributes(values []any, attributes dbmodel.Attributes) []any

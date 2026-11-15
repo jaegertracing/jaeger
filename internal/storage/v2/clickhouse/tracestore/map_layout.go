@@ -15,7 +15,7 @@ type MapLayout struct{}
 
 var _ AttributeLayout = MapLayout{}
 
-func (MapLayout) insertSpan() string {
+func (MapLayout) insertSpanSQL() string {
 	return sql.InsertSpanMapLayout
 }
 
