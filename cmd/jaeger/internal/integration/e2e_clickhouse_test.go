@@ -35,24 +35,27 @@ func TestClickHouseStorage(t *testing.T) {
 	runClickHouseStorageSuite(t, "../../config-clickhouse.yaml", "clickhouse")
 }
 
-// TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
-// columns, so every search must return what it returns without them. Its storage name keeps
-// its metrics snapshot apart from the snapshot of the plain run, which is the one that CI
-// compares.
-func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
+// runClickHouseStorageSuiteWithLayout runs the span store suite against a database that it
+// creates anew, whose tables are in attributeLayout and have the hoisted columns. The storage
+// name keeps the metrics snapshot of the run apart from the snapshot of the plain run, which
+// is the one that CI compares.
+func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attributeLayout string, storage string) {
 	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
-	integration.RecreateClickHouseDatabase(t, integration.ClickHouseHoistedDatabase)
-	config := writeClickHouseHoistedConfig(t, integration.ClickHouseHoistedDatabase, "nested")
-	runClickHouseStorageSuite(t, config, "clickhouse_hoisted")
+	integration.RecreateClickHouseDatabase(t, database)
+	config := writeClickHouseHoistedConfig(t, database, attributeLayout)
+	runClickHouseStorageSuite(t, config, storage)
+}
+
+// TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
+// columns, so every search must return what it returns without them.
+func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
+	runClickHouseStorageSuiteWithLayout(t, integration.ClickHouseHoistedDatabase, "nested", "clickhouse_hoisted")
 }
 
 // TestClickHouseStorage_MapLayout runs the same suite against tables in the map attribute
 // layout, which also have the hoisted columns.
 func TestClickHouseStorage_MapLayout(t *testing.T) {
-	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
-	integration.RecreateClickHouseDatabase(t, integration.ClickHouseMapDatabase)
-	config := writeClickHouseHoistedConfig(t, integration.ClickHouseMapDatabase, "map")
-	runClickHouseStorageSuite(t, config, "clickhouse_map")
+	runClickHouseStorageSuiteWithLayout(t, integration.ClickHouseMapDatabase, "map", "clickhouse_map")
 }
 
 // writeClickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use
