@@ -5,7 +5,9 @@ package sql
 
 import _ "embed"
 
-const InsertSpan = `
+// InsertSpanNestedLayout inserts a span into a spans table in the Nested attribute layout, where
+// an attribute group is a pair of parallel key and value columns.
+const InsertSpanNestedLayout = `
 INSERT INTO
     spans (
         id,
@@ -130,7 +132,7 @@ VALUES
     )
 `
 
-// InsertSpanMapLayout is InsertSpan for a spans table in the Map attribute layout, where an
+// InsertSpanMapLayout inserts a span into a spans table in the Map attribute layout, where an
 // attribute group of a span, a resource or a scope is one column.
 const InsertSpanMapLayout = `
 INSERT INTO
@@ -227,7 +229,8 @@ VALUES
     )
 `
 
-const SelectSpansQuery = `
+// SelectSpansNestedLayout reads spans from a spans table in the Nested attribute layout.
+const SelectSpansNestedLayout = `
 SELECT
     id,
     trace_id,
@@ -301,10 +304,10 @@ FROM
     spans s
 `
 
-// SelectSpansQueryMapLayout is SelectSpansQuery for a spans table in the Map attribute layout.
-// It selects the same columns in the same order, so a span is scanned the same way from
-// either layout.
-const SelectSpansQueryMapLayout = `
+// SelectSpansMapLayout reads spans from a spans table in the Map attribute layout.
+// It selects the same columns in the same order as SelectSpansNestedLayout, so a span is
+// scanned the same way from either layout.
+const SelectSpansMapLayout = `
 SELECT
     id,
     trace_id,
@@ -377,8 +380,6 @@ SELECT
 FROM
     spans s
 `
-
-const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
 // SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //

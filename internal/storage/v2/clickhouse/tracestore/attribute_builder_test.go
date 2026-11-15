@@ -60,7 +60,7 @@ func newHoistedColumnReader() *Reader {
 // nestedSelectSpans and nestedSelectSpansByTraceID are the statements that read spans from
 // a table in the nested layout, which the test driver matches its responses by.
 var (
-	nestedSelectSpans          = sql.SelectSpansQuery
+	nestedSelectSpans          = sql.SelectSpansNestedLayout
 	nestedSelectSpansByTraceID = nestedSelectSpans + " WHERE s.trace_id = ?"
 )
 

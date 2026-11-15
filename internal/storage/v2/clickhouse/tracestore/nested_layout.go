@@ -15,8 +15,8 @@ type NestedLayout struct{}
 
 var _ AttributeLayout = NestedLayout{}
 
-func (NestedLayout) insertSpan() string {
-	return sql.InsertSpan
+func (NestedLayout) insertSpanSQL() string {
+	return sql.InsertSpanNestedLayout
 }
 
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
@@ -44,8 +44,8 @@ func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes
 	)
 }
 
-func (NestedLayout) selectSpans() string {
-	return sql.SelectSpansQuery
+func (NestedLayout) selectSpansSQL() string {
+	return sql.SelectSpansNestedLayout
 }
 
 // appendComparison searches the two arrays of the group for an entry with the key and a

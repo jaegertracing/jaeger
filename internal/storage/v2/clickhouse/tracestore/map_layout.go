@@ -16,7 +16,7 @@ type MapLayout struct{}
 
 var _ AttributeLayout = MapLayout{}
 
-func (MapLayout) insertSpan() string {
+func (MapLayout) insertSpanSQL() string {
 	return sql.InsertSpanMapLayout
 }
 
@@ -40,8 +40,8 @@ func (MapLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes2D)
 	)
 }
 
-func (MapLayout) selectSpans() string {
-	return sql.SelectSpansQueryMapLayout
+func (MapLayout) selectSpansSQL() string {
+	return sql.SelectSpansMapLayout
 }
 
 // appendComparison compares the value that the map holds under the key. The subscript of a
