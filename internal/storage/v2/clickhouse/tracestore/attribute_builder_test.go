@@ -61,7 +61,7 @@ func newHoistedColumnReader() *Reader {
 // a table in the nested layout, which the test driver matches its responses by.
 var (
 	nestedSelectSpans          = sql.SelectSpansNestedLayout
-	nestedSelectSpansByTraceID = nestedSelectSpans + "WHERE s.trace_id = ?"
+	nestedSelectSpansByTraceID = nestedSelectSpans + "\nWHERE s.trace_id = ?"
 )
 
 // newNestedSQLBuilder returns a builder for a table in the nested layout without hoisted

@@ -301,8 +301,7 @@ SELECT
     scope_complex_attributes.key,
     scope_complex_attributes.value
 FROM
-    spans s
-`
+    spans s`
 
 // SelectSpansMapLayout reads spans from a spans table in the Map attribute layout.
 // It selects the same columns in the same order as SelectSpansNestedLayout, so a span is
@@ -378,8 +377,7 @@ SELECT
     mapKeys(scope_complex_attributes),
     mapValues(scope_complex_attributes)
 FROM
-    spans s
-`
+    spans s`
 
 // SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //
