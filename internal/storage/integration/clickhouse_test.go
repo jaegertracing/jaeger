@@ -126,7 +126,9 @@ func TestClickHouseStorage(t *testing.T) {
 }
 
 // runClickHouseStorageSuiteWithLayout runs the storage suite against a database that it
-// creates anew, whose tables are in attributeLayout and have the hoisted columns.
+// creates anew, whose tables are in attributeLayout and have the hoisted columns. Each such
+// run needs a database of its own, because the backend neither adds a column to an existing
+// table nor converts its layout.
 func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attributeLayout string) {
 	SkipUnlessEnv(t, StorageClickHouse)
 	RecreateClickHouseDatabase(t, database)
@@ -136,12 +138,12 @@ func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attribut
 // TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
 // columns, so every search must return what it returns without them.
 func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
-	runClickHouseStorageSuiteWithLayout(t, ClickHouseHoistedDatabase, "nested")
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_hoisted", "nested")
 }
 
 // TestClickHouseStorage_MapLayout runs the same suite against tables in the map layout, so
 // every search must return what it returns from the nested layout. The tables also have the
 // hoisted columns, which in this layout are computed from a map.
 func TestClickHouseStorage_MapLayout(t *testing.T) {
-	runClickHouseStorageSuiteWithLayout(t, ClickHouseMapDatabase, "map")
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_map", "map")
 }

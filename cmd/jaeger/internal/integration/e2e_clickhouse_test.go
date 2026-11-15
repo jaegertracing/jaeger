@@ -36,7 +36,9 @@ func TestClickHouseStorage(t *testing.T) {
 }
 
 // runClickHouseStorageSuiteWithLayout runs the span store suite against a database that it
-// creates anew, whose tables are in attributeLayout and have the hoisted columns. The storage
+// creates anew, whose tables are in attributeLayout and have the hoisted columns. Each such
+// run needs a database of its own, because the backend neither adds a column to an existing
+// table nor converts its layout. The storage
 // name keeps the metrics snapshot of the run apart from the snapshot of the plain run, which
 // is the one that CI compares.
 func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attributeLayout string, storage string) {
@@ -49,13 +51,13 @@ func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attribut
 // TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
 // columns, so every search must return what it returns without them.
 func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
-	runClickHouseStorageSuiteWithLayout(t, integration.ClickHouseHoistedDatabase, "nested", "clickhouse_hoisted")
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_hoisted", "nested", "clickhouse_hoisted")
 }
 
 // TestClickHouseStorage_MapLayout runs the same suite against tables in the map attribute
 // layout, which also have the hoisted columns.
 func TestClickHouseStorage_MapLayout(t *testing.T) {
-	runClickHouseStorageSuiteWithLayout(t, integration.ClickHouseMapDatabase, "map", "clickhouse_map")
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_map", "map", "clickhouse_map")
 }
 
 // writeClickHouseHoistedConfig writes a copy of config-clickhouse.yaml whose backends use
