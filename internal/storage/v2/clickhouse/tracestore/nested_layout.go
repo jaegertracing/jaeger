@@ -8,11 +8,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+var _ AttributeLayout = NestedLayout{}
+
 // NestedLayout stores an attribute group as Nested(key String, value T), which is two
 // parallel arrays.
 type NestedLayout struct{}
-
-var _ AttributeLayout = NestedLayout{}
 
 func (NestedLayout) insertSpanSQL() string {
 	return sql.InsertSpanNestedLayout
