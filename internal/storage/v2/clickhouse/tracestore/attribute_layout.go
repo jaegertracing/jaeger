@@ -61,8 +61,10 @@ const (
 	ValueTypeString  AttributeValueType = "String"
 )
 
-// levelGroups holds the five attribute groups of one level.
-type levelGroups struct {
+// groupsByValueType names the five columns that store the attributes of one level, which is
+// a span, a resource, a scope, the events or the links. Each field is the column for one kind
+// of value, and attributeGroup picks the field for a value type.
+type groupsByValueType struct {
 	boolGroup    AttributeGroup
 	doubleGroup  AttributeGroup
 	intGroup     AttributeGroup
@@ -70,8 +72,8 @@ type levelGroups struct {
 	complexGroup AttributeGroup
 }
 
-// attributeGroupsByLevel lists every attribute group under the level that it belongs to.
-var attributeGroupsByLevel = map[expression.Level]levelGroups{
+// attributeGroupsByLevel lists every attribute group of the spans table under its level.
+var attributeGroupsByLevel = map[expression.Level]groupsByValueType{
 	expression.LevelSpan: {
 		boolGroup:    GroupBoolAttributes,
 		doubleGroup:  GroupDoubleAttributes,
