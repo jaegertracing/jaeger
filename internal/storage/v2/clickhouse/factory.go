@@ -216,17 +216,21 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
+	// The layout is checked before the schema is created, because CREATE TABLE IF NOT EXISTS
+	// leaves a table of the other layout as it is, and a view that is created over that table
+	// fails with an error that does not name the layout. A table that does not exist passes.
+	if err := checkAttributeLayout(ctx, conn, layout); err != nil {
+		return nil, err
+	}
+
 	if builder != nil {
 		if err := builder.build(ctx, conn); err != nil {
 			return nil, err
 		}
 	}
 
-	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is, so the checks run whether
-	// or not the schema was just built.
-	if err := checkAttributeLayout(ctx, conn, layout); err != nil {
-		return nil, err
-	}
+	// The hoisted columns are checked whether or not the schema was just built, because
+	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is.
 	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
 		return nil, err
 	}

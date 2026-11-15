@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -704,13 +705,19 @@ func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
 	require.ErrorContains(t, err, "attribute_layout must be nested or map")
 }
 
-// TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check: the
-// test server reports a spans table in the map layout, and the configuration is nested.
+// TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check
+// before it creates the schema: the test server reports a spans table in the map layout, and
+// the configuration is nested. A view of the other layout would fail to create with an error
+// that does not name the layout.
 func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
 	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(fakeServer.Close)
+	var schemaStatements atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "CREATE ") {
+			schemaStatements.Add(1)
+		}
 		if !strings.Contains(string(body), "name IN ('str_attributes'") {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			fakeServer.Config.Handler.ServeHTTP(w, r)
@@ -728,10 +735,13 @@ func TestNewFactory_AttributeLayoutMismatch(t *testing.T) {
 	cfg := DefaultConfiguration()
 	cfg.Protocol = "http"
 	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.CreateSchema = true
+	cfg.TableEngine = localTableEngine
 
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 
 	require.ErrorContains(t, err, "the spans table declares its string attributes as Map(String, String), which is not the nested layout")
+	assert.Zero(t, schemaStatements.Load())
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
