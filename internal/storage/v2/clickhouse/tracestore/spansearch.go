@@ -199,7 +199,7 @@ func (r *Reader) buildFindSpansQuery(
 ) (string, []any, error) {
 	q := r.newSQLBuilder()
 	q.appendSelectSpans()
-	q.WriteString("\nWHERE 1=1")
+	q.appendClause("WHERE 1=1")
 	args := q.appendTimeRange(nil, query.StartTimeMin, query.StartTimeMax)
 	if query.Filter != nil {
 		var err error
@@ -212,14 +212,14 @@ func (r *Reader) buildFindSpansQuery(
 		args = q.appendContinuation(args, sort, after)
 	}
 	q.appendOrderBy(sort)
-	q.WriteString("\nLIMIT ?")
+	q.appendClause("LIMIT ?")
 	args = append(args, uint64(pageSize)+1)
 	return q.String(), args, nil
 }
 
 // appendOrderBy writes the ORDER BY clause of the sort terms, each column in its direction.
 func (q *sqlBuilder) appendOrderBy(sort []sortTerm) {
-	q.WriteString("\nORDER BY ")
+	q.appendClause("ORDER BY ")
 	for i, term := range sort {
 		if i > 0 {
 			q.WriteString(", ")

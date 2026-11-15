@@ -60,6 +60,13 @@ func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
 	}
 }
 
+// appendClause starts a line and writes a top-level clause of the statement on it, such as
+// WHERE or ORDER BY.
+func (q *sqlBuilder) appendClause(clause string) {
+	q.appendNewlineAndIndent(0)
+	q.WriteString(clause)
+}
+
 // appendAnd writes cond as one more AND clause of a WHERE that already has a predicate.
 func (q *sqlBuilder) appendAnd(cond string) {
 	q.appendNewlineAndIndent(1)
@@ -90,7 +97,7 @@ func (q *sqlBuilder) appendSelectSpans() {
 func (r *Reader) buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	q := r.newSQLBuilder()
 	q.appendSelectSpans()
-	q.WriteString("\nWHERE s.trace_id = ?")
+	q.appendClause("WHERE s.trace_id = ?")
 	args := []any{params.TraceID}
 	args = q.appendTimeRange(args, params.Start, params.End)
 	return q.String(), args
@@ -99,7 +106,7 @@ func (r *Reader) buildGetTracesQuery(params tracestore.GetTraceParams) (string, 
 func (r *Reader) buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (string, []any) {
 	q := r.newSQLBuilder()
 	q.appendSelectSpans()
-	q.WriteString("\nWHERE ")
+	q.appendClause("WHERE ")
 	args := make([]any, 0, 3*len(traceIDs))
 	for i, trace := range traceIDs {
 		if i > 0 {
@@ -115,7 +122,7 @@ func (r *Reader) buildFindTracesQuery(traceIDs []tracestore.FoundTraceID) (strin
 		}
 		q.WriteString(")")
 	}
-	q.WriteString("\nORDER BY s.trace_id")
+	q.appendClause("ORDER BY s.trace_id")
 	return q.String(), args
 }
 
@@ -192,7 +199,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 		}
 	}
 
-	inner.WriteString("\nLIMIT ?")
+	inner.appendClause("LIMIT ?")
 	args = append(args, limit)
 
 	return inner.String(), args, nil
@@ -395,15 +402,13 @@ func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
 	var q sqlBuilder
 	q.WriteString(sql.SelectAttributeMetadata)
 	if len(placeholders) > 0 {
-		q.appendNewlineAndIndent(0)
-		q.WriteString("WHERE")
+		q.appendClause("WHERE")
 		q.appendNewlineAndIndent(1)
 		q.WriteString("attribute_key IN (")
 		q.WriteString(strings.Join(placeholders, ", "))
 		q.WriteString(")")
 	}
-	q.appendNewlineAndIndent(0)
-	q.WriteString("GROUP BY")
+	q.appendClause("GROUP BY")
 	q.appendNewlineAndIndent(1)
 	q.WriteString("attribute_key,")
 	q.appendNewlineAndIndent(1)
