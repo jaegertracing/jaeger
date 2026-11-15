@@ -35,27 +35,16 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on: [jaeger]
 
-  # Goose enables its bundled extensions (shell access among them) unless its
-  # config file disables each by name, so the container writes that file before
-  # it starts the server; README.md, "Agent-supplied tools", has the reasoning.
-  # A "$$" is a literal "$" that Compose would otherwise expand.
+  # The container starts Goose through goose-without-extensions.sh, which turns
+  # Goose's bundled extensions off, so the agent has only the tools Jaeger
+  # announces; without that, Goose answers with its developer, apps and other
+  # built-in tools alongside them.
   goose:
     image: ghcr.io/aaif-goose/goose:v1.57.0@sha256:06485bd5275090903b7ef5313059d792dd88759d9c6e3365d300aba37454ca58
-    entrypoint: ["sh", "-ec"]
-    command:
-      - |
-        config="$$HOME/.config/goose/config.yaml"
-        mkdir -p "$$(dirname "$$config")"
-        goose info -v \
-          | sed -n '/^goose Configuration:/,$$p' \
-          | sed '1d; s/^  //; s/enabled: true/enabled: false/' \
-          > "$$config"
-        if ! grep -q "enabled: false" "$$config" || grep -q "enabled: true" "$$config"; then
-          echo "FAIL: could not disable Goose's bundled extensions; $$config holds:"
-          cat "$$config"
-          exit 1
-        fi
-        exec goose serve --host 0.0.0.0 --port 16688
+    entrypoint: ["sh", "/goose-without-extensions.sh"]
+    command: ["serve", "--host", "0.0.0.0", "--port", "16688"]
+    volumes:
+      - "./goose-without-extensions.sh:/goose-without-extensions.sh:ro"
     environment:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
       # OpenRouter's free tier changes over time, so this slug may stop being
