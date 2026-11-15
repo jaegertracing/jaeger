@@ -167,17 +167,28 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 	}
 }
 
-func TestAttributeColumnType(t *testing.T) {
-	for valueType, want := range map[pcommon.ValueType]string{
-		pcommon.ValueTypeBool:   "bool",
-		pcommon.ValueTypeDouble: "double",
-		pcommon.ValueTypeInt:    "int",
-		pcommon.ValueTypeStr:    "str",
-		pcommon.ValueTypeBytes:  "complex",
-		pcommon.ValueTypeMap:    "complex",
-		pcommon.ValueTypeSlice:  "complex",
+// TestAttributeGroup checks the group of a level for each value type. Bytes, maps and slices
+// share the complex group, and an empty value has no group.
+func TestAttributeGroup(t *testing.T) {
+	for valueType, want := range map[pcommon.ValueType]AttributeGroup{
+		pcommon.ValueTypeBool:   GroupResourceBoolAttributes,
+		pcommon.ValueTypeDouble: GroupResourceDoubleAttributes,
+		pcommon.ValueTypeInt:    GroupResourceIntAttributes,
+		pcommon.ValueTypeStr:    GroupResourceStrAttributes,
+		pcommon.ValueTypeBytes:  GroupResourceComplexAttributes,
+		pcommon.ValueTypeMap:    GroupResourceComplexAttributes,
+		pcommon.ValueTypeSlice:  GroupResourceComplexAttributes,
 		pcommon.ValueTypeEmpty:  "",
 	} {
-		assert.Equal(t, want, attributeColumnType(valueType), valueType.String())
+		assert.Equal(t, want, attributeGroup(expression.LevelResource, valueType), valueType.String())
+	}
+	for level, want := range map[expression.Level]AttributeGroup{
+		expression.LevelSpan:     GroupStrAttributes,
+		expression.LevelResource: GroupResourceStrAttributes,
+		expression.LevelScope:    GroupScopeStrAttributes,
+		expression.LevelEvent:    GroupEventsStrAttributes,
+		expression.LevelLink:     GroupLinksStrAttributes,
+	} {
+		assert.Equal(t, want, attributeGroup(level, pcommon.ValueTypeStr), level)
 	}
 }

@@ -5,8 +5,9 @@ package tracestore
 
 import (
 	"fmt"
-	"slices"
 	"strings"
+
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -60,38 +61,92 @@ const (
 	ValueTypeString  AttributeValueType = "String"
 )
 
-// attributeGroups lists every attribute group.
-var attributeGroups = []AttributeGroup{
-	GroupBoolAttributes,
-	GroupDoubleAttributes,
-	GroupIntAttributes,
-	GroupStrAttributes,
-	GroupComplexAttributes,
-	GroupResourceBoolAttributes,
-	GroupResourceDoubleAttributes,
-	GroupResourceIntAttributes,
-	GroupResourceStrAttributes,
-	GroupResourceComplexAttributes,
-	GroupScopeBoolAttributes,
-	GroupScopeDoubleAttributes,
-	GroupScopeIntAttributes,
-	GroupScopeStrAttributes,
-	GroupScopeComplexAttributes,
-	GroupEventsBoolAttributes,
-	GroupEventsDoubleAttributes,
-	GroupEventsIntAttributes,
-	GroupEventsStrAttributes,
-	GroupEventsComplexAttributes,
-	GroupLinksBoolAttributes,
-	GroupLinksDoubleAttributes,
-	GroupLinksIntAttributes,
-	GroupLinksStrAttributes,
-	GroupLinksComplexAttributes,
+// levelGroups holds the five attribute groups of one level.
+type levelGroups struct {
+	boolGroup    AttributeGroup
+	doubleGroup  AttributeGroup
+	intGroup     AttributeGroup
+	strGroup     AttributeGroup
+	complexGroup AttributeGroup
+}
+
+// attributeGroupsByLevel lists every attribute group under the level that it belongs to.
+var attributeGroupsByLevel = map[expression.Level]levelGroups{
+	expression.LevelSpan: {
+		boolGroup:    GroupBoolAttributes,
+		doubleGroup:  GroupDoubleAttributes,
+		intGroup:     GroupIntAttributes,
+		strGroup:     GroupStrAttributes,
+		complexGroup: GroupComplexAttributes,
+	},
+	expression.LevelResource: {
+		boolGroup:    GroupResourceBoolAttributes,
+		doubleGroup:  GroupResourceDoubleAttributes,
+		intGroup:     GroupResourceIntAttributes,
+		strGroup:     GroupResourceStrAttributes,
+		complexGroup: GroupResourceComplexAttributes,
+	},
+	expression.LevelScope: {
+		boolGroup:    GroupScopeBoolAttributes,
+		doubleGroup:  GroupScopeDoubleAttributes,
+		intGroup:     GroupScopeIntAttributes,
+		strGroup:     GroupScopeStrAttributes,
+		complexGroup: GroupScopeComplexAttributes,
+	},
+	expression.LevelEvent: {
+		boolGroup:    GroupEventsBoolAttributes,
+		doubleGroup:  GroupEventsDoubleAttributes,
+		intGroup:     GroupEventsIntAttributes,
+		strGroup:     GroupEventsStrAttributes,
+		complexGroup: GroupEventsComplexAttributes,
+	},
+	expression.LevelLink: {
+		boolGroup:    GroupLinksBoolAttributes,
+		doubleGroup:  GroupLinksDoubleAttributes,
+		intGroup:     GroupLinksIntAttributes,
+		strGroup:     GroupLinksStrAttributes,
+		complexGroup: GroupLinksComplexAttributes,
+	},
+}
+
+// attributeGroup returns the group that stores the attributes of valueType at the level.
+// Bytes, maps and slices share the complex group, where the key carries a prefix that tells
+// them apart. No group stores an empty value, and no caller passes one.
+func attributeGroup(level expression.Level, valueType pcommon.ValueType) AttributeGroup {
+	groups := attributeGroupsByLevel[level]
+	switch valueType {
+	case pcommon.ValueTypeBool:
+		return groups.boolGroup
+	case pcommon.ValueTypeDouble:
+		return groups.doubleGroup
+	case pcommon.ValueTypeInt:
+		return groups.intGroup
+	case pcommon.ValueTypeStr:
+		return groups.strGroup
+	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
+		return groups.complexGroup
+	default:
+		return ""
+	}
+}
+
+// arrayElement splits a group of the events or of the links into the array column and the
+// element of it that holds the group: events and str_attributes for events.str_attributes.
+// It reports false for a group of a span, a resource or a scope, which is a column itself.
+func (g AttributeGroup) arrayElement() (array, element string, ok bool) {
+	return strings.Cut(string(g), ".")
 }
 
 // Valid reports whether g is one of the attribute groups of the spans table.
 func (g AttributeGroup) Valid() bool {
-	return slices.Contains(attributeGroups, g)
+	for _, groups := range attributeGroupsByLevel {
+		switch g {
+		case groups.boolGroup, groups.doubleGroup, groups.intGroup, groups.strGroup, groups.complexGroup:
+			return true
+		default:
+		}
+	}
+	return false
 }
 
 // Valid reports whether t is one of the value types of an attribute group.

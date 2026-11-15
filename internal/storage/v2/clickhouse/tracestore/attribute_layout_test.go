@@ -8,9 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 )
@@ -72,20 +70,10 @@ func TestAttributeLayout_Declares(t *testing.T) {
 	}
 }
 
-// TestAttributeGroup_Valid ties the group that the search conditions name to the constants.
+// TestAttributeGroup_Valid checks that the constants are valid and other names are not.
 func TestAttributeGroup_Valid(t *testing.T) {
-	for _, level := range []expression.Level{expression.LevelSpan, expression.LevelResource, expression.LevelScope} {
-		for _, valueType := range []pcommon.ValueType{
-			pcommon.ValueTypeBool,
-			pcommon.ValueTypeDouble,
-			pcommon.ValueTypeInt,
-			pcommon.ValueTypeStr,
-			pcommon.ValueTypeBytes,
-		} {
-			group := attributeGroup(level, valueType)
-			assert.True(t, group.Valid(), group)
-		}
-	}
+	assert.True(t, GroupScopeComplexAttributes.Valid())
+	assert.True(t, GroupLinksBoolAttributes.Valid())
 	assert.False(t, AttributeGroup("text_attributes").Valid())
 	assert.True(t, ValueTypeFloat64.Valid())
 	assert.False(t, AttributeValueType("Bytes").Valid())

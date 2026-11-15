@@ -56,13 +56,14 @@ func (MapLayout) valueSQL(group AttributeGroup, key string) string {
 // search for a later value does not match, unlike in the nested layout.
 func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
-	if prefix, nested := levelColumns(level); nested {
+	group := attributeGroup(level, tav.valueType)
+	if array, element, nested := group.arrayElement(); nested {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
-		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + prefix + ")")
+		group := "x." + element
+		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + array + ")")
 	} else {
-		group := "s." + string(attributeGroup(level, tav.valueType))
+		group := "s." + string(group)
 		q.WriteString("(mapContains(" + group + ", ?) AND " + group + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)
