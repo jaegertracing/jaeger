@@ -9,20 +9,25 @@
 #
 #   sh goose-without-extensions.sh serve --host 0.0.0.0 --port 16688
 #
-# Goose enables those extensions unless its config file disables each by name,
-# and it has no switch that turns them all off. "goose info -v" prints the
-# effective configuration as YAML under a "goose Configuration:" heading, so
-# that section, with every extension flipped to disabled, becomes the config
-# file, and a new Goose version brings its own extension list.
+# Goose has no switch that turns the extensions off, only an entry for each in
+# its config file. The file is generated from "goose info -v" and not checked
+# in, because each Goose version has its own extension list and a fixed list
+# would leave a new extension enabled.
 set -eu
 
-config="$HOME/.config/goose/config.yaml"
+config=$(goose info -v | sed -n 's/^Config yaml: *\([^ ]*\).*/\1/p')
+if [ -z "$config" ]; then
+  echo "FAIL: \"goose info -v\" did not report the path of the Goose config file" >&2
+  exit 1
+fi
 mkdir -p "$(dirname "$config")"
 goose info -v \
   | sed -n '/^goose Configuration:/,$p' \
   | sed '1d; s/^  //; s/enabled: true/enabled: false/' \
   > "$config"
-if ! grep -q "enabled: false" "$config" || grep -q "enabled: true" "$config"; then
+# The check asks Goose again, so that it covers the configuration Goose loads
+# and not only the file written above.
+if ! grep -q "enabled: false" "$config" || goose info -v | grep -q "enabled: true"; then
   echo "FAIL: could not disable Goose's bundled extensions; $config holds:" >&2
   cat "$config" >&2
   exit 1

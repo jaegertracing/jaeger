@@ -72,6 +72,7 @@ the script writes that file from the extension list that `goose info -v`
 prints, with every entry disabled, and it exits if an entry is left enabled.
 The agent then has only the tools Jaeger announces for the turn, and a new
 Goose version brings its own list. A deployment that runs the same image
-elsewhere, such as a Kubernetes pod, mounts the script and starts Goose the
-same way. Goose started by hand uses whatever `~/.config/goose/config.yaml`
-enables; `goose info -v` lists the extensions and their state.
+elsewhere, such as a Kubernetes pod, can mount the script and start Goose the
+same way, provided that Goose's config directory is writable. Goose started by
+hand uses whatever `~/.config/goose/config.yaml` enables; `goose info -v` lists
+the extensions and their state.
