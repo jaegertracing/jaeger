@@ -56,14 +56,14 @@ func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
 func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
 	group := attributeGroup(level, tav.valueType)
-	if array, element, nested := group.arrayElement(); nested {
+	if arrayColumn, field, ok := group.inArray(); ok {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		group := "x." + element
-		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + array + ")")
+		column := "x." + field
+		q.WriteString("arrayExists(x -> " + entryMatches + column + ".key, " + column + ".value), s." + arrayColumn + ")")
 	} else {
-		group := "s." + string(group)
-		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
+		column := "s." + string(group)
+		q.WriteString(entryMatches + column + ".key, " + column + ".value)")
 	}
 	return append(args, tav.key, tav.value)
 }

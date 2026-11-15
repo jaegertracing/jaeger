@@ -133,10 +133,11 @@ func attributeGroup(level expression.Level, valueType pcommon.ValueType) Attribu
 	}
 }
 
-// arrayElement splits a group of the events or of the links into the array column and the
-// element of it that holds the group: events and str_attributes for events.str_attributes.
-// It reports false for a group of a span, a resource or a scope, which is a column itself.
-func (g AttributeGroup) arrayElement() (array, element string, ok bool) {
+// inArray reports whether the group is stored inside the events or the links array column.
+// For events.str_attributes it returns the array column events and str_attributes, the field
+// of each event that holds the group. A group of a span, a resource or a scope is a column
+// of the table itself, and inArray returns false for it.
+func (g AttributeGroup) inArray() (arrayColumn, field string, ok bool) {
 	return strings.Cut(string(g), ".")
 }
 

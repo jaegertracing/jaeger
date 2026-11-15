@@ -57,14 +57,14 @@ func (MapLayout) valueSQL(group AttributeGroup, key string) string {
 func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
 	group := attributeGroup(level, tav.valueType)
-	if array, element, nested := group.arrayElement(); nested {
+	if arrayColumn, field, ok := group.inArray(); ok {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		group := "x." + element
-		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + array + ")")
+		column := "x." + field
+		q.WriteString("arrayExists(x -> mapContains(" + column + ", ?) AND " + column + comparison + ", s." + arrayColumn + ")")
 	} else {
-		group := "s." + string(group)
-		q.WriteString("(mapContains(" + group + ", ?) AND " + group + comparison + ")")
+		column := "s." + string(group)
+		q.WriteString("(mapContains(" + column + ", ?) AND " + column + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)
 }
