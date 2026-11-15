@@ -85,6 +85,10 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 	comparisons := []struct {
 		op  expression.Operator
 		tav typedAttributeValue
+		// hoistedColumn is the column that testHoistedColumns hoists the attribute into at
+		// hoistedLevel. It is empty for an attribute that is not hoisted at any level.
+		hoistedLevel  expression.Level
+		hoistedColumn string
 	}{
 		{
 			op: expression.OpEq,
@@ -93,6 +97,8 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 				value:     "x",
 				valueType: pcommon.ValueTypeStr,
 			},
+			hoistedLevel:  expression.LevelSpan,
+			hoistedColumn: "model_column",
 		},
 		{
 			op: expression.OpEq,
@@ -109,6 +115,8 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 				value:     int64(0),
 				valueType: pcommon.ValueTypeInt,
 			},
+			hoistedLevel:  expression.LevelResource,
+			hoistedColumn: "shard_column",
 		},
 		{
 			op: expression.OpLt,
@@ -147,10 +155,8 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 			for _, level := range levels {
 				for _, c := range comparisons {
 					fmt.Fprintf(&q, "\n-- %s attribute %q of type %s", level, c.tav.key, c.tav.valueType)
-					for _, column := range testHoistedColumns {
-						if column.Level == level && column.Key == c.tav.key && column.Type == c.tav.valueType {
-							fmt.Fprintf(&q, ", hoisted into the column %s", column.Name)
-						}
+					if c.hoistedColumn != "" && c.hoistedLevel == level {
+						fmt.Fprintf(&q, ", hoisted into the column %q", c.hoistedColumn)
 					}
 					args := builder.appendComparison(&q, 0, nil, level, c.op, c.tav)
 					fmt.Fprintf(&q, " -- binds %v", args)
