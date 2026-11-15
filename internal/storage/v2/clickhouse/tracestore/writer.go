@@ -14,9 +14,8 @@ import (
 )
 
 type Writer struct {
-	conn          driver.Conn
-	layout        AttributeLayout
-	insertSpanSQL string
+	conn   driver.Conn
+	layout AttributeLayout
 }
 
 // NewWriter returns a new Writer instance that uses the given ClickHouse connection
@@ -26,14 +25,13 @@ type Writer struct {
 // This connection should not have instrumentation enabled to avoid recursively generating traces.
 func NewWriter(conn driver.Conn, layout AttributeLayout) *Writer {
 	return &Writer{
-		conn:          conn,
-		layout:        layout,
-		insertSpanSQL: layout.insertSpanSQL(),
+		conn:   conn,
+		layout: layout,
 	}
 }
 
 func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	batch, err := w.conn.PrepareBatch(ctx, w.insertSpanSQL)
+	batch, err := w.conn.PrepareBatch(ctx, w.layout.insertSpanSQL())
 	if err != nil {
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
