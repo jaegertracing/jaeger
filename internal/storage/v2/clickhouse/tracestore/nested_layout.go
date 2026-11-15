@@ -42,8 +42,8 @@ func (NestedLayout) hoistedSource(group AttributeGroup, key string) string {
 	return "if(has(" + g + ".key, " + key + "), " + g + ".value[indexOf(" + g + ".key, " + key + ")], NULL)"
 }
 
-func (NestedLayout) insertSpan() string {
-	return sql.InsertSpan
+func (NestedLayout) insertSpanSQL() string {
+	return sql.InsertSpanNestedLayout
 }
 
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
@@ -71,8 +71,8 @@ func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes
 	)
 }
 
-func (NestedLayout) selectSpans() string {
-	return sql.SelectSpansQuery
+func (NestedLayout) selectSpansSQL() string {
+	return sql.SelectSpansNestedLayout
 }
 
 // appendComparison searches the two arrays of the group for an entry with the key and a

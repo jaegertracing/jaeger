@@ -41,8 +41,8 @@ type AttributeLayout interface {
 	// span or a resource, and yields NULL when the group has no such key. The key is a
 	// quoted string literal.
 	hoistedSource(group AttributeGroup, key string) string
-	// insertSpan returns the statement that inserts a span.
-	insertSpan() string
+	// insertSpanSQL returns the SQL statement that inserts a span.
+	insertSpanSQL() string
 	// appendAttributes appends the values that the INSERT statement binds for the five typed
 	// attribute groups of a span, a resource or a scope.
 	appendAttributes(values []any, attributes dbmodel.Attributes) []any
@@ -50,9 +50,9 @@ type AttributeLayout interface {
 	// typed groups of the events or of the links. Such a group is one column in every layout,
 	// and its value holds the attributes of every event or link of the span.
 	appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
-	// selectSpans returns the statement that reads spans, up to and including its FROM
+	// selectSpansSQL returns the SQL statement that reads spans, up to and including its FROM
 	// clause. Every layout selects the same columns in the same order.
-	selectSpans() string
+	selectSpansSQL() string
 	// appendComparison writes to q the condition that an attribute of the given level has
 	// the key of tav and a value that compares to the value of tav as op says. It returns
 	// args extended with the values that the condition binds.
