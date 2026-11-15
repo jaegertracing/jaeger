@@ -13,13 +13,6 @@ import (
 // table stores an attribute is decided here and not at each place that builds a query. A
 // Reader owns one and hands it to every sqlBuilder it creates. newAttributeBuilder creates
 // it, because it has no usable zero value: every condition needs the layout.
-//
-// TODO: the filter lowering passes equality only. Ordering a search by an attribute needs the
-// attribute as a value. That is a second method, which writes an expression with one value
-// per span and therefore serves the span, resource and scope levels only. The condition of an
-// attribute without a hoisted column must not be rebuilt on that method: the condition of
-// the nested layout matches every value of a key that a span carries more than once, and a
-// single-value expression does not.
 type attributeBuilder struct {
 	// layout is the layout of the typed attribute groups.
 	layout AttributeLayout
