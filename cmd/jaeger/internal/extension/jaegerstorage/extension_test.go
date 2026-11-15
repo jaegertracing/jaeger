@@ -127,6 +127,13 @@ func TestStorageTenancyOptions(t *testing.T) {
 		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b"}}, "memory"), "conflicting multi_tenancy tenant lists")
 	})
 
+	t.Run("enabled list conflicts with unrestricted tenancy on shared memory", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}, "memory"))
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"), "conflicting multi_tenancy tenant lists for storage \"memory\"")
+	})
+
 	t.Run("empty list fails before initialization", func(t *testing.T) {
 		ext := startStorageExtension(t, "memory", "").(*storageExt)
 		host := storagetest.NewStorageHost().WithExtension(ID, ext)

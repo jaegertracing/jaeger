@@ -19,8 +19,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -28,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -360,6 +363,42 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			require.NoError(t, client.conn.Close())
 			server.Close()
+		})
+	}
+}
+
+func TestServerRejectsUnlistedTenantReadsBeforeMemoryStoreAccess(t *testing.T) {
+	tenancyOptions := tenancy.Options{Enabled: true, Tenants: []string{"allowed"}}
+	factory, err := memory.NewFactory(memory.Configuration{MaxTraces: 10}, telemetry.NoopSettings(), tenancyOptions)
+	require.NoError(t, err)
+
+	server, err := NewServer(
+		t.Context(),
+		configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0"}},
+		factory,
+		factory,
+		tenancy.NewManager(&tenancyOptions),
+		telemetry.NoopSettings(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(t.Context()))
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	client := newGRPCClient(t, server.GRPCAddr(), nil, tenancy.NewManager(&tenancyOptions))
+	t.Cleanup(func() {
+		require.NoError(t, client.conn.Close())
+	})
+
+	for _, tenant := range []string{"outside-a", "outside-b"} {
+		t.Run(tenant, func(t *testing.T) {
+			ctx := tenancy.WithTenant(t.Context(), tenant)
+			_, err := client.GetServices(ctx, &storage.GetServicesRequest{})
+			require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+			_, err = client.FindTraces(ctx, &storage.FindTracesRequest{})
+			require.Equal(t, codes.PermissionDenied, status.Code(err))
 		})
 	}
 }

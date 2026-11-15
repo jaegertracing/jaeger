@@ -71,7 +71,7 @@ func (s *storageExt) SetTenancyOptions(options tenancy.Options, storageNames ...
 		configuredOptions := s.tenancyOptions[name]
 		if s.config.TraceBackends[name].Memory != nil && configuredOptions.Enabled {
 			if options.Enabled && !slices.Equal(configuredOptions.Tenants, options.Tenants) {
-				return errors.New("conflicting multi_tenancy tenant lists for jaeger_query and remote_storage")
+				return fmt.Errorf("conflicting multi_tenancy tenant lists for storage %q", name)
 			}
 			if !options.Enabled {
 				continue
