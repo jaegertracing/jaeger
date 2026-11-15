@@ -45,6 +45,18 @@ type AttributeLayout interface {
 	// clause. Every layout selects the same columns in the same order.
 	selectSpansSQL() string
 
+	// KeysSQL returns the expression that yields the keys of a group of a span, a resource or
+	// a scope as an array.
+	KeysSQL(group AttributeGroup) string
+	// Keys2DSQL returns the expression that yields the keys of a group of the events or of
+	// the links, as one array of keys per event or link.
+	Keys2DSQL(group AttributeGroup) string
+	// valueSQL returns the expression that reads the value under key from a group of a span
+	// or a resource, and yields NULL when the group has no such key. The key is a quoted
+	// string literal. A hoisted column is materialized from this expression.
+	// TODO: ORDER BY and SELECT of an attribute can use the same expression.
+	valueSQL(group AttributeGroup, key string) string
+
 	// appendComparison writes to q the condition that an attribute of the given level has
 	// the key of tav and a value that compares to the value of tav as op says. It returns
 	// args extended with the values that the condition binds.
