@@ -53,7 +53,7 @@ func TestWriter_Success_NestedLayout(t *testing.T) {
 
 	for i, expected := range multipleSpans {
 		row := valuesByColumn(t, sql.InsertSpanNestedLayout, b.Appended[i])
-		requireSpanColumns(t, row, expected)
+		requireNonAttributeColumns(t, row, expected)
 		requireNestedGroups(t, row, "", expected.Attributes)
 		requireNestedGroups(t, row, "resource_", expected.ResourceAttributes)
 		requireNestedGroups(t, row, "scope_", expected.ScopeAttributes)
@@ -80,7 +80,7 @@ func TestWriter_Success_MapLayout(t *testing.T) {
 	require.Len(t, b.Appended, len(multipleSpans))
 	for i, expected := range multipleSpans {
 		row := valuesByColumn(t, sql.InsertSpanMapLayout, b.Appended[i])
-		requireSpanColumns(t, row, expected)
+		requireNonAttributeColumns(t, row, expected)
 		requireMapGroups(t, row, "", expected.Attributes)
 		requireMapGroups(t, row, "resource_", expected.ResourceAttributes)
 		requireMapGroups(t, row, "scope_", expected.ScopeAttributes)
@@ -106,9 +106,9 @@ func valuesByColumn(t *testing.T, insertStatement string, values []any) map[stri
 	return byColumn
 }
 
-// requireSpanColumns asserts the columns that hold no attributes, which every layout stores
+// requireNonAttributeColumns asserts the columns that hold no attributes, which every layout stores
 // the same way.
-func requireSpanColumns(t *testing.T, row map[string]any, expected *dbmodel.SpanRow) {
+func requireNonAttributeColumns(t *testing.T, row map[string]any, expected *dbmodel.SpanRow) {
 	t.Helper()
 	require.Equal(t, expected.ID, row["id"])
 	require.Equal(t, expected.TraceID, row["trace_id"])
@@ -119,7 +119,7 @@ func requireSpanColumns(t *testing.T, row map[string]any, expected *dbmodel.Span
 	require.Equal(t, expected.StartTime, row["start_time"])
 	require.Equal(t, expected.StatusCode, row["status_code"])
 	require.Equal(t, expected.StatusMessage, row["status_message"])
-	require.EqualValues(t, expected.Duration, row["duration"])
+	require.Equal(t, expected.Duration, row["duration"])
 	require.Equal(t, expected.EventNames, row["events.name"])
 	require.Equal(t, expected.EventTimestamps, row["events.timestamp"])
 	require.Equal(t, expected.LinkTraceIDs, row["links.trace_id"])
