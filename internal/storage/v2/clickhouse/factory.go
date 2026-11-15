@@ -211,7 +211,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return chtracestore.NewWriter(f.conn), nil
+	return chtracestore.NewWriter(f.conn, chtracestore.NestedLayout{}), nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {

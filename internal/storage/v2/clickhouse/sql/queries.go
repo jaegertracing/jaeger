@@ -5,7 +5,9 @@ package sql
 
 import _ "embed"
 
-const InsertSpan = `
+// InsertSpanNestedLayout inserts a span into a spans table in the Nested attribute layout, where
+// an attribute group is a pair of parallel key and value columns.
+const InsertSpanNestedLayout = `
 INSERT INTO
     spans (
         id,
@@ -84,6 +86,103 @@ VALUES
         ?,
         ?,
         ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    )
+`
+
+// InsertSpanMapLayout inserts a span into a spans table in the Map attribute layout, where an
+// attribute group of a span, a resource or a scope is one column.
+const InsertSpanMapLayout = `
+INSERT INTO
+    spans (
+        id,
+        trace_id,
+        trace_state,
+        parent_span_id,
+        name,
+        kind,
+        start_time,
+        status_code,
+        status_message,
+        duration,
+        bool_attributes,
+        double_attributes,
+        int_attributes,
+        str_attributes,
+        complex_attributes,
+        events.name,
+        events.timestamp,
+        events.bool_attributes,
+        events.double_attributes,
+        events.int_attributes,
+        events.str_attributes,
+        events.complex_attributes,
+        links.trace_id,
+        links.span_id,
+        links.trace_state,
+        links.bool_attributes,
+        links.double_attributes,
+        links.int_attributes,
+        links.str_attributes,
+        links.complex_attributes,
+        service_name,
+        resource_bool_attributes,
+        resource_double_attributes,
+        resource_int_attributes,
+        resource_str_attributes,
+        resource_complex_attributes,
+        scope_name,
+        scope_version,
+        scope_bool_attributes,
+        scope_double_attributes,
+        scope_int_attributes,
+        scope_str_attributes,
+        scope_complex_attributes
+    )
+VALUES
+    (
         ?,
         ?,
         ?,
