@@ -19,6 +19,27 @@ func (NestedLayout) insertSpanSQL() string {
 	return sql.InsertSpanNestedLayout
 }
 
+func (NestedLayout) selectSpansSQL() string {
+	return sql.SelectSpansNestedLayout
+}
+
+// appendComparison searches the two arrays of the group for an entry with the key and a
+// value that satisfies the comparison, so it matches any value of a key that a span carries
+// more than once.
+func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
+	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
+	if prefix, nested := levelColumns(level); nested {
+		// Events and links are arrays inside the span row, so the condition searches the
+		// attributes of every event or link.
+		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
+		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + prefix + ")")
+	} else {
+		group := "s." + attributeGroup(level, tav.valueType)
+		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
+	}
+	return append(args, tav.key, tav.value)
+}
+
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		attributes.BoolKeys,
@@ -42,27 +63,6 @@ func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes
 		toTuple(attributes.StrKeys, attributes.StrValues),
 		toTuple(attributes.ComplexKeys, attributes.ComplexValues),
 	)
-}
-
-func (NestedLayout) selectSpansSQL() string {
-	return sql.SelectSpansNestedLayout
-}
-
-// appendComparison searches the two arrays of the group for an entry with the key and a
-// value that satisfies the comparison, so it matches any value of a key that a span carries
-// more than once.
-func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
-	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
-	if prefix, nested := levelColumns(level); nested {
-		// Events and links are arrays inside the span row, so the condition searches the
-		// attributes of every event or link.
-		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
-		q.WriteString("arrayExists(x -> " + entryMatches + group + ".key, " + group + ".value), s." + prefix + ")")
-	} else {
-		group := "s." + attributeGroup(level, tav.valueType)
-		q.WriteString(entryMatches + group + ".key, " + group + ".value)")
-	}
-	return append(args, tav.key, tav.value)
 }
 
 func toTuple[T any](keys [][]string, values [][]T) [][][]any {
