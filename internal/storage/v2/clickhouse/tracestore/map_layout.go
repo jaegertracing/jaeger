@@ -4,16 +4,11 @@
 package tracestore
 
 import (
-	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
-
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-var (
-	_ AttributeLayout           = MapLayout{}
-	_ column.IterableOrderedMap = orderedMap[string]{}
-)
+var _ AttributeLayout = MapLayout{}
 
 // MapLayout stores an attribute group as Map(String, T).
 type MapLayout struct{}
@@ -49,40 +44,4 @@ func orderedMaps[T any](keys [][]string, values [][]T) []orderedMap[T] {
 		maps = append(maps, orderedMap[T]{keys: keys[i], values: values[i]})
 	}
 	return maps
-}
-
-// orderedMap hands the keys and values of one attribute group to the ClickHouse driver as
-// the value of a Map column. A Go map cannot do that, because it keeps neither the order of
-// the keys nor a key that the span carries more than once.
-type orderedMap[T any] struct {
-	keys   []string
-	values []T
-}
-
-// Put is part of column.IterableOrderedMap, which the driver calls only when it scans a
-// row into the map. The writer never scans, so Put stores nothing.
-func (orderedMap[T]) Put(any, any) {}
-
-func (m orderedMap[T]) Iterator() column.MapIterator {
-	return &orderedMapIterator[T]{m: m, next: 0}
-}
-
-// orderedMapIterator walks an orderedMap. Key and Value return the entry that the last call
-// of Next moved to.
-type orderedMapIterator[T any] struct {
-	m    orderedMap[T]
-	next int
-}
-
-func (it *orderedMapIterator[T]) Next() bool {
-	it.next++
-	return it.next <= len(it.m.keys)
-}
-
-func (it *orderedMapIterator[T]) Key() any {
-	return it.m.keys[it.next-1]
-}
-
-func (it *orderedMapIterator[T]) Value() any {
-	return it.m.values[it.next-1]
 }
