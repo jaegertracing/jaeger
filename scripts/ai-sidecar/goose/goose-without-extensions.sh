@@ -27,9 +27,10 @@ goose info -v \
   > "$config"
 # The check asks Goose again, so that it covers the configuration Goose loads
 # and not only the file written above.
-if ! grep -q "enabled: false" "$config" || goose info -v | grep -q "enabled: true"; then
-  echo "FAIL: could not disable Goose's bundled extensions; $config holds:" >&2
-  cat "$config" >&2
+loaded=$(goose info -v)
+if ! printf '%s\n' "$loaded" | grep -q "enabled: false" || printf '%s\n' "$loaded" | grep -q "enabled: true"; then
+  echo "FAIL: Goose does not report every bundled extension as disabled:" >&2
+  printf '%s\n' "$loaded" >&2
   exit 1
 fi
 exec goose "$@"
