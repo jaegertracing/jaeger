@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -171,22 +172,53 @@ func TestWriter_Success_MapLayout(t *testing.T) {
 	require.True(t, b.SendCalled)
 	require.Len(t, b.Appended, len(multipleSpans))
 	for i, expected := range multipleSpans {
-		row := b.Appended[i]
-		// A group of the span row is one value, and the columns after it move up.
-		require.Len(t, row, 43)
-		require.Equal(t, expected.Duration, row[9])
-		require.Equal(t, orderedMap[bool]{keys: expected.Attributes.BoolKeys, values: expected.Attributes.BoolValues}, row[10])
-		require.Equal(t, orderedMap[string]{keys: expected.Attributes.ComplexKeys, values: expected.Attributes.ComplexValues}, row[14])
-		require.Equal(t, expected.EventNames, row[15])
-		eventInts := row[19].([]orderedMap[int64])
-		require.Len(t, eventInts, len(expected.EventNames))
-		for j, eventInt := range eventInts {
-			require.Equal(t, orderedMap[int64]{keys: expected.EventAttributes.IntKeys[j], values: expected.EventAttributes.IntValues[j]}, eventInt)
-		}
-		require.Equal(t, expected.ServiceName, row[30])
-		require.Equal(t, orderedMap[string]{keys: expected.ResourceAttributes.StrKeys, values: expected.ResourceAttributes.StrValues}, row[34])
-		require.Equal(t, orderedMap[string]{keys: expected.ScopeAttributes.ComplexKeys, values: expected.ScopeAttributes.ComplexValues}, row[42])
+		row := valuesByColumn(t, sql.InsertSpanMapLayout, b.Appended[i])
+		require.Equal(t, expected.Duration, row["duration"])
+		require.Equal(t, expected.EventNames, row["events.name"])
+		require.Equal(t, expected.ServiceName, row["service_name"])
+		requireMapGroups(t, row, "", expected.Attributes)
+		requireMapGroups(t, row, "resource_", expected.ResourceAttributes)
+		requireMapGroups(t, row, "scope_", expected.ScopeAttributes)
+		requireMapGroups2D(t, row, "events.", expected.EventAttributes)
+		requireMapGroups2D(t, row, "links.", expected.LinkAttributes)
 	}
+}
+
+// valuesByColumn pairs the values of one appended row with the columns that the insert
+// statement names, so that a test asserts a value by its column and not by its position.
+func valuesByColumn(t *testing.T, insertStatement string, values []any) map[string]any {
+	t.Helper()
+	_, afterTable, found := strings.Cut(insertStatement, "spans (")
+	require.True(t, found)
+	columnList, _, found := strings.Cut(afterTable, ")")
+	require.True(t, found)
+	columns := strings.Split(columnList, ",")
+	require.Len(t, values, len(columns))
+	byColumn := make(map[string]any, len(columns))
+	for i, column := range columns {
+		byColumn[strings.TrimSpace(column)] = values[i]
+	}
+	return byColumn
+}
+
+// requireMapGroups asserts that every typed group under the prefix is one map value.
+func requireMapGroups(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes) {
+	t.Helper()
+	require.Equal(t, orderedMap[bool]{keys: attributes.BoolKeys, values: attributes.BoolValues}, row[prefix+"bool_attributes"])
+	require.Equal(t, orderedMap[float64]{keys: attributes.DoubleKeys, values: attributes.DoubleValues}, row[prefix+"double_attributes"])
+	require.Equal(t, orderedMap[int64]{keys: attributes.IntKeys, values: attributes.IntValues}, row[prefix+"int_attributes"])
+	require.Equal(t, orderedMap[string]{keys: attributes.StrKeys, values: attributes.StrValues}, row[prefix+"str_attributes"])
+	require.Equal(t, orderedMap[string]{keys: attributes.ComplexKeys, values: attributes.ComplexValues}, row[prefix+"complex_attributes"])
+}
+
+// requireMapGroups2D asserts that every typed group under the prefix is one map per event or link.
+func requireMapGroups2D(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes2D) {
+	t.Helper()
+	require.Equal(t, orderedMaps(attributes.BoolKeys, attributes.BoolValues), row[prefix+"bool_attributes"])
+	require.Equal(t, orderedMaps(attributes.DoubleKeys, attributes.DoubleValues), row[prefix+"double_attributes"])
+	require.Equal(t, orderedMaps(attributes.IntKeys, attributes.IntValues), row[prefix+"int_attributes"])
+	require.Equal(t, orderedMaps(attributes.StrKeys, attributes.StrValues), row[prefix+"str_attributes"])
+	require.Equal(t, orderedMaps(attributes.ComplexKeys, attributes.ComplexValues), row[prefix+"complex_attributes"])
 }
 
 func TestWriter_PrepareBatchError(t *testing.T) {
