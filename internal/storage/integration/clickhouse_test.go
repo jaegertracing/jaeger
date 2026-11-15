@@ -23,10 +23,11 @@ type ClickHouseStorageIntegration struct {
 	factory *ch.Factory
 }
 
-func (s *ClickHouseStorageIntegration) initialize(t *testing.T, database string, hoistedAttributes []ch.HoistedAttribute) {
+func (s *ClickHouseStorageIntegration) initialize(t *testing.T, database string, attributeLayout string, hoistedAttributes []ch.HoistedAttribute) {
 	cfg := ch.DefaultConfiguration()
 	cfg.Addresses = []string{"127.0.0.1:9000"}
 	cfg.Database = database
+	cfg.AttributeLayout = attributeLayout
 	cfg.HoistedAttributes = hoistedAttributes
 	cfg.CreateSchema = true
 	// The compose file runs a single replica with an embedded Keeper, so this suite creates
@@ -104,8 +105,8 @@ func (s *ClickHouseStorageIntegration) cleanUp(t *testing.T) {
 }
 
 // runClickHouseStorageSuite runs the storage suite against the tables of database, which the
-// backend creates with hoistedAttributes.
-func runClickHouseStorageSuite(t *testing.T, database string, hoistedAttributes []ch.HoistedAttribute) {
+// backend creates in attributeLayout and with hoistedAttributes.
+func runClickHouseStorageSuite(t *testing.T, database string, attributeLayout string, hoistedAttributes []ch.HoistedAttribute) {
 	SkipUnlessEnv(t, StorageClickHouse)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
@@ -116,18 +117,33 @@ func runClickHouseStorageSuite(t *testing.T, database string, hoistedAttributes 
 		},
 	}
 	s.CleanUp = s.cleanUp
-	s.initialize(t, database, hoistedAttributes)
+	s.initialize(t, database, attributeLayout, hoistedAttributes)
 	s.RunAll(t)
 }
 
 func TestClickHouseStorage(t *testing.T) {
-	runClickHouseStorageSuite(t, "jaeger", nil)
+	runClickHouseStorageSuite(t, "jaeger", "nested", nil)
+}
+
+// runClickHouseStorageSuiteWithLayout runs the storage suite against a database that it
+// creates anew, whose tables are in attributeLayout and have the hoisted columns. Each such
+// run needs a database of its own, because the backend neither adds a column to an existing
+// table nor converts its layout.
+func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attributeLayout string) {
+	SkipUnlessEnv(t, StorageClickHouse)
+	RecreateClickHouseDatabase(t, database)
+	runClickHouseStorageSuite(t, database, attributeLayout, ClickHouseHoistedAttributes)
 }
 
 // TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
 // columns, so every search must return what it returns without them.
 func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
-	SkipUnlessEnv(t, StorageClickHouse)
-	RecreateClickHouseDatabase(t, ClickHouseHoistedDatabase)
-	runClickHouseStorageSuite(t, ClickHouseHoistedDatabase, ClickHouseHoistedAttributes)
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_hoisted", "nested")
+}
+
+// TestClickHouseStorage_MapLayout runs the same suite against tables in the map layout, so
+// every search must return what it returns from the nested layout. The tables also have the
+// hoisted columns, which in this layout are computed from a map.
+func TestClickHouseStorage_MapLayout(t *testing.T) {
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_map", "map")
 }
