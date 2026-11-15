@@ -10,9 +10,8 @@ import (
 )
 
 // attributeBuilder writes the conditions that search attributes, so that the way the spans
-// table stores an attribute is decided here and not at each place that builds a query. A
-// Reader owns one and hands it to every sqlBuilder it creates. newAttributeBuilder creates
-// it, because it has no usable zero value: every condition needs the layout.
+// table stores an attribute is decided here and not at each place that builds a query. The
+// zero value is not usable, because every condition needs the layout.
 type attributeBuilder struct {
 	// layout is the layout of the typed attribute groups.
 	layout AttributeLayout
