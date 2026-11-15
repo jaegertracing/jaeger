@@ -17,7 +17,7 @@ func (MapLayout) insertSpanSQL() string {
 	return sql.InsertSpanMapLayout
 }
 
-func (MapLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {
+func (MapLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		orderedMap[bool]{keys: attributes.BoolKeys, values: attributes.BoolValues},
 		orderedMap[float64]{keys: attributes.DoubleKeys, values: attributes.DoubleValues},
@@ -27,7 +27,7 @@ func (MapLayout) appendAttributes(values []any, attributes dbmodel.Attributes) [
 	)
 }
 
-func (MapLayout) appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any {
+func (MapLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes2D) []any {
 	return append(values,
 		orderedMaps(attributes.BoolKeys, attributes.BoolValues),
 		orderedMaps(attributes.DoubleKeys, attributes.DoubleValues),

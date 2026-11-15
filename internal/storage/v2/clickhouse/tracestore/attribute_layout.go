@@ -8,14 +8,18 @@ import "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestor
 // AttributeLayout is the way the spans table stores a typed attribute group, such as
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
 // statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
+//
+// A method whose name ends in SQL returns SQL text that binds no values. A bind method
+// returns the values that the insert statement binds.
 type AttributeLayout interface {
-	// insertSpanSQL returns the SQL statement that inserts a span.
+	// insertSpanSQL returns the statement that inserts a span.
 	insertSpanSQL() string
-	// appendAttributes appends the values that the INSERT statement binds for the five typed
+
+	// bindAttributes appends the values that the insert statement binds for the five typed
 	// attribute groups of a span, a resource or a scope.
-	appendAttributes(values []any, attributes dbmodel.Attributes) []any
-	// appendAttributes2D appends the values that the INSERT statement binds for the five
-	// typed groups of the events or of the links. Such a group is one column in every layout,
-	// and its value holds the attributes of every event or link of the span.
-	appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
+	bindAttributes(values []any, attributes dbmodel.Attributes) []any
+	// bindAttributes2D appends the values that the insert statement binds for the five typed
+	// groups of the events or of the links. Such a group is one column in every layout, and
+	// its value holds the attributes of every event or link of the span.
+	bindAttributes2D(values []any, attributes dbmodel.Attributes2D) []any
 }

@@ -53,15 +53,15 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					sr.StatusMessage,
 					sr.Duration,
 				}
-				values = w.layout.appendAttributes(values, sr.Attributes)
+				values = w.layout.bindAttributes(values, sr.Attributes)
 				values = append(values, sr.EventNames, sr.EventTimestamps)
-				values = w.layout.appendAttributes2D(values, sr.EventAttributes)
+				values = w.layout.bindAttributes2D(values, sr.EventAttributes)
 				values = append(values, sr.LinkTraceIDs, sr.LinkSpanIDs, sr.LinkTraceStates)
-				values = w.layout.appendAttributes2D(values, sr.LinkAttributes)
+				values = w.layout.bindAttributes2D(values, sr.LinkAttributes)
 				values = append(values, sr.ServiceName)
-				values = w.layout.appendAttributes(values, sr.ResourceAttributes)
+				values = w.layout.bindAttributes(values, sr.ResourceAttributes)
 				values = append(values, sr.ScopeName, sr.ScopeVersion)
-				values = w.layout.appendAttributes(values, sr.ScopeAttributes)
+				values = w.layout.bindAttributes(values, sr.ScopeAttributes)
 				if err = batch.Append(values...); err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
 				}

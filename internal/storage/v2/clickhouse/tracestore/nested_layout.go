@@ -18,7 +18,7 @@ func (NestedLayout) insertSpanSQL() string {
 	return sql.InsertSpanNestedLayout
 }
 
-func (NestedLayout) appendAttributes(values []any, attributes dbmodel.Attributes) []any {
+func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		attributes.BoolKeys,
 		attributes.BoolValues,
@@ -33,7 +33,7 @@ func (NestedLayout) appendAttributes(values []any, attributes dbmodel.Attributes
 	)
 }
 
-func (NestedLayout) appendAttributes2D(values []any, attributes dbmodel.Attributes2D) []any {
+func (NestedLayout) bindAttributes2D(values []any, attributes dbmodel.Attributes2D) []any {
 	return append(values,
 		toTuple(attributes.BoolKeys, attributes.BoolValues),
 		toTuple(attributes.DoubleKeys, attributes.DoubleValues),
