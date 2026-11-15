@@ -25,20 +25,28 @@ set -eu
 config="$HOME/.config/goose/config.yaml"
 report=$(goose info -v)
 mkdir -p "$(dirname "$config")"
-# Only the entries under "extensions" are changed and checked, because the
-# report holds whatever else Goose chooses to put in it, and another section
-# may have an "enabled" setting of its own.
-printf '%s\n' "$report" \
-  | sed -n '/^goose Configuration:/,$p' \
-  | sed '1d; s/^  //' \
-  | sed '/^extensions:/,/^[^ ]/ s/^\(    enabled:\) true$/\1 false/' \
-  > "$config"
+# The report prints the configuration as YAML after a heading, indented by two
+# spaces. Only the entries of its "extensions" section are changed and checked,
+# because the report holds whatever else Goose chooses to put in it, and
+# another section may have an "enabled" setting of its own.
+printf '%s\n' "$report" | awk '
+  /^goose Configuration:/ { in_config = 1; next }
+  !in_config              { next }
+                          { sub(/^  /, "") }
+  /^[^ ]/                 { in_extensions = ($0 == "extensions:") }
+  in_extensions           { sub(/enabled: true$/, "enabled: false") }
+                          { print }
+' > "$config"
 # The check asks Goose again, so that it covers the configuration Goose loads
 # and not only the file written above.
-loaded=$(goose info -v | sed -n '/^  extensions:/,/^  [^ ]/p')
-if ! printf '%s\n' "$loaded" | grep -q '^      enabled: false$' || printf '%s\n' "$loaded" | grep -q '^      enabled: true$'; then
+loaded_extensions=$(goose info -v | awk '
+  /^goose Configuration:/ { in_config = 1; next }
+  in_config && /^  [^ ]/  { in_extensions = ($0 == "  extensions:") }
+  in_extensions           { print }
+')
+if ! printf '%s\n' "$loaded_extensions" | grep -q "enabled: false$" || printf '%s\n' "$loaded_extensions" | grep -q "enabled: true$"; then
   echo "FAIL: Goose does not report every bundled extension as disabled:" >&2
-  printf '%s\n' "$loaded" >&2
+  printf '%s\n' "$loaded_extensions" >&2
   exit 1
 fi
 exec goose "$@"
