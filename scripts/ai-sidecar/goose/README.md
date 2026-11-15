@@ -65,9 +65,11 @@ endpoint, and each failure shows up in a different place:
 Goose ships general-purpose extensions, including shell access, and with them
 on a question about services may come back with a clock widget or a delegated
 "developer" call beside the Jaeger tools. Goose has no switch that turns them
-all off, only a per-extension `enabled: false` in its config file, so the image
-in `docker-compose.yml` generates that file at build time from the extension
-list its own `goose info -v` prints, every entry disabled; the agent then has
-only the tools Jaeger announces for the turn, and a new Goose version brings its
-own list. Goose started by hand uses whatever `~/.config/goose/config.yaml`
-enables; `goose info -v` lists the extensions and their state.
+all off, only a per-extension `enabled: false` in its config file. The Goose
+container in `docker-compose.yml` runs the image that Goose publishes and
+writes that file each time it starts, from the extension list that its own
+`goose info -v` prints, with every entry disabled. It exits if an entry is left
+enabled. The agent then has only the tools Jaeger announces for the turn, and a
+new Goose version brings its own list. Goose started by hand uses whatever
+`~/.config/goose/config.yaml` enables; `goose info -v` lists the extensions and
+their state.
