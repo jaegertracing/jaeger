@@ -24,8 +24,8 @@ func (MapLayout) Declares(columnType string) bool {
 	return strings.HasPrefix(columnType, "Map(")
 }
 
-func (MapLayout) ColumnTypeFn(valueType string) string {
-	return "Map(String, " + valueType + ")"
+func (MapLayout) ColumnTypeFn(valueType AttributeValueType) string {
+	return "Map(String, " + string(valueType) + ")"
 }
 
 func (MapLayout) KeysFn(group AttributeGroup) string {

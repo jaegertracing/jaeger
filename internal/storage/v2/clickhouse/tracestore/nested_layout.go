@@ -25,8 +25,8 @@ func (NestedLayout) Declares(columnType string) bool {
 	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
 }
 
-func (NestedLayout) ColumnTypeFn(valueType string) string {
-	return "Nested (key String, value " + valueType + ")"
+func (NestedLayout) ColumnTypeFn(valueType AttributeValueType) string {
+	return "Nested (key String, value " + string(valueType) + ")"
 }
 
 func (NestedLayout) KeysFn(group AttributeGroup) string {

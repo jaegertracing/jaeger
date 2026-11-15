@@ -18,6 +18,11 @@ import (
 // links.: str_attributes, resource_int_attributes, events.bool_attributes.
 type AttributeGroup string
 
+// AttributeValueType is the ClickHouse type of the values that an attribute group stores. It
+// is Bool, Float64 or Int64 for the bool, double and int groups, and String for the str and
+// complex groups.
+type AttributeValueType string
+
 // AttributeLayout is the way the spans table stores a typed attribute group, such as
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
 // statement builder asks which layout it works with. NestedLayout and MapLayout implement it.
@@ -33,13 +38,14 @@ type AttributeGroup string
 type AttributeLayout interface {
 	// Name returns the value of the attribute_layout setting that selects the layout.
 	Name() string
-	// Declares reports whether columnType, the type that system.columns lists for an
-	// attribute group, is a group of this layout.
+	// Declares reports whether a column of columnType is an attribute group of this layout.
+	// columnType is any value of the type column of system.columns, such as Map(String, String),
+	// Array(String) or Nested(key String, value String), so every string is a valid argument.
 	Declares(columnType string) bool
 
 	// ColumnTypeFn returns the type of the column that stores an attribute group with values
-	// of the ClickHouse type valueType, as CREATE TABLE declares it.
-	ColumnTypeFn(valueType string) string
+	// of valueType, as CREATE TABLE declares it: Map(String, Bool) for Bool in the map layout.
+	ColumnTypeFn(valueType AttributeValueType) string
 	// KeysFn returns the expression that yields the keys of a group of a span, a resource or
 	// a scope as an array.
 	KeysFn(group AttributeGroup) string
