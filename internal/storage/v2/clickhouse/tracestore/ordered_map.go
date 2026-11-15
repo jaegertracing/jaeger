@@ -7,8 +7,8 @@ import "github.com/ClickHouse/clickhouse-go/v2/lib/column"
 
 var _ column.IterableOrderedMap = orderedMap[string]{}
 
-// orderedMap lets the ClickHouse driver write a Map column straight from the keys and values
-// slices of a span row, so that no Go map is allocated for each attribute group.
+// orderedMap exists because a Go map can neither hold a repeated attribute key nor keep the keys
+// in the order of the span, and the ClickHouse driver otherwise writes a Map column from a Go map.
 type orderedMap[T any] struct {
 	keys   []string
 	values []T
