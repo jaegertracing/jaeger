@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,7 +147,13 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 			var q sqlBuilder
 			for _, level := range levels {
 				for _, c := range comparisons {
-					fmt.Fprintf(&q, "\n-- %s attribute %q of type %s", level, c.tav.key, c.tav.valueType)
+					hoisted := ""
+					if slices.ContainsFunc(testHoistedColumns, func(column HoistedColumn) bool {
+						return column.Level == level && column.Key == c.tav.key && column.Type == c.tav.valueType
+					}) {
+						hoisted = "hoisted "
+					}
+					fmt.Fprintf(&q, "\n-- %s%s attribute %q of type %s", hoisted, level, c.tav.key, c.tav.valueType)
 					args := builder.appendComparison(&q, 0, nil, level, c.op, c.tav)
 					fmt.Fprintf(&q, " -- binds %v", args)
 				}
