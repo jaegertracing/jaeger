@@ -489,61 +489,78 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 	})
 }
 
-// TestCreateSpansTable_HoistedColumns snapshots the spans table with one hoisted column per
-// stored type and level, a key that needs escaping, a column name that is a keyword, and a
-// codec that ClickHouse stores in another spelling.
-func TestCreateSpansTable_HoistedColumns(t *testing.T) {
-	builder, err := buildSchema(Configuration{
-		CreateSchema: true,
-		TableEngine:  localTableEngine,
-		HoistedAttributes: []HoistedAttribute{
-			{
-				Key:    "gen_ai.request.model",
-				Level:  "span",
-				Type:   "string",
-				Column: "span_str",
-			},
-			{
-				Key:    "gen_ai.usage.input_tokens",
-				Level:  "span",
-				Type:   "int",
-				Column: "span_int",
-			},
-			{
-				Key:    "ratio",
-				Level:  "span",
-				Type:   "double",
-				Column: "span_double",
-			},
-			{
-				Key:    "cached",
-				Level:  "span",
-				Type:   "bool",
-				Column: "span_bool",
-			},
-			{
-				Key:    "gen_ai.request.model",
-				Level:  "resource",
-				Type:   "string",
-				Column: "resource_str",
-			},
-			{
-				Key:    "shard",
-				Level:  "resource",
-				Type:   "int",
-				Column: "resource_int",
-				Codec:  "ZSTD(03)",
-			},
-			{
-				Key:    `it's a \key`,
-				Level:  "resource",
-				Type:   "string",
-				Column: "index",
-			},
-		},
-	})
-	require.NoError(t, err)
-	clickhousetest.VerifyQuerySnapshot(t, builder.statements[0].query)
+// TestSchemaBuilder_AttributeLayout snapshots, for each attribute layout, the statements
+// that depend on it: the spans table and the three views that collect attribute keys. The
+// spans table has one hoisted column per stored type and level, a key that needs escaping,
+// a column name that is a keyword, and a codec that ClickHouse stores in another spelling.
+func TestSchemaBuilder_AttributeLayout(t *testing.T) {
+	for _, layout := range []string{"nested", "map"} {
+		t.Run(layout+" layout", func(t *testing.T) {
+			builder, err := buildSchema(Configuration{
+				CreateSchema:    true,
+				TableEngine:     localTableEngine,
+				AttributeLayout: layout,
+				HoistedAttributes: []HoistedAttribute{
+					{
+						Key:    "gen_ai.request.model",
+						Level:  "span",
+						Type:   "string",
+						Column: "span_str",
+					},
+					{
+						Key:    "gen_ai.usage.input_tokens",
+						Level:  "span",
+						Type:   "int",
+						Column: "span_int",
+					},
+					{
+						Key:    "ratio",
+						Level:  "span",
+						Type:   "double",
+						Column: "span_double",
+					},
+					{
+						Key:    "cached",
+						Level:  "span",
+						Type:   "bool",
+						Column: "span_bool",
+					},
+					{
+						Key:    "gen_ai.request.model",
+						Level:  "resource",
+						Type:   "string",
+						Column: "resource_str",
+					},
+					{
+						Key:    "shard",
+						Level:  "resource",
+						Type:   "int",
+						Column: "resource_int",
+						Codec:  "ZSTD(03)",
+					},
+					{
+						Key:    `it's a \key`,
+						Level:  "resource",
+						Type:   "string",
+						Column: "index",
+					},
+				},
+			})
+			require.NoError(t, err)
+			var queries []string
+			for _, statement := range builder.statements {
+				switch statement.name {
+				case "spans table",
+					"attribute metadata materialized view",
+					"event attribute metadata materialized view",
+					"link attribute metadata materialized view":
+					queries = append(queries, statement.query)
+				default:
+				}
+			}
+			clickhousetest.VerifyQuerySnapshot(t, queries...)
+		})
+	}
 }
 
 // TestNewFactory_SpansTableMissing checks that the factory runs the check: the test server
@@ -680,44 +697,6 @@ func TestCreateTraceReader_HoistedColumns(t *testing.T) {
 
 	// The driver writes the bind value into the query.
 	assert.Contains(t, (*queries)[len(*queries)-1], "(s.`input_tokens` IS NOT NULL AND s.`input_tokens` = 7)")
-}
-
-// TestSchemaBuilder_MapLayout snapshots the statements that depend on the attribute layout,
-// rendered for the map layout: the spans table with a hoisted column of each level, and the
-// three views that collect attribute keys.
-func TestSchemaBuilder_MapLayout(t *testing.T) {
-	builder, err := buildSchema(Configuration{
-		CreateSchema:    true,
-		TableEngine:     localTableEngine,
-		AttributeLayout: "map",
-		HoistedAttributes: []HoistedAttribute{
-			{
-				Key:    "gen_ai.request.model",
-				Level:  "span",
-				Type:   "string",
-				Column: "span_str",
-			},
-			{
-				Key:    `it's a \key`,
-				Level:  "resource",
-				Type:   "int",
-				Column: "resource_int",
-			},
-		},
-	})
-	require.NoError(t, err)
-	var queries []string
-	for _, statement := range builder.statements {
-		switch statement.name {
-		case "spans table",
-			"attribute metadata materialized view",
-			"event attribute metadata materialized view",
-			"link attribute metadata materialized view":
-			queries = append(queries, statement.query)
-		default:
-		}
-	}
-	clickhousetest.VerifyQuerySnapshot(t, queries...)
 }
 
 func TestNewFactory_InvalidAttributeLayout(t *testing.T) {

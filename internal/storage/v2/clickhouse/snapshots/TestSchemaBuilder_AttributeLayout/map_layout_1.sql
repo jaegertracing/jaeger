@@ -48,7 +48,12 @@ CREATE TABLE
         scope_str_attributes Map(String, String),
         scope_complex_attributes Map(String, String),
         `span_str` Nullable(String) MATERIALIZED if(mapContains(str_attributes, 'gen_ai.request.model'), str_attributes['gen_ai.request.model'], NULL) CODEC(ZSTD(1)),
-        `resource_int` Nullable(Int64) MATERIALIZED if(mapContains(resource_int_attributes, 'it\'s a \\key'), resource_int_attributes['it\'s a \\key'], NULL) CODEC(ZSTD(1)),
+        `span_int` Nullable(Int64) MATERIALIZED if(mapContains(int_attributes, 'gen_ai.usage.input_tokens'), int_attributes['gen_ai.usage.input_tokens'], NULL) CODEC(ZSTD(1)),
+        `span_double` Nullable(Float64) MATERIALIZED if(mapContains(double_attributes, 'ratio'), double_attributes['ratio'], NULL) CODEC(ZSTD(1)),
+        `span_bool` Nullable(Bool) MATERIALIZED if(mapContains(bool_attributes, 'cached'), bool_attributes['cached'], NULL) CODEC(ZSTD(1)),
+        `resource_str` Nullable(String) MATERIALIZED if(mapContains(resource_str_attributes, 'gen_ai.request.model'), resource_str_attributes['gen_ai.request.model'], NULL) CODEC(ZSTD(1)),
+        `resource_int` Nullable(Int64) MATERIALIZED if(mapContains(resource_int_attributes, 'shard'), resource_int_attributes['shard'], NULL) CODEC(ZSTD(3)),
+        `index` Nullable(String) MATERIALIZED if(mapContains(resource_str_attributes, 'it\'s a \\key'), resource_str_attributes['it\'s a \\key'], NULL) CODEC(ZSTD(1)),
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1
     ) ENGINE = MergeTree
