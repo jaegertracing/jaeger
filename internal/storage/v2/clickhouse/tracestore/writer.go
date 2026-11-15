@@ -14,8 +14,8 @@ import (
 )
 
 type Writer struct {
-	conn       driver.Conn
-	layout     AttributeLayout
+	conn          driver.Conn
+	layout        AttributeLayout
 	insertSpanSQL string
 }
 
@@ -26,8 +26,8 @@ type Writer struct {
 // This connection should not have instrumentation enabled to avoid recursively generating traces.
 func NewWriter(conn driver.Conn, layout AttributeLayout) *Writer {
 	return &Writer{
-		conn:       conn,
-		layout:     layout,
+		conn:          conn,
+		layout:        layout,
 		insertSpanSQL: layout.insertSpanSQL(),
 	}
 }
