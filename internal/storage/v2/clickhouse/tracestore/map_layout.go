@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -15,6 +16,29 @@ type MapLayout struct{}
 
 func (MapLayout) insertSpanSQL() string {
 	return sql.InsertSpanMapLayout
+}
+
+func (MapLayout) selectSpansSQL() string {
+	return sql.SelectSpansMapLayout
+}
+
+// appendComparison compares the value that the map holds under the key. The subscript of a
+// key that the map does not hold returns the default value of the type, which would match a
+// search for zero, false or an empty string, so the condition tests that the key is there.
+// The subscript returns the first value of a key that a span carries more than once, so a
+// search for a later value does not match, unlike in the nested layout.
+func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
+	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
+	if prefix, nested := levelColumns(level); nested {
+		// Events and links are arrays inside the span row, so the condition searches the
+		// attributes of every event or link.
+		group := "x." + attributeColumnType(tav.valueType) + "_attributes"
+		q.WriteString("arrayExists(x -> mapContains(" + group + ", ?) AND " + group + comparison + ", s." + prefix + ")")
+	} else {
+		group := "s." + attributeGroup(level, tav.valueType)
+		q.WriteString("(mapContains(" + group + ", ?) AND " + group + comparison + ")")
+	}
+	return append(args, tav.key, tav.key, tav.value)
 }
 
 func (MapLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {

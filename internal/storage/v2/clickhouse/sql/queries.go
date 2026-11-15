@@ -229,7 +229,8 @@ VALUES
     )
 `
 
-const SelectSpansQuery = `
+// SelectSpansNestedLayout reads spans from a spans table in the Nested attribute layout.
+const SelectSpansNestedLayout = `
 SELECT
     id,
     trace_id,
@@ -300,10 +301,83 @@ SELECT
     scope_complex_attributes.key,
     scope_complex_attributes.value
 FROM
-    spans s
-`
+    spans s`
 
-const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
+// SelectSpansMapLayout reads spans from a spans table in the Map attribute layout.
+// It selects the same columns in the same order as SelectSpansNestedLayout, so a span is
+// scanned the same way from either layout.
+const SelectSpansMapLayout = `
+SELECT
+    id,
+    trace_id,
+    trace_state,
+    parent_span_id,
+    name,
+    kind,
+    start_time,
+    status_code,
+    status_message,
+    duration,
+    mapKeys(bool_attributes),
+    mapValues(bool_attributes),
+    mapKeys(double_attributes),
+    mapValues(double_attributes),
+    mapKeys(int_attributes),
+    mapValues(int_attributes),
+    mapKeys(str_attributes),
+    mapValues(str_attributes),
+    mapKeys(complex_attributes),
+    mapValues(complex_attributes),
+    events.name,
+    events.timestamp,
+    arrayMap(m -> mapKeys(m), events.bool_attributes),
+    arrayMap(m -> mapValues(m), events.bool_attributes),
+    arrayMap(m -> mapKeys(m), events.double_attributes),
+    arrayMap(m -> mapValues(m), events.double_attributes),
+    arrayMap(m -> mapKeys(m), events.int_attributes),
+    arrayMap(m -> mapValues(m), events.int_attributes),
+    arrayMap(m -> mapKeys(m), events.str_attributes),
+    arrayMap(m -> mapValues(m), events.str_attributes),
+    arrayMap(m -> mapKeys(m), events.complex_attributes),
+    arrayMap(m -> mapValues(m), events.complex_attributes),
+    links.trace_id,
+    links.span_id,
+    links.trace_state,
+    arrayMap(m -> mapKeys(m), links.bool_attributes),
+    arrayMap(m -> mapValues(m), links.bool_attributes),
+    arrayMap(m -> mapKeys(m), links.double_attributes),
+    arrayMap(m -> mapValues(m), links.double_attributes),
+    arrayMap(m -> mapKeys(m), links.int_attributes),
+    arrayMap(m -> mapValues(m), links.int_attributes),
+    arrayMap(m -> mapKeys(m), links.str_attributes),
+    arrayMap(m -> mapValues(m), links.str_attributes),
+    arrayMap(m -> mapKeys(m), links.complex_attributes),
+    arrayMap(m -> mapValues(m), links.complex_attributes),
+    service_name,
+    mapKeys(resource_bool_attributes),
+    mapValues(resource_bool_attributes),
+    mapKeys(resource_double_attributes),
+    mapValues(resource_double_attributes),
+    mapKeys(resource_int_attributes),
+    mapValues(resource_int_attributes),
+    mapKeys(resource_str_attributes),
+    mapValues(resource_str_attributes),
+    mapKeys(resource_complex_attributes),
+    mapValues(resource_complex_attributes),
+    scope_name,
+    scope_version,
+    mapKeys(scope_bool_attributes),
+    mapValues(scope_bool_attributes),
+    mapKeys(scope_double_attributes),
+    mapValues(scope_double_attributes),
+    mapKeys(scope_int_attributes),
+    mapValues(scope_int_attributes),
+    mapKeys(scope_str_attributes),
+    mapValues(scope_str_attributes),
+    mapKeys(scope_complex_attributes),
+    mapValues(scope_complex_attributes)
+FROM
+    spans s`
 
 // SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //

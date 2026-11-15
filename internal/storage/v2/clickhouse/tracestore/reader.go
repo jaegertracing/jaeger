@@ -51,11 +51,11 @@ type Reader struct {
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
-// to read trace data.
+// to read trace data from a spans table of the given attribute layout.
 //
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
-func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
+func NewReader(conn driver.Conn, layout AttributeLayout, cfg ReaderConfig) *Reader {
 	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
@@ -63,7 +63,7 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 		conn:          conn,
 		config:        cfg,
 		attrMetaCache: attrMetaCache,
-		attrBuilder:   newAttributeBuilder(cfg.HoistedColumns),
+		attrBuilder:   newAttributeBuilder(layout, cfg.HoistedColumns),
 	}
 }
 
@@ -100,7 +100,7 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			query, args := buildGetTracesQuery(traceID)
+			query, args := r.buildGetTracesQuery(traceID)
 			rows, err := r.conn.Query(ctx, query, args...)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
@@ -183,7 +183,7 @@ func (r *Reader) FindTraces(
 		if len(traceIDs) == 0 {
 			return
 		}
-		q, args := buildFindTracesQuery(traceIDs)
+		q, args := r.buildFindTracesQuery(traceIDs)
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))
