@@ -8,7 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 )
@@ -27,8 +29,8 @@ func TestAttributeLayout_SelectSpans_Map(t *testing.T) {
 // layout.
 func TestAttributeLayout_ColumnTypeSQL(t *testing.T) {
 	clickhousetest.VerifyQuerySnapshot(t,
-		"bool_attributes "+NestedLayout{}.ColumnTypeSQL("Bool"),
-		"bool_attributes "+MapLayout{}.ColumnTypeSQL("Bool"),
+		"bool_attributes "+NestedLayout{}.ColumnTypeSQL(AttributeTypeBool),
+		"bool_attributes "+MapLayout{}.ColumnTypeSQL(AttributeTypeBool),
 	)
 }
 
@@ -70,11 +72,14 @@ func TestAttributeLayout_Declares(t *testing.T) {
 	}
 }
 
-// TestAttributeGroup_Valid checks that the constants are valid and other names are not.
-func TestAttributeGroup_Valid(t *testing.T) {
-	assert.True(t, GroupScopeComplexAttributes.Valid())
-	assert.True(t, GroupLinksBoolAttributes.Valid())
-	assert.False(t, AttributeGroup("text_attributes").Valid())
-	assert.True(t, ValueTypeFloat64.Valid())
-	assert.False(t, AttributeValueType("Bytes").Valid())
+// TestAttributeLayout_KeysSQL checks the keys of a group that is a column of the table and
+// of a group that is stored once per event.
+func TestAttributeLayout_KeysSQL(t *testing.T) {
+	resourceStr := attributeGroup(expression.LevelResource, pcommon.ValueTypeStr)
+	eventStr := attributeGroup(expression.LevelEvent, pcommon.ValueTypeStr)
+
+	assert.Equal(t, "resource_str_attributes.key", NestedLayout{}.KeysSQL(resourceStr))
+	assert.Equal(t, "events.str_attributes.key", NestedLayout{}.KeysSQL(eventStr))
+	assert.Equal(t, "mapKeys(resource_str_attributes)", MapLayout{}.KeysSQL(resourceStr))
+	assert.Equal(t, "arrayMap(m -> mapKeys(m), events.str_attributes)", MapLayout{}.KeysSQL(eventStr))
 }

@@ -20,8 +20,8 @@ func (MapLayout) Name() string {
 	return "map"
 }
 
-func (MapLayout) ColumnTypeSQL(valueType AttributeValueType) string {
-	return "Map(String, " + string(valueType) + ")"
+func (MapLayout) ColumnTypeSQL(attributeType AttributeType) string {
+	return "Map(String, " + attributeType.valueTypeSQL() + ")"
 }
 
 func (MapLayout) Declares(columnType string) bool {
@@ -37,15 +37,14 @@ func (MapLayout) selectSpansSQL() string {
 }
 
 func (MapLayout) KeysSQL(group AttributeGroup) string {
-	return "mapKeys(" + string(group) + ")"
-}
-
-func (MapLayout) Keys2DSQL(group AttributeGroup) string {
-	return "arrayMap(m -> mapKeys(m), " + string(group) + ")"
+	if group.arrayColumn() != "" {
+		return "arrayMap(m -> mapKeys(m), " + group.column() + ")"
+	}
+	return "mapKeys(" + group.column() + ")"
 }
 
 func (MapLayout) valueSQL(group AttributeGroup, key string) string {
-	g := string(group)
+	g := group.column()
 	return "if(mapContains(" + g + ", " + key + "), " + g + "[" + key + "], NULL)"
 }
 
@@ -57,13 +56,13 @@ func (MapLayout) valueSQL(group AttributeGroup, key string) string {
 func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
 	group := attributeGroup(level, tav.valueType)
-	if arrayColumn, field, ok := group.inArray(); ok {
+	if arrayColumn := group.arrayColumn(); arrayColumn != "" {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		column := "x." + field
+		column := "x." + group.field()
 		q.WriteString("arrayExists(x -> mapContains(" + column + ", ?) AND " + column + comparison + ", s." + arrayColumn + ")")
 	} else {
-		column := "s." + string(group)
+		column := "s." + group.column()
 		q.WriteString("(mapContains(" + column + ", ?) AND " + column + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)

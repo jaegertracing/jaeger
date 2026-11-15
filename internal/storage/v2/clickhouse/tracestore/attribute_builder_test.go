@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -164,31 +163,5 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 			}
 			clickhousetest.VerifyQuerySnapshot(t, q.String())
 		})
-	}
-}
-
-// TestAttributeGroup checks the group of a level for each value type. Bytes, maps and slices
-// share the complex group, and an empty value has no group.
-func TestAttributeGroup(t *testing.T) {
-	for valueType, want := range map[pcommon.ValueType]AttributeGroup{
-		pcommon.ValueTypeBool:   GroupResourceBoolAttributes,
-		pcommon.ValueTypeDouble: GroupResourceDoubleAttributes,
-		pcommon.ValueTypeInt:    GroupResourceIntAttributes,
-		pcommon.ValueTypeStr:    GroupResourceStrAttributes,
-		pcommon.ValueTypeBytes:  GroupResourceComplexAttributes,
-		pcommon.ValueTypeMap:    GroupResourceComplexAttributes,
-		pcommon.ValueTypeSlice:  GroupResourceComplexAttributes,
-		pcommon.ValueTypeEmpty:  "",
-	} {
-		assert.Equal(t, want, attributeGroup(expression.LevelResource, valueType), valueType.String())
-	}
-	for level, want := range map[expression.Level]AttributeGroup{
-		expression.LevelSpan:     GroupSpanStrAttributes,
-		expression.LevelResource: GroupResourceStrAttributes,
-		expression.LevelScope:    GroupScopeStrAttributes,
-		expression.LevelEvent:    GroupEventsStrAttributes,
-		expression.LevelLink:     GroupLinksStrAttributes,
-	} {
-		assert.Equal(t, want, attributeGroup(level, pcommon.ValueTypeStr), level)
 	}
 }

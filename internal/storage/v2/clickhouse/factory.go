@@ -14,6 +14,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
@@ -50,30 +51,23 @@ type schemaTemplateParams struct {
 	layout chtracestore.AttributeLayout
 }
 
-// ColumnTypeFn is the template function that renders the type of an attribute group column.
-func (p schemaTemplateParams) ColumnTypeFn(valueType chtracestore.AttributeValueType) (string, error) {
-	if !valueType.Valid() {
-		return "", fmt.Errorf("%q is not a value type of an attribute group", valueType)
+// ColumnTypeFn is the template function that renders the type of the column of an attribute
+// group of the given type, such as bool.
+func (p schemaTemplateParams) ColumnTypeFn(attributeType chtracestore.AttributeType) (string, error) {
+	if !attributeType.Valid() {
+		return "", fmt.Errorf("%q is not a type of attribute group", attributeType)
 	}
-	return p.layout.ColumnTypeSQL(valueType), nil
+	return p.layout.ColumnTypeSQL(attributeType), nil
 }
 
-// KeysFn is the template function that renders the keys of a group of a span, a resource or
-// a scope.
-func (p schemaTemplateParams) KeysFn(group chtracestore.AttributeGroup) (string, error) {
-	if !group.Valid() {
-		return "", fmt.Errorf("%q is not an attribute group", group)
+// KeysFn is the template function that renders the keys of the attribute group of the given
+// level and type, such as resource and bool.
+func (p schemaTemplateParams) KeysFn(level expression.Level, attributeType chtracestore.AttributeType) (string, error) {
+	group, err := chtracestore.NewAttributeGroup(level, attributeType)
+	if err != nil {
+		return "", err
 	}
 	return p.layout.KeysSQL(group), nil
-}
-
-// Keys2DFn is the template function that renders the keys of a group of the events or of
-// the links.
-func (p schemaTemplateParams) Keys2DFn(group chtracestore.AttributeGroup) (string, error) {
-	if !group.Valid() {
-		return "", fmt.Errorf("%q is not an attribute group", group)
-	}
-	return p.layout.Keys2DSQL(group), nil
 }
 
 type schemaStatement struct {

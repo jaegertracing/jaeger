@@ -7,161 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
-
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
-
-// AttributeGroup is the name of a column of the spans table that stores the attributes of
-// one value type at one level. A group of the events or of the links is a column of the
-// events or links array.
-type AttributeGroup string
-
-const (
-	// The columns of the span level have no prefix.
-	GroupSpanBoolAttributes    AttributeGroup = "bool_attributes"
-	GroupSpanDoubleAttributes  AttributeGroup = "double_attributes"
-	GroupSpanIntAttributes     AttributeGroup = "int_attributes"
-	GroupSpanStrAttributes     AttributeGroup = "str_attributes"
-	GroupSpanComplexAttributes AttributeGroup = "complex_attributes"
-
-	GroupResourceBoolAttributes    AttributeGroup = "resource_bool_attributes"
-	GroupResourceDoubleAttributes  AttributeGroup = "resource_double_attributes"
-	GroupResourceIntAttributes     AttributeGroup = "resource_int_attributes"
-	GroupResourceStrAttributes     AttributeGroup = "resource_str_attributes"
-	GroupResourceComplexAttributes AttributeGroup = "resource_complex_attributes"
-
-	GroupScopeBoolAttributes    AttributeGroup = "scope_bool_attributes"
-	GroupScopeDoubleAttributes  AttributeGroup = "scope_double_attributes"
-	GroupScopeIntAttributes     AttributeGroup = "scope_int_attributes"
-	GroupScopeStrAttributes     AttributeGroup = "scope_str_attributes"
-	GroupScopeComplexAttributes AttributeGroup = "scope_complex_attributes"
-
-	GroupEventsBoolAttributes    AttributeGroup = "events.bool_attributes"
-	GroupEventsDoubleAttributes  AttributeGroup = "events.double_attributes"
-	GroupEventsIntAttributes     AttributeGroup = "events.int_attributes"
-	GroupEventsStrAttributes     AttributeGroup = "events.str_attributes"
-	GroupEventsComplexAttributes AttributeGroup = "events.complex_attributes"
-
-	GroupLinksBoolAttributes    AttributeGroup = "links.bool_attributes"
-	GroupLinksDoubleAttributes  AttributeGroup = "links.double_attributes"
-	GroupLinksIntAttributes     AttributeGroup = "links.int_attributes"
-	GroupLinksStrAttributes     AttributeGroup = "links.str_attributes"
-	GroupLinksComplexAttributes AttributeGroup = "links.complex_attributes"
-)
-
-// AttributeValueType is the ClickHouse type of the values that an attribute group stores.
-// The str and the complex groups both store String.
-type AttributeValueType string
-
-const (
-	ValueTypeBool    AttributeValueType = "Bool"
-	ValueTypeFloat64 AttributeValueType = "Float64"
-	ValueTypeInt64   AttributeValueType = "Int64"
-	ValueTypeString  AttributeValueType = "String"
-)
-
-// groupsByValueType names the five columns that store the attributes of one level, which is
-// a span, a resource, a scope, the events or the links. Each field is the column for one kind
-// of value, and attributeGroup picks the field for a value type.
-type groupsByValueType struct {
-	boolGroup    AttributeGroup
-	doubleGroup  AttributeGroup
-	intGroup     AttributeGroup
-	strGroup     AttributeGroup
-	complexGroup AttributeGroup
-}
-
-// attributeGroupsByLevel lists every attribute group of the spans table under its level.
-var attributeGroupsByLevel = map[expression.Level]groupsByValueType{
-	expression.LevelSpan: {
-		boolGroup:    GroupSpanBoolAttributes,
-		doubleGroup:  GroupSpanDoubleAttributes,
-		intGroup:     GroupSpanIntAttributes,
-		strGroup:     GroupSpanStrAttributes,
-		complexGroup: GroupSpanComplexAttributes,
-	},
-	expression.LevelResource: {
-		boolGroup:    GroupResourceBoolAttributes,
-		doubleGroup:  GroupResourceDoubleAttributes,
-		intGroup:     GroupResourceIntAttributes,
-		strGroup:     GroupResourceStrAttributes,
-		complexGroup: GroupResourceComplexAttributes,
-	},
-	expression.LevelScope: {
-		boolGroup:    GroupScopeBoolAttributes,
-		doubleGroup:  GroupScopeDoubleAttributes,
-		intGroup:     GroupScopeIntAttributes,
-		strGroup:     GroupScopeStrAttributes,
-		complexGroup: GroupScopeComplexAttributes,
-	},
-	expression.LevelEvent: {
-		boolGroup:    GroupEventsBoolAttributes,
-		doubleGroup:  GroupEventsDoubleAttributes,
-		intGroup:     GroupEventsIntAttributes,
-		strGroup:     GroupEventsStrAttributes,
-		complexGroup: GroupEventsComplexAttributes,
-	},
-	expression.LevelLink: {
-		boolGroup:    GroupLinksBoolAttributes,
-		doubleGroup:  GroupLinksDoubleAttributes,
-		intGroup:     GroupLinksIntAttributes,
-		strGroup:     GroupLinksStrAttributes,
-		complexGroup: GroupLinksComplexAttributes,
-	},
-}
-
-// attributeGroup returns the group that stores the attributes of valueType at the level.
-// Bytes, maps and slices share the complex group, where the key carries a prefix that tells
-// them apart. No group stores an empty value, and no caller passes one.
-func attributeGroup(level expression.Level, valueType pcommon.ValueType) AttributeGroup {
-	groups := attributeGroupsByLevel[level]
-	switch valueType {
-	case pcommon.ValueTypeBool:
-		return groups.boolGroup
-	case pcommon.ValueTypeDouble:
-		return groups.doubleGroup
-	case pcommon.ValueTypeInt:
-		return groups.intGroup
-	case pcommon.ValueTypeStr:
-		return groups.strGroup
-	case pcommon.ValueTypeBytes, pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		return groups.complexGroup
-	default:
-		return ""
-	}
-}
-
-// inArray reports whether the group is stored inside the events or the links array column.
-// For events.str_attributes it returns the array column events and str_attributes, the field
-// of each event that holds the group. A group of a span, a resource or a scope is a column
-// of the table itself, and inArray returns false for it.
-func (g AttributeGroup) inArray() (arrayColumn, field string, ok bool) {
-	return strings.Cut(string(g), ".")
-}
-
-// Valid reports whether g is one of the attribute groups of the spans table.
-func (g AttributeGroup) Valid() bool {
-	for _, groups := range attributeGroupsByLevel {
-		switch g {
-		case groups.boolGroup, groups.doubleGroup, groups.intGroup, groups.strGroup, groups.complexGroup:
-			return true
-		default:
-		}
-	}
-	return false
-}
-
-// Valid reports whether t is one of the value types of an attribute group.
-func (t AttributeValueType) Valid() bool {
-	switch t {
-	case ValueTypeBool, ValueTypeFloat64, ValueTypeInt64, ValueTypeString:
-		return true
-	default:
-		return false
-	}
-}
 
 // AttributeLayout is the way the spans table stores a typed attribute group, such as
 // str_attributes. Everything that depends on that choice is a method of the layout, so no
@@ -177,9 +25,9 @@ func (t AttributeValueType) Valid() bool {
 type AttributeLayout interface {
 	// Name returns the value of the attribute_layout setting that selects the layout.
 	Name() string
-	// ColumnTypeSQL returns the type of the column that stores an attribute group with values
-	// of valueType, as CREATE TABLE declares it: Map(String, Bool) for Bool in the map layout.
-	ColumnTypeSQL(valueType AttributeValueType) string
+	// ColumnTypeSQL returns the type of the column that stores a group of attributeType, as
+	// CREATE TABLE declares it: Map(String, Bool) for a bool group in the map layout.
+	ColumnTypeSQL(attributeType AttributeType) string
 	// Declares reports whether a column of columnType is an attribute group of this layout.
 	// columnType is any value of the type column of system.columns, such as Map(String, String),
 	// Array(String) or Nested(key String, value String), so every string is a valid argument.
@@ -191,12 +39,10 @@ type AttributeLayout interface {
 	// clause. Every layout selects the same columns in the same order.
 	selectSpansSQL() string
 
-	// KeysSQL returns the expression that yields the keys of a group of a span, a resource or
-	// a scope as an array.
+	// KeysSQL returns the expression that yields the keys of a group. It is one array for a
+	// group of a span, a resource or a scope, and one array per event or link for a group of
+	// the events or of the links.
 	KeysSQL(group AttributeGroup) string
-	// Keys2DSQL returns the expression that yields the keys of a group of the events or of
-	// the links, as one array of keys per event or link.
-	Keys2DSQL(group AttributeGroup) string
 	// valueSQL returns the expression that reads the value under key from a group of a span
 	// or a resource, and yields NULL when the group has no such key. The key is a quoted
 	// string literal. A hoisted column is materialized from this expression.

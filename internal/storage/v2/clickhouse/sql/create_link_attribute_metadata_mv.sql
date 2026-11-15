@@ -5,10 +5,10 @@ SELECT
     'link' AS level
 FROM spans
 ARRAY JOIN arrayConcat(
-    arrayMap(k -> (k, 'bool'),   arrayFlatten({{ .Keys2DFn "links.bool_attributes" }})),
-    arrayMap(k -> (k, 'double'), arrayFlatten({{ .Keys2DFn "links.double_attributes" }})),
-    arrayMap(k -> (k, 'int'),    arrayFlatten({{ .Keys2DFn "links.int_attributes" }})),
-    arrayMap(k -> (k, 'str'),    arrayFlatten({{ .Keys2DFn "links.str_attributes" }})),
+    arrayMap(k -> (k, 'bool'),   arrayFlatten({{ .KeysFn "link" "bool" }})),
+    arrayMap(k -> (k, 'double'), arrayFlatten({{ .KeysFn "link" "double" }})),
+    arrayMap(k -> (k, 'int'),    arrayFlatten({{ .KeysFn "link" "int" }})),
+    arrayMap(k -> (k, 'str'),    arrayFlatten({{ .KeysFn "link" "str" }})),
     arrayMap(k -> (
         multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                 startsWith(k, '@map@'),   substring(k, 6),
@@ -16,6 +16,6 @@ ARRAY JOIN arrayConcat(
         multiIf(startsWith(k, '@bytes@'), 'bytes',
                 startsWith(k, '@map@'),   'map',
                 startsWith(k, '@slice@'), 'slice', '')
-    ), arrayFlatten({{ .Keys2DFn "links.complex_attributes" }}))
+    ), arrayFlatten({{ .KeysFn "link" "complex" }}))
 ) AS tp
 GROUP BY attribute_key, type, level;

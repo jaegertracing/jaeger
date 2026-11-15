@@ -840,14 +840,14 @@ func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
 	assert.Zero(t, f.config.AttributeMetadataCacheMaxSize)
 }
 
-// TestSchemaTemplateFunctions_UnknownValue checks that a template which names a value type
-// or an attribute group that does not exist fails to render.
+// TestSchemaTemplateFunctions_UnknownValue checks that a template which names a level or a
+// type of attribute group that does not exist fails to render.
 func TestSchemaTemplateFunctions_UnknownValue(t *testing.T) {
 	params := schemaTemplateParams{layout: chtracestore.MapLayout{}}
 	for template, wantErr := range map[string]string{
-		`{{ .ColumnTypeFn "Bytes" }}`:        `"Bytes" is not a value type of an attribute group`,
-		`{{ .KeysFn "text_attributes" }}`:    `"text_attributes" is not an attribute group`,
-		`{{ .Keys2DFn "spans.attributes" }}`: `"spans.attributes" is not an attribute group`,
+		`{{ .ColumnTypeFn "bytes" }}`: `"bytes" is not a type of attribute group`,
+		`{{ .KeysFn "span" "text" }}`: `"text" is not a type of attribute group`,
+		`{{ .KeysFn "trace" "str" }}`: `"trace" is not a level of attributes`,
 	} {
 		_, err := loadTemplate("test", template, params)
 		require.ErrorContains(t, err, wantErr)

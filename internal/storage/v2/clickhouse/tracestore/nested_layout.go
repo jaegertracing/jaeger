@@ -21,8 +21,8 @@ func (NestedLayout) Name() string {
 	return "nested"
 }
 
-func (NestedLayout) ColumnTypeSQL(valueType AttributeValueType) string {
-	return "Nested (key String, value " + string(valueType) + ")"
+func (NestedLayout) ColumnTypeSQL(attributeType AttributeType) string {
+	return "Nested (key String, value " + attributeType.valueTypeSQL() + ")"
 }
 
 func (NestedLayout) Declares(columnType string) bool {
@@ -38,15 +38,11 @@ func (NestedLayout) selectSpansSQL() string {
 }
 
 func (NestedLayout) KeysSQL(group AttributeGroup) string {
-	return string(group) + ".key"
-}
-
-func (NestedLayout) Keys2DSQL(group AttributeGroup) string {
-	return string(group) + ".key"
+	return group.column() + ".key"
 }
 
 func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
-	g := string(group)
+	g := group.column()
 	return "if(has(" + g + ".key, " + key + "), " + g + ".value[indexOf(" + g + ".key, " + key + ")], NULL)"
 }
 
@@ -56,13 +52,13 @@ func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
 func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
 	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
 	group := attributeGroup(level, tav.valueType)
-	if arrayColumn, field, ok := group.inArray(); ok {
+	if arrayColumn := group.arrayColumn(); arrayColumn != "" {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		column := "x." + field
+		column := "x." + group.field()
 		q.WriteString("arrayExists(x -> " + entryMatches + column + ".key, " + column + ".value), s." + arrayColumn + ")")
 	} else {
-		column := "s." + string(group)
+		column := "s." + group.column()
 		q.WriteString(entryMatches + column + ".key, " + column + ".value)")
 	}
 	return append(args, tav.key, tav.value)
