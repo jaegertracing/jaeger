@@ -183,7 +183,7 @@ func TestAttributeGroup(t *testing.T) {
 		assert.Equal(t, want, attributeGroup(expression.LevelResource, valueType), valueType.String())
 	}
 	for level, want := range map[expression.Level]AttributeGroup{
-		expression.LevelSpan:     GroupStrAttributes,
+		expression.LevelSpan:     GroupSpanStrAttributes,
 		expression.LevelResource: GroupResourceStrAttributes,
 		expression.LevelScope:    GroupScopeStrAttributes,
 		expression.LevelEvent:    GroupEventsStrAttributes,

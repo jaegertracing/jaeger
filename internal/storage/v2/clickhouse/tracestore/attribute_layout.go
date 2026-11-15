@@ -19,11 +19,12 @@ import (
 type AttributeGroup string
 
 const (
-	GroupBoolAttributes    AttributeGroup = "bool_attributes"
-	GroupDoubleAttributes  AttributeGroup = "double_attributes"
-	GroupIntAttributes     AttributeGroup = "int_attributes"
-	GroupStrAttributes     AttributeGroup = "str_attributes"
-	GroupComplexAttributes AttributeGroup = "complex_attributes"
+	// The columns of the span level have no prefix.
+	GroupSpanBoolAttributes    AttributeGroup = "bool_attributes"
+	GroupSpanDoubleAttributes  AttributeGroup = "double_attributes"
+	GroupSpanIntAttributes     AttributeGroup = "int_attributes"
+	GroupSpanStrAttributes     AttributeGroup = "str_attributes"
+	GroupSpanComplexAttributes AttributeGroup = "complex_attributes"
 
 	GroupResourceBoolAttributes    AttributeGroup = "resource_bool_attributes"
 	GroupResourceDoubleAttributes  AttributeGroup = "resource_double_attributes"
@@ -75,11 +76,11 @@ type groupsByValueType struct {
 // attributeGroupsByLevel lists every attribute group of the spans table under its level.
 var attributeGroupsByLevel = map[expression.Level]groupsByValueType{
 	expression.LevelSpan: {
-		boolGroup:    GroupBoolAttributes,
-		doubleGroup:  GroupDoubleAttributes,
-		intGroup:     GroupIntAttributes,
-		strGroup:     GroupStrAttributes,
-		complexGroup: GroupComplexAttributes,
+		boolGroup:    GroupSpanBoolAttributes,
+		doubleGroup:  GroupSpanDoubleAttributes,
+		intGroup:     GroupSpanIntAttributes,
+		strGroup:     GroupSpanStrAttributes,
+		complexGroup: GroupSpanComplexAttributes,
 	},
 	expression.LevelResource: {
 		boolGroup:    GroupResourceBoolAttributes,
