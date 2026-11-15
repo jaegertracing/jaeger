@@ -17,13 +17,16 @@
 # enabled.
 set -eu
 
-config=$(goose info -v | sed -n 's/^Config yaml: *\([^ ]*\).*/\1/p')
+# The report is captured before the config file is opened for writing, so that
+# Goose reads the settings of an existing file before the file is truncated.
+report=$(goose info -v)
+config=$(printf '%s\n' "$report" | sed -n 's/^Config yaml: *\([^ ]*\).*/\1/p')
 if [ -z "$config" ]; then
   echo "FAIL: \"goose info -v\" did not report the path of the Goose config file" >&2
   exit 1
 fi
 mkdir -p "$(dirname "$config")"
-goose info -v \
+printf '%s\n' "$report" \
   | sed -n '/^goose Configuration:/,$p' \
   | sed '1d; s/^  //; s/enabled: true/enabled: false/' \
   > "$config"
