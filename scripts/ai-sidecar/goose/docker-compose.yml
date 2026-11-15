@@ -40,7 +40,7 @@ services:
   # it starts the server; README.md, "Agent-supplied tools", has the reasoning.
   # A "$$" is a literal "$" that Compose would otherwise expand.
   goose:
-    image: ghcr.io/aaif-goose/goose:${GOOSE_VERSION:-v1.57.0}
+    image: ghcr.io/aaif-goose/goose:v1.57.0@sha256:06485bd5275090903b7ef5313059d792dd88759d9c6e3365d300aba37454ca58
     entrypoint: ["sh", "-ec"]
     command:
       - |
