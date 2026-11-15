@@ -69,4 +69,4 @@ SELECT
     mapValues(scope_complex_attributes)
 FROM
     spans s
- WHERE s.trace_id = ?
+WHERE s.trace_id = ?
