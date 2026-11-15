@@ -267,6 +267,13 @@ live_representative_field() {
     jq -r --arg field "$field" '.hits.hits[0]._source | getpath($field | split(".")) // empty'
 }
 
+# The service indexes keep every retained day, while the isolated Jaeger lists
+# only services seen within max_span_age, so the representative service is the
+# one on the newest span and not the first hit of an arbitrary daily index.
+live_recent_service() {
+  live_representative_field 'jaeger-main-jaeger-span-*' 'process.serviceName' 'startTime:desc'
+}
+
 render_snapshot() {
   local snapshot=$1
   local source_pvc=$2
@@ -322,6 +329,10 @@ spec:
 EOF
 }
 
+# max_span_age mirrors examples/otel-demo/jaeger-config.yaml, and
+# opensearch-recovery.test.sh fails when the two disagree. It bounds trace reads
+# and the /api/v3/services lookback, so the 72h default would hide restored data
+# that the live demo still serves.
 render_restore_configmap() {
   local configmap=$1
 
@@ -356,6 +367,7 @@ data:
             opensearch:
               server_urls:
                 - http://127.0.0.1:9200
+              max_span_age: 720h
               indices:
                 index_prefix: "jaeger-main"
                 spans:
@@ -699,7 +711,7 @@ create_and_test_recovery() {
   expected_template_inventory=$(live_inventory_exact '_cat/templates/jaeger*?h=name')
   expected_documents=$(live_document_count 'jaeger-*')
   expected_services=$(live_document_count 'jaeger-main-jaeger-service-*')
-  expected_service=$(live_representative_field 'jaeger-main-jaeger-service-*' 'serviceName')
+  expected_service=$(live_recent_service)
   expected_trace_id=$(live_representative_field 'jaeger-main-jaeger-span-*' 'traceID' 'startTime:desc')
   [[ -n "$expected_index_inventory" ]] || err "No Jaeger indexes found in the live cluster"
   ((expected_documents > 0)) || err "No Jaeger documents found in the live cluster"
