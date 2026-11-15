@@ -13,10 +13,13 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+var (
+	_ AttributeLayout           = MapLayout{}
+	_ column.IterableOrderedMap = orderedMap[string]{}
+)
+
 // MapLayout stores an attribute group as Map(String, T).
 type MapLayout struct{}
-
-var _ AttributeLayout = MapLayout{}
 
 func (MapLayout) Name() string {
 	return "map"
@@ -106,8 +109,6 @@ type orderedMap[T any] struct {
 	keys   []string
 	values []T
 }
-
-var _ column.IterableOrderedMap = orderedMap[string]{}
 
 // Put is part of column.IterableOrderedMap, which the driver calls only when it scans a
 // row into the map. The writer never scans, so Put stores nothing.
