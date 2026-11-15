@@ -26,31 +26,32 @@ type AttributeGroup string
 // writes SQL to a builder and returns the values that the SQL binds. A bind method returns
 // the values that the insert statement binds.
 //
-// A method is exported when the storage factory or a schema template calls it, and a
-// template can call exported methods only. The unexported methods serve the Reader and the
-// Writer of this package, and they keep the implementations of a layout inside it.
+// A method whose name ends in Fn is one that a schema template calls, and it returns SQL
+// text too. It is exported because a template can call exported methods only, and Name and
+// Declares are exported for the storage factory. The unexported methods serve the Reader
+// and the Writer of this package, and they keep the implementations of a layout inside it.
 type AttributeLayout interface {
 	// Name returns the value of the attribute_layout setting that selects the layout.
 	Name() string
-	// GroupType returns the type of a group that holds values of valueType, as CREATE TABLE
-	// declares it.
-	GroupType(valueType string) string
 	// Declares reports whether columnType, the type that system.columns lists for an
 	// attribute group, is a group of this layout.
 	Declares(columnType string) bool
+
+	// ColumnTypeFn returns the type of the column that stores an attribute group with values
+	// of the ClickHouse type valueType, as CREATE TABLE declares it.
+	ColumnTypeFn(valueType string) string
+	// KeysFn returns the expression that yields the keys of a group of a span, a resource or
+	// a scope as an array.
+	KeysFn(group AttributeGroup) string
+	// Keys2DFn returns the expression that yields the keys of a group of the events or of
+	// the links, as one array of keys per event or link.
+	Keys2DFn(group AttributeGroup) string
 
 	// insertSpanSQL returns the statement that inserts a span.
 	insertSpanSQL() string
 	// selectSpansSQL returns the statement that reads spans, up to and including its FROM
 	// clause. Every layout selects the same columns in the same order.
 	selectSpansSQL() string
-
-	// KeysSQL returns the expression that yields the keys of a group of a span, a resource or
-	// a scope as an array.
-	KeysSQL(group AttributeGroup) string
-	// Keys2DSQL returns the expression that yields the keys of a group of the events or of
-	// the links, as one array of keys per event or link.
-	Keys2DSQL(group AttributeGroup) string
 	// valueSQL returns the expression that reads the value under key from a group of a span
 	// or a resource, and yields NULL when the group has no such key. The key is a quoted
 	// string literal. A hoisted column is materialized from this expression.

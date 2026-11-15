@@ -21,12 +21,20 @@ func (NestedLayout) Name() string {
 	return "nested"
 }
 
-func (NestedLayout) GroupType(valueType string) string {
+func (NestedLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
+}
+
+func (NestedLayout) ColumnTypeFn(valueType string) string {
 	return "Nested (key String, value " + valueType + ")"
 }
 
-func (NestedLayout) Declares(columnType string) bool {
-	return strings.HasPrefix(columnType, "Array(") || strings.HasPrefix(columnType, "Nested(")
+func (NestedLayout) KeysFn(group AttributeGroup) string {
+	return string(group) + ".key"
+}
+
+func (NestedLayout) Keys2DFn(group AttributeGroup) string {
+	return string(group) + ".key"
 }
 
 func (NestedLayout) insertSpanSQL() string {
@@ -35,14 +43,6 @@ func (NestedLayout) insertSpanSQL() string {
 
 func (NestedLayout) selectSpansSQL() string {
 	return sql.SelectSpansNestedLayout
-}
-
-func (NestedLayout) KeysSQL(group AttributeGroup) string {
-	return string(group) + ".key"
-}
-
-func (NestedLayout) Keys2DSQL(group AttributeGroup) string {
-	return string(group) + ".key"
 }
 
 func (NestedLayout) valueSQL(group AttributeGroup, key string) string {

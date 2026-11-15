@@ -20,12 +20,20 @@ func (MapLayout) Name() string {
 	return "map"
 }
 
-func (MapLayout) GroupType(valueType string) string {
+func (MapLayout) Declares(columnType string) bool {
+	return strings.HasPrefix(columnType, "Map(")
+}
+
+func (MapLayout) ColumnTypeFn(valueType string) string {
 	return "Map(String, " + valueType + ")"
 }
 
-func (MapLayout) Declares(columnType string) bool {
-	return strings.HasPrefix(columnType, "Map(")
+func (MapLayout) KeysFn(group AttributeGroup) string {
+	return "mapKeys(" + string(group) + ")"
+}
+
+func (MapLayout) Keys2DFn(group AttributeGroup) string {
+	return "arrayMap(m -> mapKeys(m), " + string(group) + ")"
 }
 
 func (MapLayout) insertSpanSQL() string {
@@ -34,14 +42,6 @@ func (MapLayout) insertSpanSQL() string {
 
 func (MapLayout) selectSpansSQL() string {
 	return sql.SelectSpansMapLayout
-}
-
-func (MapLayout) KeysSQL(group AttributeGroup) string {
-	return "mapKeys(" + string(group) + ")"
-}
-
-func (MapLayout) Keys2DSQL(group AttributeGroup) string {
-	return "arrayMap(m -> mapKeys(m), " + string(group) + ")"
 }
 
 func (MapLayout) valueSQL(group AttributeGroup, key string) string {
