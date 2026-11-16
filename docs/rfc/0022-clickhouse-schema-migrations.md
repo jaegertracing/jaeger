@@ -461,7 +461,7 @@ table_engine:
   merge_tree: {}
 ```
 
-One node holds all data in `MergeTree` tables under the public names. The configuration is the same on an ordinary database and on a `Replicated` database with one node. A node that will gain replicas later can use `replicated: {}` from the start, which needs Keeper and the macros of setup 2.
+One node holds all data in `MergeTree` tables under the public names. The configuration is the same on an ordinary database and on a `Replicated` database with one node.
 
 Jaeger validation:
 
