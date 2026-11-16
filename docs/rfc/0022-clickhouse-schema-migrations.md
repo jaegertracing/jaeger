@@ -74,7 +74,7 @@ The parts of a table that can change in place determine the shape of a migration
 | Change a column's type, including adding `LowCardinality` | `ALTER TABLE ... MODIFY COLUMN ... <type>` | a mutation that rewrites every part² | propagates |
 | Change a table setting | `ALTER TABLE ... MODIFY SETTING` | metadata only | replica-local³ |
 | Change or remove TTL | `ALTER TABLE ... MODIFY TTL`, `ALTER TABLE ... REMOVE TTL` | a mutation by default; metadata only with `materialize_ttl_after_modify = 0`, after which the new expression applies as parts merge⁴ | propagates |
-| Change a view's query | `ALTER TABLE <view> MODIFY QUERY` | metadata only; generally available since ClickHouse 23.11 | replica-local³ |
+| Change a view's query | `ALTER TABLE <view> MODIFY QUERY` | metadata only | replica-local³ |
 | Extend the sorting key | `ALTER TABLE ... MODIFY ORDER BY` | metadata only, and only by appending columns added in the same statement | propagates |
 | Drop a column | `ALTER TABLE ... DROP COLUMN` | destroys data | propagates |
 | Change `ENGINE`, `PARTITION BY`, or the existing sorting key | not possible | requires a new table and a copy | n/a |
@@ -428,13 +428,13 @@ This section defines the ClickHouse deployments that Jaeger supports, how each i
 
 #### Where the data lives
 
-| Setup | Description | Storage engine | `Distributed` tables |
-| --- | --- | --- | --- |
-| 1. Single node | One node holds all data. | `MergeTree` | no |
-| 2. Replicas only | Several nodes, and each holds a full copy of all data. There is one shard. | `ReplicatedMergeTree` | no |
-| 3a. Shards with replicas | The data is divided into shards, and each shard has more than one replica. | `ReplicatedMergeTree` | yes |
-| 3b. Shards without replicas | The data is divided into shards, and each shard is one node. Losing a node loses that shard's data, so this setup is discouraged. | `MergeTree` | yes |
-| 4. Shared storage | ClickHouse Cloud. The data is stored once, and every node reads and writes that one copy. | `SharedMergeTree` | no |
+|     | Setup | Description | Storage engine | `Distributed` tables |
+| --- | --- | --- | --- | --- |
+| 1.  | Single node | One node holds all data. | `MergeTree` | no |
+| 2.  | Replicas only | Several nodes, and each holds a full copy of all data. There is one shard. | `ReplicatedMergeTree` | no |
+| 3a. | Shards with replicas | The data is divided into shards, and each shard has more than one replica. | `ReplicatedMergeTree` | yes |
+| 3b. | Shards without replicas | The data is divided into shards, and each shard is one node. Losing a node loses that shard's data, so this setup is discouraged. | `MergeTree` | yes |
+| 4.  | Shared storage | ClickHouse Cloud. The data is stored once, and every node reads and writes that one copy. | `SharedMergeTree` | no |
 
 In setups 1, 2 and 4 the storage tables carry the public names. In setups 3a and 3b each of the six tables exists twice on every node. The storage table is named `<table>_local`, and a `Distributed` table carries the public name, so the reader and the writer use the same names in every setup. The materialized views read `spans_local` and write `<table>_local`, because a view fires on the node that stores the inserted rows.
 
@@ -456,7 +456,7 @@ A `Distributed` table by default queues an insert on the node that receives it a
 The delivery mechanism depends on the engine of the database, which Jaeger reads from `system.databases`. It does not depend on where the data lives, except that ClickHouse Cloud offers only the third mechanism and only setup 4.
 
 - **An ordinary (`Atomic`) database.** A `CREATE`, a `MODIFY SETTING`, a view's `MODIFY QUERY`, and any `ALTER` of a table that is not `Replicated*` run only on the node that receives them (§2.3). When `cluster.name` is set, Jaeger adds `ON CLUSTER <name>` to every statement, and ClickHouse runs the statement on every node of that cluster. The Jaeger user needs the `CLUSTER` grant, as required by the server's `on_cluster_queries_require_cluster_grant` setting.
-- **A `Replicated` database.** The database delivers every statement to all of its nodes by itself. It rejects `ON CLUSTER` with any name except its own, so Jaeger adds none. Since ClickHouse 24.9 it also rejects `Replicated*` engines with explicit arguments by default, so `table_engine.replicated` is used without `keeper_path` or `replica_name`.
+- **A `Replicated` database.** The database delivers every statement to all of its nodes by itself. It rejects `ON CLUSTER` with any name except its own, so Jaeger adds none. It also rejects `Replicated*` engines with explicit arguments by default, so `table_engine.replicated` is used without `keeper_path` or `replica_name`.
 - **A `Shared` database.** It delivers statements as a `Replicated` database does, and Jaeger adds no `ON CLUSTER`.
 
 Jaeger issues schema statements with `distributed_ddl_output_mode = 'throw_only_active'`, which waits for the nodes that are up and reports a failure on any of them. In contrast, `throw` waits the full `distributed_ddl_task_timeout` for a node that is down. The documentation describes the setting for a `Replicated` database, and the server source applies it to `ON CLUSTER` statements too.
@@ -551,7 +551,7 @@ A template edit without a matching delta fails step 3, and so does a delta witho
 
 A configuration that is added after a version closed has no snapshot for that version, and the test covers it from the first version that has one. The configurations exercise each parameter of §2.1 at least once and not every combination of them. A delta whose rendering depends on two parameters at once adds a configuration for that combination. The number of database pairs is the number of closed versions times the configurations times two servers. Each pair is DDL and a small corpus on empty tables. This RFC sets no limit on how old a database an upgrade supports, so every version stays in the test until one is set (§9).
 
-The test runs against both the minimum ClickHouse version in §9 and the latest release, because the server's rendering of `create_table_query` is the comparison, and a server version can change it. A property that the server does not print, such as a comment, is not compared, and the templates declare none.
+The test runs against both ClickHouse 26.3, the earliest release that Jaeger supports, and the latest release, because the server's rendering of `create_table_query` is the comparison, and a server version can change it. A property that the server does not print, such as a comment, is not compared, and the templates declare none.
 
 ### 5.8 Operator path
 
@@ -581,7 +581,7 @@ Groups 1 through 5 run against the live ClickHouse already started by the integr
 6. **Runner unit tests** use synthetic ledger rows and delta files. They cover statement splitting, the automatic-form check on every form of §5.2 and on forms outside it, the pending-set rule, checksum-driven re-pending of the highest version only, version and file ordering, rendering for every configuration of §5.7, and extraction of the table and column or index name for verification.
 7. **Clusters.** A two-replica Compose job covers convergence through `ON CLUSTER` and through a `Replicated` database. A two-shard job with two replicas per shard covers setup 3a on an ordinary database and on a `Replicated` database: placement by the sharding key, an acknowledged insert being readable through the public name, and each validation rule of §5.6. Two concurrent starts through different replicas must both succeed through the retry on error 517. A replica down during startup must leave startup successful and receive the column when it returns. A binary connected to one replica must see a ledger row inserted through the other before replication delivers it. A `MODIFY QUERY` that one replica lacks must fail verification. Verification must fail startup when a replica that answers still lacks a column. The `Distributed` layout joins this job with the harness of #9887.
 
-The tests run against both the minimum ClickHouse version in §9 and the latest release. The Compose job runs in the storage integration workflow with the other backends.
+The tests run against both ClickHouse 26.3, the earliest release that Jaeger supports, and the latest release. The Compose job runs in the storage integration workflow with the other backends.
 
 ---
 
@@ -628,7 +628,6 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 
 ## 9. Open Questions
 
-- **Minimum ClickHouse version.** `MODIFY QUERY` no longer requires its experimental setting as of 23.11. The backend states no minimum version today. Three facts affect the choice. First, the current `event_attribute_metadata_mv` and `link_attribute_metadata_mv` fail to create on 24.3 through 24.12 under the default analyzer, and create on 25.3, so a fresh install needs 25.3 regardless of this RFC's decision. Second, a `Replicated` database requires an experimental setting on 24.3. Third, today's rendered TTL clauses are rejected with `BAD_TTL_EXPRESSION` on 24.3 through 25.3 and accepted on 25.12. This RFC proposes a minimum version of 25.3, documented with M1, and a `toDateTime(...)` wrapper on the TTL columns of both templates. For existing databases the wrapper would be a `MODIFY TTL` without materialization. That statement renders the configured `ttl`, so it would also apply a `ttl` that the configuration changed since the tables were created, and it would overwrite a TTL set by hand. Whether that makes the version an operator version is part of this question.
 - **A softer rule for optional operator versions.** The binary fails to start on any pending operator version (§5.3), including one whose change the binary does not need, such as a type change for compression. A version could declare itself optional, in which case the binary would start and warn. This reintroduces a database that is behind the binary's versions, so it is deferred until the strict rule proves too costly in practice.
 - **A lock for `clickhouse-schema apply`.** A `KeeperMap` table with `keeper_map_strict_mode = 1` can serialize two simultaneous `apply` runs on servers that offer it (§2.4). It cannot revoke distributed DDL that a previous holder queued, so it would be a guard rail and not a guarantee. It is deferred until two operators running the command at once is an observed problem.
 - **How old a database an upgrade supports.** Every closed version stays in the equality test and in the binary. A stated limit, such as the versions of the last year of releases, would let older deltas and snapshots be deleted.
