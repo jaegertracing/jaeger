@@ -32,6 +32,21 @@ var testHoistedColumns = []HoistedColumn{
 	},
 }
 
+// testLayouts lists every attribute layout, for a test that snapshots one file per layout.
+var testLayouts = []struct {
+	name   string
+	layout AttributeLayout
+}{
+	{
+		name:   "nested layout",
+		layout: NestedLayout{},
+	},
+	{
+		name:   "map layout",
+		layout: MapLayout{},
+	},
+}
+
 // newHoistedColumnReader returns a reader of a table with testHoistedColumns, whose attribute
 // metadata says that the resource attribute "shard" is stored as an int.
 func newHoistedColumnReader() *Reader {
@@ -134,20 +149,7 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 			},
 		},
 	}
-	layouts := []struct {
-		name   string
-		layout AttributeLayout
-	}{
-		{
-			name:   "nested layout",
-			layout: NestedLayout{},
-		},
-		{
-			name:   "map layout",
-			layout: MapLayout{},
-		},
-	}
-	for _, tt := range layouts {
+	for _, tt := range testLayouts {
 		t.Run(tt.name, func(t *testing.T) {
 			builder := newAttributeBuilder(tt.layout, testHoistedColumns)
 			var q sqlBuilder
@@ -160,6 +162,30 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 					args := builder.appendComparison(&q, 0, nil, level, c.op, c.tav)
 					fmt.Fprintf(&q, " -- binds %v", args)
 				}
+			}
+			clickhousetest.VerifyQuerySnapshot(t, q.String())
+		})
+	}
+}
+
+// TestAttributeBuilder_AppendExists snapshots, in one file per layout, the condition that an
+// attribute exists at each level. Each condition is followed by the values that it binds.
+func TestAttributeBuilder_AppendExists(t *testing.T) {
+	levels := []expression.Level{
+		expression.LevelSpan,
+		expression.LevelResource,
+		expression.LevelScope,
+		expression.LevelEvent,
+		expression.LevelLink,
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := newAttributeBuilder(tt.layout, testHoistedColumns)
+			var q sqlBuilder
+			for _, level := range levels {
+				fmt.Fprintf(&q, "\n-- %s attribute %q", level, "model")
+				args := builder.appendExists(&q, 0, nil, level, "model")
+				fmt.Fprintf(&q, " -- binds %v", args)
 			}
 			clickhousetest.VerifyQuerySnapshot(t, q.String())
 		})

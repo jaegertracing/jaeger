@@ -123,6 +123,16 @@ func (g AttributeGroup) arrayColumn() string {
 	}
 }
 
+// operandSQL returns the group as a condition names it: the column of the span row s, or,
+// for a group of the events or of the links, the field of the one event or link that a lambda
+// binds to x.
+func (g AttributeGroup) operandSQL() string {
+	if g.arrayColumn() != "" {
+		return "x." + g.field()
+	}
+	return "s." + g.column()
+}
+
 // column returns the name of the group in the spans table: str_attributes for a span,
 // resource_str_attributes, scope_str_attributes, events.str_attributes or links.str_attributes.
 func (g AttributeGroup) column() string {

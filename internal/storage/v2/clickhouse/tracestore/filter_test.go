@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,8 @@ func TestFilterCapabilities(t *testing.T) {
 	}, caps.Levels)
 	assert.ElementsMatch(t, []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq,
-		expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
+		expression.OpNe, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
+		expression.OpExists, expression.OpIn, expression.OpNotIn,
 	}, caps.Operators)
 }
 
@@ -318,7 +320,7 @@ func TestSpanStatusColumnValue_UnrecognizedWord(t *testing.T) {
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }
 
-func TestBuildAttributeComparison_TypedConstants(t *testing.T) {
+func TestAttributeEqCandidates_TypedConstants(t *testing.T) {
 	r := newTestReader()
 	tests := []struct {
 		name       string
@@ -361,14 +363,14 @@ func TestBuildFilterCondition_NilChildIsRefused(t *testing.T) {
 	}
 }
 
-func TestBuildAttributeComparison_UnsupportedConstantType(t *testing.T) {
+func TestAttributeEqCandidates_UnsupportedConstantType(t *testing.T) {
 	r := newTestReader()
 	q := newNestedSQLBuilder()
 	_, err := lowerFilter(t, r, &q, p.Span().Attr("k").Eq(p.Duration(time.Second)))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
-func TestBuildAttributeComparison_UnqualifiedSearchesSpanAndResourceOnly(t *testing.T) {
+func TestBuildComparisonCondition_UnqualifiedSearchesSpanAndResourceOnly(t *testing.T) {
 	r := newTestReader()
 	q := newNestedSQLBuilder()
 	args, err := lowerFilter(t, r, &q, p.Attr("k").Eq(p.String("v")))
@@ -382,7 +384,7 @@ func TestBuildAttributeComparison_UnqualifiedSearchesSpanAndResourceOnly(t *test
 	assert.Len(t, args, 4) // two levels, (key, value) each
 }
 
-func TestBuildAttributeComparison_QualifiedLevels(t *testing.T) {
+func TestBuildComparisonCondition_QualifiedLevels(t *testing.T) {
 	tests := []struct {
 		level  expression.Level
 		column string
@@ -404,7 +406,7 @@ func TestBuildAttributeComparison_QualifiedLevels(t *testing.T) {
 	}
 }
 
-func TestBuildAttributeComparison_NestedLevels(t *testing.T) {
+func TestBuildComparisonCondition_NestedLevels(t *testing.T) {
 	levels := []expression.Level{expression.LevelEvent, expression.LevelLink}
 	r := newTestReader()
 	for _, level := range levels {
@@ -417,14 +419,14 @@ func TestBuildAttributeComparison_NestedLevels(t *testing.T) {
 	}
 }
 
-func TestBuildAttributeComparison_UnsupportedLevel(t *testing.T) {
+func TestBuildComparisonCondition_UnsupportedLevel(t *testing.T) {
 	r := newTestReader()
 	q := newNestedSQLBuilder()
 	_, err := lowerFilter(t, r, &q, call(expression.OpEq, attrRef(expression.Level("bogus"), "k"), str("v")))
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
-func TestBuildUntypedAttributeEq_ResolvesAgainstMetadata(t *testing.T) {
+func TestUntypedAttributeEqCandidates_ResolvesAgainstMetadata(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -448,7 +450,7 @@ func TestBuildUntypedAttributeEq_ResolvesAgainstMetadata(t *testing.T) {
 	assert.Equal(t, int64(500), args[1])
 }
 
-func TestBuildUntypedAttributeEq_NoMetadataFallsBackToString(t *testing.T) {
+func TestUntypedAttributeEqCandidates_NoMetadataFallsBackToString(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -464,7 +466,7 @@ func TestBuildUntypedAttributeEq_NoMetadataFallsBackToString(t *testing.T) {
 	assert.Equal(t, []any{"k", "v"}, args)
 }
 
-func TestBuildUntypedAttributeEq_MetadataQueryError(t *testing.T) {
+func TestLookupUntypedMetadata_QueryError(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {Err: assert.AnError},
@@ -615,7 +617,7 @@ func TestBuiltinFieldValue_WrongTypeForKindStatusAndDuration(t *testing.T) {
 	}
 }
 
-func TestBuildUntypedAttributeEq_MultipleCandidateTypesAreOred(t *testing.T) {
+func TestUntypedAttributeEqCandidates_MultipleCandidateTypesAreOred(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -640,7 +642,7 @@ func TestBuildUntypedAttributeEq_MultipleCandidateTypesAreOred(t *testing.T) {
 	assert.Len(t, args, 4) // two (key, value) pairs, one per matched type
 }
 
-func TestBuildUntypedAttributeEq_FallbackAcrossMultipleLevels(t *testing.T) {
+func TestUntypedAttributeEqCandidates_FallbackAcrossMultipleLevels(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -660,7 +662,7 @@ func TestBuildUntypedAttributeEq_FallbackAcrossMultipleLevels(t *testing.T) {
 	assert.Equal(t, []any{"k", "v", "k", "v"}, args)
 }
 
-func TestBuildUntypedAttributeEq_FallbackAtNestedLevel(t *testing.T) {
+func TestUntypedAttributeEqCandidates_FallbackAtNestedLevel(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -676,7 +678,7 @@ func TestBuildUntypedAttributeEq_FallbackAtNestedLevel(t *testing.T) {
 	assert.Equal(t, []any{"exception.type", "TimeoutError"}, args)
 }
 
-func TestBuildUntypedAttributeEq_ResolvedAtNestedLevel(t *testing.T) {
+func TestUntypedAttributeEqCandidates_ResolvedAtNestedLevel(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -697,7 +699,7 @@ func TestBuildUntypedAttributeEq_ResolvedAtNestedLevel(t *testing.T) {
 	assert.Equal(t, []any{"retry.count", int64(3)}, args)
 }
 
-func TestBuildUntypedAttributeEq_SkipsCandidateThatCannotParse(t *testing.T) {
+func TestUntypedAttributeEqCandidates_SkipsCandidateThatCannotParse(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -847,10 +849,10 @@ func TestBuildFindTraceIDsQuery_OneMetadataQueryForKeysWithNoMetadata(t *testing
 	assert.Equal(t, 1, metadataQueries, "three unknown keys cost one query, not one each")
 }
 
-// TestBuildAttributeComparison_HoistedColumn checks that a negated equality keeps the
+// TestAttributeEqCandidates_HoistedColumn checks that a negated equality keeps the
 // IS NOT NULL test inside the NOT, and that an unqualified reference reads the column at the
 // span level and the typed group at the resource level.
-func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
+func TestAttributeEqCandidates_HoistedColumn(t *testing.T) {
 	reader := newHoistedColumnReader()
 
 	t.Run("negation", func(t *testing.T) {
@@ -870,9 +872,9 @@ func TestBuildAttributeComparison_HoistedColumn(t *testing.T) {
 	})
 }
 
-// TestBuildUntypedAttributeEq_HoistedColumn checks that a filter value whose type comes from
+// TestUntypedAttributeEqCandidates_HoistedColumn checks that a filter value whose type comes from
 // the attribute metadata is converted to the type of the hoisted column.
-func TestBuildUntypedAttributeEq_HoistedColumn(t *testing.T) {
+func TestUntypedAttributeEqCandidates_HoistedColumn(t *testing.T) {
 	reader := newHoistedColumnReader()
 	q := reader.newSQLBuilder()
 
@@ -881,4 +883,252 @@ func TestBuildUntypedAttributeEq_HoistedColumn(t *testing.T) {
 	require.NoError(t, err)
 	clickhousetest.VerifyQuerySnapshot(t, q.String())
 	assert.Equal(t, []any{int64(7)}, args)
+}
+
+// newStatusCodeMetadataReader returns a reader of a table in the layout, whose attribute
+// metadata says that the span attribute "http.status_code" is stored as an int and as a string.
+func newStatusCodeMetadataReader(layout AttributeLayout) *Reader {
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectAttributeMetadata: {
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data: []dbmodel.AttributeMetadata{
+						{
+							AttributeKey: "http.status_code",
+							Type:         "int",
+							Level:        "span",
+						},
+						{
+							AttributeKey: "http.status_code",
+							Type:         "str",
+							Level:        "span",
+						},
+					},
+					ScanFn: scanAttributeMetadataFn(),
+				},
+			},
+		},
+	}
+	return NewReader(driver, layout, testReaderConfig)
+}
+
+// TestBuildFilterCondition_ExistsNeAndMembership snapshots, in one file per layout, the
+// condition that each filter below lowers to, followed by the values that it binds.
+func TestBuildFilterCondition_ExistsNeAndMembership(t *testing.T) {
+	filters := []struct {
+		label  string
+		filter *expression.Call
+	}{
+		{
+			label:  "exists on a span attribute",
+			filter: p.Span().Attr("zone").Exists(),
+		},
+		{
+			label:  "exists on an unqualified attribute searches the span and the resource",
+			filter: p.Attr("zone").Exists(),
+		},
+		{
+			label:  "exists on an event attribute",
+			filter: p.Event().Attr("zone").Exists(),
+		},
+		{
+			label:  "exists on a field that every span has",
+			filter: p.Span().Name.Exists(),
+		},
+		{
+			label:  "exists on a field that a span can lack",
+			filter: p.Resource().Service.Exists(),
+		},
+		{
+			label:  "ne on a span attribute with a string constant",
+			filter: p.Span().Attr("zone").Ne(p.String("us-east")),
+		},
+		{
+			label:  "ne on an unqualified attribute with an untyped constant searches every type that the constant reads as",
+			filter: p.Attr("zone").Ne("us-east"),
+		},
+		{
+			label:  "ne on a span attribute with an untyped constant that reads as a number",
+			filter: p.Span().Attr("http.status_code").Ne("200"),
+		},
+		{
+			label:  "ne on a link attribute",
+			filter: p.Link().Attr("zone").Ne(p.String("us-east")),
+		},
+		{
+			label:  "ne on a field that every span has",
+			filter: p.Span().Status.Ne(p.String("error")),
+		},
+		{
+			label:  "ne on a field that a span can lack",
+			filter: p.Resource().Service.Ne(p.String("cart")),
+		},
+		{
+			label:  "in on a span attribute with an untyped list, for an attribute that the metadata reports as an int and as a string",
+			filter: p.Span().Attr("http.status_code").In("200", "5xx"),
+		},
+		{
+			label:  "in on a resource attribute with a list of ints",
+			filter: p.Resource().Attr("shard").In(p.List(expression.ValueTypeInt, 1, 2)),
+		},
+		{
+			label:  "in on a string field",
+			filter: p.Span().Name.In("GET /cart", "POST /cart"),
+		},
+		{
+			label:  "in on the span kind",
+			filter: p.Span().Kind.In("server", "unspecified"),
+		},
+		{
+			label:  "in on the duration",
+			filter: p.Span().Duration.In(time.Second, 2*time.Second),
+		},
+		{
+			label:  "in on a field that a span can lack, with an empty element",
+			filter: p.Resource().Service.In(""),
+		},
+		{
+			label:  "not_in on an unqualified attribute",
+			filter: p.Attr("zone").NotIn("us-east", "eu-west"),
+		},
+		{
+			label:  "not_in on a field that every span has",
+			filter: p.Span().Name.NotIn("GET /cart"),
+		},
+		{
+			label:  "not_in on a field that a span can lack",
+			filter: p.Resource().Service.NotIn("cart", "checkout"),
+		},
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			var snapshot strings.Builder
+			for _, filterCase := range filters {
+				// The test driver returns its metadata rows once, so each filter has a reader.
+				reader := newStatusCodeMetadataReader(tt.layout)
+				q := reader.newSQLBuilder()
+				args, err := lowerFilter(t, reader, q, filterCase.filter)
+				require.NoError(t, err, filterCase.label)
+				fmt.Fprintf(&snapshot, "\n-- %s%s\n-- binds %v", filterCase.label, q.String(), args)
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+func TestBuildFilterCondition_ExistsNeAndMembership_Refusals(t *testing.T) {
+	list := func(valueType expression.ValueType, values ...string) *expression.List {
+		return &expression.List{
+			Values: values,
+			Type:   valueType,
+		}
+	}
+	tests := []struct {
+		name   string
+		filter *expression.Call
+		err    error
+	}{
+		{
+			name:   "exists with two operands",
+			filter: call(expression.OpExists, attrRef(expression.LevelSpan, "k"), str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "exists on a constant",
+			filter: call(expression.OpExists, str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "exists on a field without a column mapping",
+			filter: call(expression.OpExists, fieldRef(expression.LevelEvent, expression.EventFieldName)),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "exists on an attribute of an unknown level",
+			filter: call(expression.OpExists, attrRef("trace", "k")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "ne on an attribute of an unknown level",
+			filter: call(expression.OpNe, attrRef("trace", "k"), str("v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "ne on an attribute with a duration constant",
+			filter: call(expression.OpNe, attrRef(expression.LevelSpan, "k"), p.Duration(time.Second)),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "in with one operand",
+			filter: call(expression.OpIn, attrRef(expression.LevelSpan, "k")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in with a scalar where the list belongs",
+			filter: call(expression.OpIn, attrRef(expression.LevelSpan, "k"), str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in with an empty list",
+			filter: call(expression.OpIn, attrRef(expression.LevelSpan, "k"), list("")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in with a nil list",
+			filter: call(expression.OpIn, attrRef(expression.LevelSpan, "k"), (*expression.List)(nil)),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in on a constant",
+			filter: call(expression.OpIn, str("v"), list("", "v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in on an attribute of an unknown level",
+			filter: call(expression.OpIn, attrRef("trace", "k"), list("", "v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "in on an attribute with an element that is not of the type of the list",
+			filter: call(expression.OpIn, attrRef(expression.LevelSpan, "k"), list(expression.ValueTypeInt, "one")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "not_in on a field without a column mapping",
+			filter: call(expression.OpNotIn, fieldRef(expression.LevelEvent, expression.EventFieldName), list("", "v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "in on the duration with an element that is not a duration",
+			filter: call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), list("", "soon")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "in on a string field with a list of ints",
+			filter: call(expression.OpIn, fieldRef(expression.LevelSpan, expression.SpanFieldName), list(expression.ValueTypeInt, "1")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+	}
+	reader := newStatusCodeMetadataReader(NestedLayout{})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := newNestedSQLBuilder()
+			_, err := lowerFilter(t, reader, &q, tt.filter)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
+// TestCollectUntypedAttributeKeys_Membership checks that an untyped list names a key to look
+// up, and that ne and not_in name none, because they do not read the metadata.
+func TestCollectUntypedAttributeKeys_Membership(t *testing.T) {
+	keys := pcommon.NewMap()
+	collectUntypedAttributeKeys(p.And(
+		p.Span().Attr("ne-untyped").Ne("v"),
+		p.Span().Attr("in-untyped").In("v"),
+		p.Span().Attr("not-in-untyped").NotIn("v"),
+		p.Span().Attr("in-typed").In(p.List(expression.ValueTypeString, "v")),
+		p.Span().Attr("ne-typed").Ne(p.String("v")),
+	), keys)
+	assert.Equal(t, map[string]any{"in-untyped": ""}, keys.AsRaw())
 }

@@ -45,9 +45,8 @@ func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attrib
 
 // appendComparison writes to q the condition that an attribute of the given level has the
 // key of tav and a value that compares to the value of tav as op says, and returns args
-// extended with the values that the condition binds. It is the only place that writes the
-// placeholders of an attribute condition, so they and their bind values cannot drift apart
-// between callers. A hoisted attribute is compared in its dedicated column; every other
+// extended with the values that the condition binds. It writes the placeholders of the
+// condition together with their bind values, so the two cannot drift apart between callers. A hoisted attribute is compared in its dedicated column; every other
 // attribute, and the same key at another level or type, is searched in the typed groups by
 // the condition of the layout. The condition is a whole one for every level, because an
 // event or a link attribute has one value per event or link and can be compared only
@@ -77,4 +76,76 @@ func (b attributeBuilder) appendComparison(
 		return append(args, tav.value)
 	}
 	return b.layout.appendComparison(q, args, level, op, tav)
+}
+
+// storedAttributeKey is a key as one attribute group stores it.
+type storedAttributeKey struct {
+	attributeType AttributeType
+	key           string
+}
+
+// storedAttributeKeys returns every form in which the groups of one level can store an
+// attribute with the key. The complex group stores bytes, maps and slices under one prefix
+// each, so an attribute of unknown type can be in any of seven places.
+func storedAttributeKeys(key string) []storedAttributeKey {
+	return []storedAttributeKey{
+		{
+			attributeType: AttributeTypeBool,
+			key:           key,
+		},
+		{
+			attributeType: AttributeTypeDouble,
+			key:           key,
+		},
+		{
+			attributeType: AttributeTypeInt,
+			key:           key,
+		},
+		{
+			attributeType: AttributeTypeStr,
+			key:           key,
+		},
+		{
+			attributeType: AttributeTypeComplex,
+			key:           "@bytes@" + key,
+		},
+		{
+			attributeType: AttributeTypeComplex,
+			key:           "@map@" + key,
+		},
+		{
+			attributeType: AttributeTypeComplex,
+			key:           "@slice@" + key,
+		},
+	}
+}
+
+// appendExists writes to q the condition that the given level has an attribute with the key,
+// whatever its type, and returns args extended with the values that the condition binds. It
+// searches the typed groups even for a hoisted attribute, because a hoisted column copies
+// one type only.
+func (b attributeBuilder) appendExists(q *sqlBuilder, indent int, args []any, level expression.Level, key string) []any {
+	q.appendNewlineAndIndent(indent)
+	arrayColumn := AttributeGroup{Level: level}.arrayColumn()
+	if arrayColumn == "" {
+		q.WriteString("(")
+	} else {
+		q.WriteString("arrayExists(x -> ")
+	}
+	for i, storedKey := range storedAttributeKeys(key) {
+		if i > 0 {
+			q.WriteString(" OR ")
+		}
+		group := AttributeGroup{
+			Level: level,
+			Type:  storedKey.attributeType,
+		}
+		args = b.layout.appendHasKey(q, args, group, storedKey.key)
+	}
+	if arrayColumn == "" {
+		q.WriteString(")")
+	} else {
+		q.WriteString(", s." + arrayColumn + ")")
+	}
+	return args
 }
