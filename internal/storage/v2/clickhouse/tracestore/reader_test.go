@@ -268,7 +268,7 @@ func TestGetTraces_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansByTraceID: {
+					nestedSelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							Data:   tt.data,
 							ScanFn: scanSpanRowFn(),
@@ -278,13 +278,13 @@ func TestGetTraces_Success(t *testing.T) {
 				},
 			}
 
-			reader := NewReader(conn, testReaderConfig)
+			reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 			getTracesIter := reader.GetTraces(context.Background(), tt.params)
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
 			require.Len(t, conn.RecordedQueries, 1)
-			verifyQuerySnapshot(t, conn.RecordedQueries...)
+			clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -300,7 +300,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansByTraceID: {
+					nestedSelectSpansByTraceID: {
 						Rows: nil,
 						Err:  assert.AnError,
 					},
@@ -312,7 +312,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansByTraceID: {
+					nestedSelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							Data:    singleSpan,
 							ScanErr: assert.AnError,
@@ -327,7 +327,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "CloseError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansByTraceID: {
+					nestedSelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							Data:     singleSpan,
 							ScanFn:   scanSpanRowFn(),
@@ -343,7 +343,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.driver, testReaderConfig)
+			reader := NewReader(test.driver, NestedLayout{}, testReaderConfig)
 			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 				TraceID: traceID,
 			})
@@ -356,14 +356,14 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_RowsError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansByTraceID: {
+			nestedSelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					RowsErr: assert.AnError,
 				},
 			},
 		},
 	}
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -384,7 +384,7 @@ func TestGetTraces_ScanErrorStopsIteration(t *testing.T) {
 
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansByTraceID: {
+			nestedSelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:   multipleSpans,
 					ScanFn: scanFn,
@@ -394,7 +394,7 @@ func TestGetTraces_ScanErrorStopsIteration(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -409,11 +409,11 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansByTraceID: {Rows: rows},
+			nestedSelectSpansByTraceID: {Rows: rows},
 		},
 	}
 
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	}, tracestore.GetTraceParams{
@@ -437,7 +437,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 func TestGetTraces_YieldFalseSkipsRowsError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansByTraceID: {
+			nestedSelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:    multipleSpans,
 					ScanFn:  scanSpanRowFn(),
@@ -448,7 +448,7 @@ func TestGetTraces_YieldFalseSkipsRowsError(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -544,7 +544,7 @@ func TestGetServices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn, testReaderConfig)
+			reader := NewReader(test.conn, NestedLayout{}, testReaderConfig)
 
 			result, err := reader.GetServices(context.Background())
 
@@ -553,7 +553,7 @@ func TestGetServices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.RecordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
+				clickhousetest.VerifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -698,7 +698,7 @@ func TestGetOperations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn, testReaderConfig)
+			reader := NewReader(test.conn, NestedLayout{}, testReaderConfig)
 
 			result, err := reader.GetOperations(context.Background(), test.query)
 
@@ -707,7 +707,7 @@ func TestGetOperations(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.RecordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
+				clickhousetest.VerifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -733,7 +733,7 @@ func TestFindTraces_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansQuery: {
+					nestedSelectSpans: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							Data:   tt.data,
 							ScanFn: scanSpanRowFn(),
@@ -744,7 +744,7 @@ func TestFindTraces_Success(t *testing.T) {
 			}
 
 			addTraceSearchResponses(conn)
-			reader := NewReader(conn, testReaderConfig)
+			reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 			findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 				Attributes: pcommon.NewMap(),
 			})
@@ -752,7 +752,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.RecordedQueries, 3)
-			verifyQuerySnapshot(t, conn.RecordedQueries...)
+			clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -767,7 +767,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 					ScanFn: scanAttributeMetadataFn(),
 				},
 			},
-			sql.SelectSpansQuery: {
+			nestedSelectSpans: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:   multipleSpans,
 					ScanFn: scanSpanRowFn(),
@@ -778,7 +778,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	attributes := buildTestAttributes()
 
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -794,14 +794,14 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
 	require.Len(t, conn.RecordedQueries, 4)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	driver := &clickhousetest.Driver{}
 	addTraceSearchResponses(driver)
-	reader := NewReader(driver, testReaderConfig)
+	reader := NewReader(driver, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		SearchDepth: 10000,
 		Attributes:  pcommon.NewMap(),
@@ -813,7 +813,7 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 func TestBuildFindTraceIDsQuery_DefaultSearchDepthExceedsMax(t *testing.T) {
 	config := testReaderConfig
 	config.DefaultSearchDepth = config.MaxSearchDepth + 1
-	reader := NewReader(&clickhousetest.Driver{}, config)
+	reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, config)
 	_, _, err := reader.buildFindTraceIDsQuery(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -827,12 +827,12 @@ func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: {Rows: rows},
+			nestedSelectSpans: {Rows: rows},
 		},
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -852,7 +852,7 @@ func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 func TestFindTraces_YieldFalseSkipsRowsError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: {
+			nestedSelectSpans: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:    multipleSpans,
 					ScanFn:  scanSpanRowFn(),
@@ -864,7 +864,7 @@ func TestFindTraces_YieldFalseSkipsRowsError(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -892,7 +892,7 @@ func TestFindTraces_ScanErrorStopsIteration(t *testing.T) {
 
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: {
+			nestedSelectSpans: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:   multipleSpans,
 					ScanFn: scanFn,
@@ -903,7 +903,7 @@ func TestFindTraces_ScanErrorStopsIteration(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -921,7 +921,7 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansQuery: {
+					nestedSelectSpans: {
 						Rows: nil,
 						Err:  assert.AnError,
 					},
@@ -933,7 +933,7 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansQuery: {
+					nestedSelectSpans: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							Data:    singleSpan,
 							ScanErr: assert.AnError,
@@ -948,7 +948,7 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 			name: "RowsError",
 			driver: &clickhousetest.Driver{
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					sql.SelectSpansQuery: {
+					nestedSelectSpans: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 							RowsErr: assert.AnError,
 						},
@@ -962,7 +962,7 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			addTraceSearchResponses(test.driver)
-			reader := NewReader(test.driver, testReaderConfig)
+			reader := NewReader(test.driver, NestedLayout{}, testReaderConfig)
 			iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 				Attributes: pcommon.NewMap(),
 			})
@@ -983,7 +983,7 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptySlice("bad_slice").AppendEmpty()
 
-	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,
@@ -1011,7 +1011,7 @@ func TestFindTraceIDs(t *testing.T) {
 		},
 	}
 	addTraceSearchResponses(driver)
-	reader := NewReader(driver, testReaderConfig)
+	reader := NewReader(driver, NestedLayout{}, testReaderConfig)
 	attributes := buildTestAttributes()
 
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
@@ -1027,7 +1027,7 @@ func TestFindTraceIDs(t *testing.T) {
 	ids, err := flattenPageChunks(iter)
 	require.NoError(t, err)
 	require.Len(t, driver.RecordedQueries, 3)
-	verifyQuerySnapshot(t, driver.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, driver.RecordedQueries...)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
@@ -1064,7 +1064,7 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 		},
 	}
 	addTraceSearchResponses(driver)
-	reader := NewReader(driver, testReaderConfig)
+	reader := NewReader(driver, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		SearchDepth: 10000,
 	})
@@ -1086,7 +1086,7 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -1132,7 +1132,7 @@ func TestFindTraceIDs_ScanErrorStopsIteration(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -1167,7 +1167,7 @@ func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, ReaderConfig{})
+	reader := NewReader(conn, NestedLayout{}, ReaderConfig{})
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -1196,7 +1196,7 @@ func TestFindTraceIDs_ShortTraceIDIsAnError(t *testing.T) {
 	}
 
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, ReaderConfig{})
+	reader := NewReader(conn, NestedLayout{}, ReaderConfig{})
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
@@ -1289,7 +1289,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			addTraceSearchResponses(test.driver)
-			reader := NewReader(test.driver, ReaderConfig{})
+			reader := NewReader(test.driver, NestedLayout{}, ReaderConfig{})
 			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 				Attributes: pcommon.NewMap(),
 			})
@@ -1312,7 +1312,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptyMap("bad_map").PutEmpty("key")
 
-	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,
@@ -1341,7 +1341,7 @@ func (c *chunkedSearchConn) Query(_ context.Context, query string, args ...any) 
 			data = append(data, []any{id, now.Add(-time.Hour), now})
 		}
 		return &clickhousetest.Rows[[]any]{Data: data, ScanFn: scanTraceIDFn()}, nil
-	case strings.HasPrefix(query, strings.TrimRight(sql.SelectSpansQuery, "\n")):
+	case strings.HasPrefix(query, nestedSelectSpans):
 		var data []*dbmodel.SpanRow
 		for i := 0; i < len(args); i += 3 {
 			span := *singleSpan[0]
@@ -1368,7 +1368,7 @@ func newChunkedSearchConn(n int) *chunkedSearchConn {
 
 func TestFindTraces_ChunksLargeCandidateSets(t *testing.T) {
 	conn := newChunkedSearchConn(1200)
-	reader := NewReader(conn, ReaderConfig{MaxSearchDepth: 10_000})
+	reader := NewReader(conn, NestedLayout{}, ReaderConfig{MaxSearchDepth: 10_000})
 	traces, err := jiter.FlattenWithErrors(reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  pcommon.NewMap(),
 		SearchDepth: 1200,
@@ -1401,7 +1401,7 @@ func TestFindTraces_ChunksLargeCandidateSets(t *testing.T) {
 
 func TestFindTraceIDs_ChunksLargeCandidateSets(t *testing.T) {
 	conn := newChunkedSearchConn(1200)
-	reader := NewReader(conn, ReaderConfig{MaxSearchDepth: 10_000})
+	reader := NewReader(conn, NestedLayout{}, ReaderConfig{MaxSearchDepth: 10_000})
 	ids, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  pcommon.NewMap(),
 		SearchDepth: 1200,
@@ -1423,15 +1423,27 @@ func TestFindTraceIDs_ChunksLargeCandidateSets(t *testing.T) {
 
 // The search SQL appends every predicate conditionally, so ClickHouse answers a query
 // that omits the service name (RFC 0013).
-func TestReader_SearchCapabilities(t *testing.T) {
-	caps, err := (&Reader{}).SearchCapabilities(context.Background())
+// TestFindTraceIDs_Pagination covers the fold of RFC 0014 §6.2 inside the reader: the page size
+// bounds the search as its depth and the page is the last one, while a token is refused.
+func TestFindTraceIDs_Pagination(t *testing.T) {
+	driver := &clickhousetest.Driver{}
+	addTraceSearchResponses(driver)
+	reader := NewReader(driver, NestedLayout{}, testReaderConfig)
+
+	traceIDs, err := flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7},
+	}))
 	require.NoError(t, err)
-	filter := FilterCapabilities()
-	assert.Equal(t, tracestore.SearchCapabilities{
-		WithoutServiceName:  true,
-		SameSpanConjunction: true,
-		Filter:              &filter,
-	}, caps)
+	require.Len(t, traceIDs, 1)
+	require.Len(t, driver.RecordedArgs, 2)
+	assert.Equal(t, []any{uint32(7)}, driver.RecordedArgs[0], "the page size bounds the candidate search")
+
+	_, err = flattenPageChunks(reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+		Pagination: &tracestore.Pagination{PageSize: 7, PageToken: "token"},
+	}))
+	require.ErrorIs(t, err, tracestore.ErrPaginationUnsupported)
 }
 
 func addTraceSearchResponses(conn *clickhousetest.Driver) {
@@ -1464,7 +1476,7 @@ func TestFindTraces_StagedQueries(t *testing.T) {
 	conn := &clickhousetest.Driver{QueryResponses: map[string]*clickhousetest.QueryResponse{
 		sql.SearchTraceIDsBase:      {Rows: candidates},
 		sql.SelectTraceIDTimestamps: {Rows: timestamps},
-		sql.SelectSpansQuery:        {Rows: spans},
+		nestedSelectSpans:           {Rows: spans},
 	}}
 	query := tracestore.TraceQueryParams{
 		ServiceName:  "serviceA",
@@ -1473,7 +1485,7 @@ func TestFindTraces_StagedQueries(t *testing.T) {
 		StartTimeMin: start.Add(time.Second),
 		StartTimeMax: end.Add(-time.Second),
 	}
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	traces, err := jiter.FlattenWithErrors(reader.FindTraces(t.Context(), query))
 	require.NoError(t, err)
 	requireTracesEqual(t, multipleSpans, traces)
@@ -1497,7 +1509,7 @@ func TestFindTraces_NoCandidates(t *testing.T) {
 			conn := &clickhousetest.Driver{QueryResponses: map[string]*clickhousetest.QueryResponse{
 				sql.SearchTraceIDsBase: {Rows: rows},
 			}}
-			reader := NewReader(conn, testReaderConfig)
+			reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 			query := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
 			if method == "FindTraces" {
 				traces, err := jiter.FlattenWithErrors(reader.FindTraces(t.Context(), query))
@@ -1525,7 +1537,7 @@ func TestFindTraceIDs_MissingTimestamps(t *testing.T) {
 	conn := &clickhousetest.Driver{QueryResponses: map[string]*clickhousetest.QueryResponse{
 		sql.SearchTraceIDsBase: {Rows: candidates}, sql.SelectTraceIDTimestamps: {Rows: timestamps},
 	}}
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	ids, err := flattenPageChunks(reader.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}))
 	require.NoError(t, err)
 	require.Equal(t, []tracestore.FoundTraceID{
@@ -1558,7 +1570,7 @@ func TestFindTraceIDs_TimestampStageErrors(t *testing.T) {
 			} else {
 				conn.QueryResponses[sql.SelectTraceIDTimestamps] = &clickhousetest.QueryResponse{Err: tc.queryErr}
 			}
-			reader := NewReader(conn, testReaderConfig)
+			reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 			_, err := flattenPageChunks(reader.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}))
 			require.ErrorContains(t, err, tc.expected)
 			if tc.queryErr != nil {
@@ -1575,10 +1587,10 @@ func TestFindTraceIDs_TimestampStageErrors(t *testing.T) {
 
 func TestFindTraces_CloseError(t *testing.T) {
 	conn := &clickhousetest.Driver{QueryResponses: map[string]*clickhousetest.QueryResponse{
-		sql.SelectSpansQuery: {Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{CloseErr: assert.AnError}},
+		nestedSelectSpans: {Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{CloseErr: assert.AnError}},
 	}}
 	addTraceSearchResponses(conn)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	_, err := jiter.FlattenWithErrors(reader.FindTraces(t.Context(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}))
 	require.ErrorContains(t, err, "failed to close rows")
 	require.ErrorIs(t, err, assert.AnError)

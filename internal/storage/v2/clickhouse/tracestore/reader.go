@@ -40,30 +40,41 @@ type ReaderConfig struct {
 	AttributeMetadataCacheTTL time.Duration
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
 	AttributeMetadataCacheMaxSize int
+	// HoistedColumns lists the hoisted columns of the spans table. A search for the attribute
+	// of one of them compares the column.
+	HoistedColumns []HoistedColumn
 }
 
 type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// SpanSearch is unsupported in ClickHouse for now.
-	tracestore.UnsupportedSpanSearch
 
 	conn          driver.Conn
 	config        ReaderConfig
 	attrMetaCache cache.Cache
+	attrBuilder   attributeBuilder
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
-// to read trace data.
+// to read trace data from a spans table of the given attribute layout.
 //
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
-func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
+func NewReader(conn driver.Conn, layout AttributeLayout, cfg ReaderConfig) *Reader {
 	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
-	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
+	return &Reader{
+		conn:          conn,
+		config:        cfg,
+		attrMetaCache: attrMetaCache,
+		attrBuilder:   newAttributeBuilder(layout, cfg.HoistedColumns),
+	}
+}
+
+func (r *Reader) newSQLBuilder() *sqlBuilder {
+	return &sqlBuilder{attrBuilder: r.attrBuilder}
 }
 
 func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
@@ -78,6 +89,14 @@ func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilitie
 		// trace.
 		SameSpanConjunction: true,
 		Filter:              &filter,
+		// FindSpans lowers a caller-selected order over the built-in span fields to the ORDER BY,
+		// the continuation predicate and the cursor alike (RFC 0016 §6.3).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindSpans pages with a keyset cursor over its sort key. The capability covers the
+		// trace searches as well, which do not page yet: they serve one page bounded by the
+		// page size and refuse a token (TraceQueryParams.ReplacePaginationWithDepth).
+		Paginated: true,
 	}, nil
 }
 
@@ -87,7 +106,7 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			query, args := buildGetTracesQuery(traceID)
+			query, args := r.buildGetTracesQuery(traceID)
 			rows, err := r.conn.Query(ctx, query, args...)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
@@ -172,7 +191,7 @@ func (r *Reader) FindTraces(
 		}
 
 		for chunk := range slices.Chunk(traceIDs, traceSearchChunkSize) {
-			q, args := buildFindTracesQuery(chunk)
+			q, args := r.buildFindTracesQuery(chunk)
 			rows, err := r.conn.Query(ctx, q, args...)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query traces: %w", err))
@@ -193,13 +212,18 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := query.ReplacePaginationWithDepth()
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		traceIDs, err := r.findBoundedTraceIDs(ctx, query)
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 
-		// TODO: Populate NextPageToken when ClickHouse supports RFC 0014 pagination.
+		// The trace searches do not page yet, so the page is the last one (RFC 0014 M3).
 		for _, trace := range traceIDs {
 			if !yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: []tracestore.FoundTraceID{trace}}, nil) {
 				return

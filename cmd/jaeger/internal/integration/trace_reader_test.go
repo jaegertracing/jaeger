@@ -96,7 +96,7 @@ func TestTraceReaderFindSpansPreservesPagination(t *testing.T) {
 	filter := (builder.Predicate{}).Resource().Service.Eq("service-a")
 	start := time.Now().Add(-time.Hour)
 	end := start.Add(time.Minute)
-	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+	order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}
 	var chunks []tracestore.PageChunk[ptrace.Traces]
 	for chunk, err := range reader.FindSpans(context.Background(), tracestore.SpanQueryParams{
 		StartTimeMin: start, StartTimeMax: end, Filter: filter,

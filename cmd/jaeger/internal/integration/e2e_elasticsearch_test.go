@@ -64,14 +64,14 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
-			Capabilities: capabilities.Elasticsearch().WithoutNumericAttributes(),
+			Capabilities: capabilities.Elasticsearch().WithoutNumericAttributes().WithoutNonFiniteDoubles(),
 		},
 		compatScenario{
 			Name:         "numeric attributes turned on at upgrade, over indices written without them",
 			NewGates:     searchGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.Elasticsearch().WithNumericAttributesEnabledAtUpgrade(),
+			Capabilities: capabilities.Elasticsearch().WithNumericAttributesEnabledAtUpgrade().WithoutNonFiniteDoubles(),
 		},
 	)
 }

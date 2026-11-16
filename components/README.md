@@ -30,3 +30,19 @@ extensions:
 ```
 
 See `cmd/jaeger/builder.yaml` for a complete reference manifest.
+
+## Batching processors
+
+Jaeger exposes both the legacy `batch` processor and its upstream replacement,
+`queue_batch`, in the standard binary and OCB manifest. Custom distributions can
+reference `github.com/jaegertracing/jaeger/components/ext/processor/queuebatchprocessor`
+through their Jaeger `gomod` entry.
+
+OpenTelemetry has [deprecated the batch processor](https://opentelemetry.io/blog/2026/collector-batching-migration/),
+with exporter batching defaults planned for Collector v0.171.0 (February 2027)
+and processor removal for v0.177.0 (May 2027). Exporter-level batching is the
+preferred migration for most pipelines; `queue_batch` supports pipelines that
+still need batching before downstream processors or multiple exporters.
+
+Existing `batch` configurations remain supported. Adding the replacement does
+not change Jaeger's shipped pipeline configurations or batching defaults.

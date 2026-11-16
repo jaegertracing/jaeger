@@ -329,6 +329,40 @@ func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
 	s.assertTraceByID(t, s.Corpus.Duplicates, validator)
 }
 
+// testGetTraceWithNonFiniteDoubles reads back the trace whose attributes hold NaN and the two
+// infinities. CompareTraces cannot check it, because NaN never equals itself, so each attribute
+// is checked by its class instead.
+func (s *StorageIntegration) testGetTraceWithNonFiniteDoubles(t *testing.T) {
+	expected := s.Corpus.NonFinite
+	s.assertTraceByID(t, expected, func(t *testing.T, actual ptrace.Traces) {
+		require.Equal(t, 1, actual.SpanCount())
+		rs := actual.ResourceSpans().At(0)
+		span := rs.ScopeSpans().At(0).Spans().At(0)
+		require.Equal(t, 1, span.Events().Len())
+		assertNonFiniteAttributes(t, "resource", rs.Resource().Attributes())
+		assertNonFiniteAttributes(t, "span", span.Attributes())
+		assertNonFiniteAttributes(t, "event", span.Events().At(0).Attributes())
+	})
+}
+
+func assertNonFiniteAttributes(t *testing.T, level string, attrs pcommon.Map) {
+	for key, expected := range nonFiniteAttributes {
+		actual, ok := attrs.Get(key)
+		if !assert.True(t, ok, "%s attribute %q is missing", level, key) {
+			continue
+		}
+		if !assert.Equal(t, pcommon.ValueTypeDouble, actual.Type(), "%s attribute %q came back as %v", level, key, actual.AsString()) {
+			continue
+		}
+		switch {
+		case math.IsNaN(expected):
+			assert.True(t, math.IsNaN(actual.Double()), "%s attribute %q is %v, want NaN", level, key, actual.Double())
+		default:
+			assert.InDelta(t, expected, actual.Double(), 0, "%s attribute %q", level, key)
+		}
+	}
+}
+
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	s.skipIfNeeded(t)
 
@@ -772,6 +806,7 @@ func (s *StorageIntegration) AssertCorpus(t *testing.T) {
 	t.Run("GetTraceWithBounds", s.testGetTraceWithBounds)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
+	t.Run("GetTraceWithNonFiniteDoubles", s.testGetTraceWithNonFiniteDoubles)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("FindCompleteTraces", s.testFindCompleteTraces)
 	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)

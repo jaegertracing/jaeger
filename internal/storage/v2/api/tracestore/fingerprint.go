@@ -78,8 +78,8 @@ func newHasher(kind string) hasher {
 func (h hasher) bytes(b []byte) {
 	var n [8]byte
 	binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-	h.h.Write(n[:])
-	h.h.Write(b)
+	_, _ = h.h.Write(n[:])
+	_, _ = h.h.Write(b)
 }
 
 func (h hasher) string(s string) {

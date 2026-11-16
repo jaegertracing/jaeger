@@ -491,8 +491,8 @@ func orderable(e expression.Expression) bool {
 }
 
 // validatePattern checks a regular expression. RFC 0005 §5.3 makes it RE2 syntax, matched anywhere
-// in the value and case-sensitively, so a pattern that will not parse is refused here rather than
-// by whichever backend received it.
+// in the value unless the pattern anchors itself and case-sensitively unless it folds case with (?i),
+// so a pattern that will not parse is refused here rather than by whichever backend received it.
 func validatePattern(pattern string) error {
 	parsed, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
@@ -501,24 +501,54 @@ func validatePattern(pattern string) error {
 	return checkPortable(parsed)
 }
 
-// checkPortable refuses the constructs the backends this lowers to do not all have. Elasticsearch,
-// for one, reads `^` as a literal caret rather than as an anchor, so a pattern using it would be
-// answered differently by each backend instead of being refused by the ones that cannot honor it.
+// checkPortable refuses the constructs that not every backend can evaluate, so that no pattern is
+// answered differently by each backend. Anchors at the ends and case folding are portable; an anchor
+// anywhere else, the line anchors of (?m), word boundaries and lazy quantifiers are not.
 func checkPortable(re *syntax.Regexp) error {
+	parts, _, _ := SplitPatternAnchors(re)
+	for _, part := range parts {
+		if err := checkPortableInside(part); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SplitPatternAnchors takes the anchors off the ends of a parsed pattern and reports which ends they
+// were on. The parts are the elements of the pattern's top-level sequence that remain, which a
+// backend that matches whole terms wraps in its own wildcards on the sides the pattern leaves open.
+// Every anchor a pattern may carry stands at one of its ends, since checkPortable refuses the rest.
+func SplitPatternAnchors(re *syntax.Regexp) (parts []*syntax.Regexp, atStart, atEnd bool) {
+	parts = []*syntax.Regexp{re}
+	if re.Op == syntax.OpConcat {
+		parts = re.Sub
+	}
+	for len(parts) > 0 && parts[0].Op == syntax.OpBeginText {
+		atStart, parts = true, parts[1:]
+	}
+	for len(parts) > 0 && parts[len(parts)-1].Op == syntax.OpEndText {
+		atEnd, parts = true, parts[:len(parts)-1]
+	}
+	return parts, atStart, atEnd
+}
+
+// checkPortableInside applies checkPortable's rules to a node inside the pattern, where every anchor
+// is refused.
+func checkPortableInside(re *syntax.Regexp) error {
 	switch re.Op {
-	case syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText:
-		return fmt.Errorf("operator %q matches anywhere in the value, so a pattern cannot anchor itself", expression.OpRegex)
+	case syntax.OpBeginText, syntax.OpEndText:
+		return fmt.Errorf("operator %q honors an anchor only as the first or the last element of the pattern", expression.OpRegex)
+	case syntax.OpBeginLine, syntax.OpEndLine:
+		return fmt.Errorf("operator %q matches the value as a whole, so a pattern cannot use multi-line anchors", expression.OpRegex)
 	case syntax.OpWordBoundary, syntax.OpNoWordBoundary:
 		return fmt.Errorf("operator %q takes a pattern without word boundaries", expression.OpRegex)
+	default:
 	}
 	if re.Flags&syntax.NonGreedy != 0 {
 		return fmt.Errorf("operator %q asks whether the value matches, so a quantifier cannot be lazy", expression.OpRegex)
 	}
-	if re.Flags&syntax.FoldCase != 0 {
-		return fmt.Errorf("operator %q matches case-sensitively, so a pattern cannot fold case", expression.OpRegex)
-	}
 	for _, sub := range re.Sub {
-		if err := checkPortable(sub); err != nil {
+		if err := checkPortableInside(sub); err != nil {
 			return err
 		}
 	}

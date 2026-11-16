@@ -167,8 +167,12 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().SpanID.In("B7AD6B7169203331", "00F067AA0BA902B7"),
 		},
 		{
-			name:   "an uppercase pattern on the trace identifier is lowered",
+			name:   "an uppercase pattern on the trace identifier folds case to match the lowercase hex",
 			filter: p.Span().TraceID.Matches("0AF7[A-F].*"),
+		},
+		{
+			name:   "a shorthand in a pattern on the span identifier keeps its meaning",
+			filter: p.Span().SpanID.Matches(`^\D+$`),
 		},
 		{
 			name:   "in on the span identifier is a disjunction of term queries",
@@ -247,6 +251,46 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "regex matches anywhere in the value, which this engine needs told",
 			filter: p.Span().Name.Matches("GET .*"),
+		},
+		{
+			name:   "regex anchored at the start drops the leading wildcard",
+			filter: p.Span().Name.Matches("^GET"),
+		},
+		{
+			name:   "regex anchored at the end drops the trailing wildcard",
+			filter: p.Span().Name.Matches(`\.json$`),
+		},
+		{
+			name:   "regex anchored at both ends keeps no wildcard",
+			filter: p.Span().Name.Matches("^GET /api/[a-z]+$"),
+		},
+		{
+			name:   "an escaped dollar is a literal and keeps both wildcards",
+			filter: p.Span().Attr("http.route").Matches(`GET\$`),
+		},
+		{
+			name:   "regex folding case writes each letter as the class of its case equivalents",
+			filter: p.Span().Name.Matches("(?i)get"),
+		},
+		{
+			name:   "regex folding case and anchored at both ends, with a range folded into both cases",
+			filter: p.Span().Attr("http.route").Matches("(?i)^/api/users/[a-z]+$"),
+		},
+		{
+			name:   "a fold on one branch of an alternation",
+			filter: p.Span().Name.Matches("get|(?i)post"),
+		},
+		{
+			name:   "a non-capturing group",
+			filter: p.Span().Name.Matches("(?:GET|POST) /api"),
+		},
+		{
+			name:   "a Perl shorthand is written as the class it stands for",
+			filter: p.Span().Attr("http.status_code").Matches(`^5\d\d$`),
+		},
+		{
+			name:   "a negated class",
+			filter: p.Span().Name.Matches("GET /[^/]+$"),
 		},
 		{
 			name:   "regex on an attribute reaches every location the attribute lives in",
@@ -556,22 +600,16 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `it evaluates "eq" against a constant only`,
 		},
 		{
-			name:    "a pattern using a Perl shorthand, which this engine reads as a letter",
-			filter:  p.Span().Attr("http.status_code").Matches(`\d+`),
+			name:    "an anchor in the middle of the pattern",
+			filter:  p.Span().Name.Matches("GET^x"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `it reads "\\d" as the literal character`,
+			wantMsg: "an anchor is honored only as the first or the last element of the pattern",
 		},
 		{
-			name:    "a pattern using a word shorthand",
-			filter:  p.Span().Name.Matches(`GET \w+`),
+			name:    "an anchor inside an alternation",
+			filter:  p.Span().Name.Matches("^GET|POST"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `it reads "\\w" as the literal character`,
-		},
-		{
-			name:    "an event-name pattern using a word shorthand",
-			filter:  p.Event().Name.Matches(`exception\.\w+`),
-			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `it reads "\\w" as the literal character`,
+			wantMsg: "an anchor is honored only as the first or the last element of the pattern",
 		},
 		{
 			name:    "a duration constant carrying nothing, which a finalized filter never holds",

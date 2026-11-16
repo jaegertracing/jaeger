@@ -6,18 +6,18 @@ SELECT
 FROM (
     SELECT
         arrayJoin(arrayConcat(
-            arrayMap(k -> (k, 'bool',   'span'),     bool_attributes.key),
-            arrayMap(k -> (k, 'bool',   'resource'), resource_bool_attributes.key),
-            arrayMap(k -> (k, 'bool',   'scope'),    scope_bool_attributes.key),
-            arrayMap(k -> (k, 'double', 'span'),     double_attributes.key),
-            arrayMap(k -> (k, 'double', 'resource'), resource_double_attributes.key),
-            arrayMap(k -> (k, 'double', 'scope'),    scope_double_attributes.key),
-            arrayMap(k -> (k, 'int',    'span'),     int_attributes.key),
-            arrayMap(k -> (k, 'int',    'resource'), resource_int_attributes.key),
-            arrayMap(k -> (k, 'int',    'scope'),    scope_int_attributes.key),
-            arrayMap(k -> (k, 'str',    'span'),     str_attributes.key),
-            arrayMap(k -> (k, 'str',    'resource'), resource_str_attributes.key),
-            arrayMap(k -> (k, 'str',    'scope'),    scope_str_attributes.key),
+            arrayMap(k -> (k, 'bool',   'span'),     {{ .KeysFn "span" "bool" }}),
+            arrayMap(k -> (k, 'bool',   'resource'), {{ .KeysFn "resource" "bool" }}),
+            arrayMap(k -> (k, 'bool',   'scope'),    {{ .KeysFn "scope" "bool" }}),
+            arrayMap(k -> (k, 'double', 'span'),     {{ .KeysFn "span" "double" }}),
+            arrayMap(k -> (k, 'double', 'resource'), {{ .KeysFn "resource" "double" }}),
+            arrayMap(k -> (k, 'double', 'scope'),    {{ .KeysFn "scope" "double" }}),
+            arrayMap(k -> (k, 'int',    'span'),     {{ .KeysFn "span" "int" }}),
+            arrayMap(k -> (k, 'int',    'resource'), {{ .KeysFn "resource" "int" }}),
+            arrayMap(k -> (k, 'int',    'scope'),    {{ .KeysFn "scope" "int" }}),
+            arrayMap(k -> (k, 'str',    'span'),     {{ .KeysFn "span" "str" }}),
+            arrayMap(k -> (k, 'str',    'resource'), {{ .KeysFn "resource" "str" }}),
+            arrayMap(k -> (k, 'str',    'scope'),    {{ .KeysFn "scope" "str" }}),
             arrayMap(k -> (
                 multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                         startsWith(k, '@map@'),   substring(k, 6),
@@ -26,7 +26,7 @@ FROM (
                         startsWith(k, '@map@'),   'map',
                         startsWith(k, '@slice@'), 'slice', ''),
                 'span'
-            ), complex_attributes.key),
+            ), {{ .KeysFn "span" "complex" }}),
             arrayMap(k -> (
                 multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                         startsWith(k, '@map@'),   substring(k, 6),
@@ -35,7 +35,7 @@ FROM (
                         startsWith(k, '@map@'),   'map',
                         startsWith(k, '@slice@'), 'slice', ''),
                 'resource'
-            ), resource_complex_attributes.key),
+            ), {{ .KeysFn "resource" "complex" }}),
             arrayMap(k -> (
                 multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                         startsWith(k, '@map@'),   substring(k, 6),
@@ -44,7 +44,7 @@ FROM (
                         startsWith(k, '@map@'),   'map',
                         startsWith(k, '@slice@'), 'slice', ''),
                 'scope'
-            ), scope_complex_attributes.key)
+            ), {{ .KeysFn "scope" "complex" }})
         )) AS tp
     FROM spans
 )

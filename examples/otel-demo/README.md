@@ -84,6 +84,38 @@ kubectl get svc -n otel-demo
 
 You can adjust these files and re-run `./deploy-all.sh upgrade` to apply changes.
 
+### UI analytics
+
+Both public Jaeger demos use the shared [UI configuration](../oci/ui-config.json)
+with GA4 measurement ID `G-S88L6V684T` and JavaScript error tracking enabled.
+`deploy-all.sh` passes this file to Helm as `uiconfig`; Jaeger Query reads it
+from `/etc/jaeger/ui-config/ui-config.json`.
+
+The measurement ID belongs to **CNCF Projects → jaegertracing.io - GA4**, which
+also collects the main website's traffic. To separate the reports while retaining
+all collected data, use these saved comparisons under **Admin → Data display →
+Comparisons**. Set the dimension to **Hostname**, the match type to **exactly
+matches**, and select the hostnames as alternative values in the same condition:
+
+| Comparison | Hostnames |
+| --- | --- |
+| Jaeger Website | `jaegertracing.io`, `www.jaegertracing.io` |
+| Jaeger Demos | `demo.jaegertracing.io`, `jaeger.demo.jaegertracing.io` |
+
+Apply the comparison from the comparison picker at the top of a report.
+**All Users** continues to include website and demo traffic. Add **Hostname**
+as a report dimension to distinguish the two demos, including pages with the same
+path. These comparisons apply to existing data as well as new events.
+See [Google's comparison documentation](https://support.google.com/analytics/answer/9269518?hl=en).
+
+After deployment, check that each demo page's HTML contains the measurement ID.
+In a browser with analytics requests allowed, verify that the page loads
+`www.googletagmanager.com/gtag/js?id=G-S88L6V684T` and sends Google Analytics
+collection requests with the same ID and the demo's page URL. Confirm receipt
+in GA4 Realtime, then verify the Hostname breakdown after the data is processed.
+A hostname may only become selectable for a saved comparison after GA4 has
+received events for it.
+
 ### OpenSearch recovery gate
 
 The isolated OpenSearch upgrade scope fails closed unless a recent OCI CSI
@@ -143,6 +175,23 @@ template in place, and changing it during the OpenSearch Helm upgrade would
 fail on an immutable StatefulSet field. Reconcile the template separately only
 after the staged version upgrade and soak. PVC expansion cannot be rolled back
 or shrunk.
+
+### Index retention
+
+Jaeger writes one OpenSearch index per day, and OpenSearch has no TTL. The
+`esIndexCleaner` block in `jaeger-values.yaml` enables the Jaeger chart's
+CronJob, which runs `jaeger-es-index-cleaner` daily and deletes
+`jaeger-main-jaeger-{span,service,dependencies,sampling}-<date>` indices older
+than 30 days. The `jaeger-archive-*` indices are not touched. The cleaner's
+`index-prefix` must be `jaeger-main`, the same `index_prefix` in
+`jaeger-config.yaml`. The pinned 2.21.0 cleaner appends a dash and then
+matches `<prefix>jaeger-{span,service,dependencies,sampling}-<date>`.
+`jaeger-values.test.sh` checks that the two stay in sync.
+
+Without retention the data volume eventually passes the OpenSearch flood-stage
+watermark (95% disk), which makes the indices read-only and stops trace
+ingestion while every pod still reports `Running`. To size retention, keep
+`numberOfDays` times the daily index size well under the volume.
 
 The Jaeger deployment uses `jaeger-config.yaml` to configure the Jaeger v2
 `jaeger_storage` extension against the in-cluster OpenSearch service. The Helm

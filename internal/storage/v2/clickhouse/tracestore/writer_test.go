@@ -30,16 +30,16 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 	return td
 }
 
-func TestWriter_Success(t *testing.T) {
+func TestWriter_Success_NestedLayout(t *testing.T) {
 	b := &clickhousetest.Batch{}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, NestedLayout{})
 
 	td := tracesFromSpanRows(multipleSpans)
 
@@ -47,7 +47,7 @@ func TestWriter_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, conn.RecordedQueries, 1)
-	verifyQuerySnapshot(t, conn.RecordedQueries[0])
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries[0])
 	require.True(t, b.SendCalled)
 	require.Len(t, b.Appended, len(multipleSpans))
 
@@ -155,16 +155,82 @@ func TestWriter_Success(t *testing.T) {
 	}
 }
 
+func TestWriter_Success_MapLayout(t *testing.T) {
+	b := &clickhousetest.Batch{}
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
+			"INSERT INTO spans": {
+				Batch: b,
+			},
+		},
+	}
+	w := NewWriter(conn, MapLayout{})
+
+	require.NoError(t, w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans)))
+
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries[0])
+	require.True(t, b.SendCalled)
+	require.Len(t, b.Appended, len(multipleSpans))
+	for i, expected := range multipleSpans {
+		row := valuesByColumn(t, sql.InsertSpanMapLayout, b.Appended[i])
+		require.Equal(t, expected.Duration, row["duration"])
+		require.Equal(t, expected.EventNames, row["events.name"])
+		require.Equal(t, expected.ServiceName, row["service_name"])
+		requireMapGroups(t, row, "", expected.Attributes)
+		requireMapGroups(t, row, "resource_", expected.ResourceAttributes)
+		requireMapGroups(t, row, "scope_", expected.ScopeAttributes)
+		requireMapGroups2D(t, row, "events.", expected.EventAttributes)
+		requireMapGroups2D(t, row, "links.", expected.LinkAttributes)
+	}
+}
+
+// valuesByColumn pairs the values of one appended row with the columns that the insert
+// statement names, so that a test asserts a value by its column and not by its position.
+func valuesByColumn(t *testing.T, insertStatement string, values []any) map[string]any {
+	t.Helper()
+	_, afterTable, found := strings.Cut(insertStatement, "spans (")
+	require.True(t, found)
+	columnList, _, found := strings.Cut(afterTable, ")")
+	require.True(t, found)
+	columns := strings.Split(columnList, ",")
+	require.Len(t, values, len(columns))
+	byColumn := make(map[string]any, len(columns))
+	for i, column := range columns {
+		byColumn[strings.TrimSpace(column)] = values[i]
+	}
+	return byColumn
+}
+
+// requireMapGroups asserts that every typed group under the prefix is one map value.
+func requireMapGroups(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes) {
+	t.Helper()
+	require.Equal(t, orderedMap[bool]{keys: attributes.BoolKeys, values: attributes.BoolValues}, row[prefix+"bool_attributes"])
+	require.Equal(t, orderedMap[float64]{keys: attributes.DoubleKeys, values: attributes.DoubleValues}, row[prefix+"double_attributes"])
+	require.Equal(t, orderedMap[int64]{keys: attributes.IntKeys, values: attributes.IntValues}, row[prefix+"int_attributes"])
+	require.Equal(t, orderedMap[string]{keys: attributes.StrKeys, values: attributes.StrValues}, row[prefix+"str_attributes"])
+	require.Equal(t, orderedMap[string]{keys: attributes.ComplexKeys, values: attributes.ComplexValues}, row[prefix+"complex_attributes"])
+}
+
+// requireMapGroups2D asserts that every typed group under the prefix is one map per event or link.
+func requireMapGroups2D(t *testing.T, row map[string]any, prefix string, attributes dbmodel.Attributes2D) {
+	t.Helper()
+	require.Equal(t, orderedMaps(attributes.BoolKeys, attributes.BoolValues), row[prefix+"bool_attributes"])
+	require.Equal(t, orderedMaps(attributes.DoubleKeys, attributes.DoubleValues), row[prefix+"double_attributes"])
+	require.Equal(t, orderedMaps(attributes.IntKeys, attributes.IntValues), row[prefix+"int_attributes"])
+	require.Equal(t, orderedMaps(attributes.StrKeys, attributes.StrValues), row[prefix+"str_attributes"])
+	require.Equal(t, orderedMaps(attributes.ComplexKeys, attributes.ComplexValues), row[prefix+"complex_attributes"])
+}
+
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: nil,
 				Err:   assert.AnError,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -174,12 +240,12 @@ func TestWriter_AppendBatchError(t *testing.T) {
 	b := &clickhousetest.Batch{AppendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
@@ -190,12 +256,12 @@ func TestWriter_SendError(t *testing.T) {
 	b := &clickhousetest.Batch{SendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
-			sql.InsertSpan: {
+			"INSERT INTO spans": {
 				Batch: b,
 			},
 		},
 	}
-	w := NewWriter(conn)
+	w := NewWriter(conn, NestedLayout{})
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)

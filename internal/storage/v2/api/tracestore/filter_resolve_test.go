@@ -13,10 +13,6 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
-func spanField(name string) *expression.FieldRef {
-	return &expression.FieldRef{Name: name, Level: expression.LevelSpan}
-}
-
 // TestResolveConstants pins what each field type reads its constant as, and what resolution
 // leaves alone: a constant that already has a type, a constant compared against an attribute,
 // and a regular expression's pattern.
@@ -31,73 +27,53 @@ func TestResolveConstants(t *testing.T) {
 	}{
 		{
 			name:     "a duration field",
-			filter:   &expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.AnyValue{Value: "2s"}}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   p.Span().Duration.Gt("2s"),
+			expected: p.Span().Duration.Gt(p.Duration(2 * time.Second)),
 		},
 		{
 			name:     "a timestamp field",
-			filter:   &expression.Call{Op: expression.OpGte, Args: []expression.Expression{spanField(expression.SpanFieldStartTime), &expression.AnyValue{Value: "2026-08-16T18:56:20.123456789Z"}}},
-			expected: &expression.Call{Op: expression.OpGte, Args: []expression.Expression{spanField(expression.SpanFieldStartTime), &expression.TimestampValue{Value: timestamp}}},
+			filter:   p.Span().StartTime.Gte("2026-08-16T18:56:20.123456789Z"),
+			expected: p.Span().StartTime.Gte(&expression.TimestampValue{Value: timestamp}),
 		},
 		{
 			name:     "a string field",
-			filter:   eq(spanField(expression.SpanFieldName), &expression.AnyValue{Value: "GET /api"}),
-			expected: eq(spanField(expression.SpanFieldName), &expression.StringValue{Value: "GET /api"}),
+			filter:   p.Span().Name.Eq("GET /api"),
+			expected: p.Span().Name.Eq(p.String("GET /api")),
 		},
 		{
 			name:     "an event field, which measures from its span's start",
-			filter:   &expression.Call{Op: expression.OpLt, Args: []expression.Expression{&expression.FieldRef{Name: expression.EventFieldTimeSinceStart, Level: expression.LevelEvent}, &expression.AnyValue{Value: "50us"}}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{&expression.FieldRef{Name: expression.EventFieldTimeSinceStart, Level: expression.LevelEvent}, &expression.DurationValue{Value: 50 * time.Microsecond}}},
+			filter:   p.Event().TimeSinceStart.Lt("50us"),
+			expected: p.Event().TimeSinceStart.Lt(p.Duration(50 * time.Microsecond)),
 		},
 		{
 			name:     "an attribute, which declares nothing",
-			filter:   &expression.Call{Op: expression.OpGt, Args: []expression.Expression{attr("http.response.size"), &expression.AnyValue{Value: "500"}}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{attr("http.response.size"), &expression.AnyValue{Value: "500"}}},
+			filter:   p.Attr("http.response.size").Gt("500"),
+			expected: p.Attr("http.response.size").Gt("500"),
 		},
 		{
 			name:     "a constant that already has a type",
-			filter:   eq(spanField(expression.SpanFieldName), &expression.StringValue{Value: "GET /api"}),
-			expected: eq(spanField(expression.SpanFieldName), &expression.StringValue{Value: "GET /api"}),
+			filter:   p.Span().Name.Eq(p.String("GET /api")),
+			expected: p.Span().Name.Eq(p.String("GET /api")),
 		},
 		{
 			name:     "a pattern, which stays a pattern rather than becoming the field's type",
-			filter:   &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{spanField(expression.SpanFieldName), &expression.AnyValue{Value: ".*"}}},
-			expected: &expression.Call{Op: expression.OpRegex, Args: []expression.Expression{spanField(expression.SpanFieldName), &expression.AnyValue{Value: ".*"}}},
+			filter:   p.Span().Name.Matches(".*"),
+			expected: p.Span().Name.Matches(".*"),
 		},
 		{
-			name: "a membership list, which carries its elements as text",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldDuration), &expression.List{Values: []string{"2s", "3s"}},
-			}},
-			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldDuration), &expression.List{Values: []string{"2s", "3s"}},
-			}},
+			name:     "a membership list, which carries its elements as text",
+			filter:   p.Span().Duration.In("2s", "3s"),
+			expected: p.Span().Duration.In("2s", "3s"),
 		},
 		{
 			name:     "a comparison against an attribute, whose type only storage knows",
-			filter:   eq(attr("http.method"), &expression.AnyValue{Value: "GET"}),
-			expected: eq(attr("http.method"), &expression.AnyValue{Value: "GET"}),
+			filter:   p.Attr("http.method").Eq("GET"),
+			expected: p.Attr("http.method").Eq("GET"),
 		},
 		{
-			name: "a predicate buried under a quantifier and a negation",
-			filter: &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
-				&expression.NestedRef{Level: expression.LevelEvent},
-				&expression.Call{Op: expression.OpNot, Args: []expression.Expression{
-					&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-						&expression.FieldRef{Name: expression.EventFieldTimeSinceStart, Level: expression.LevelEvent},
-						&expression.AnyValue{Value: "1ms"},
-					}},
-				}},
-			}},
-			expected: &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
-				&expression.NestedRef{Level: expression.LevelEvent},
-				&expression.Call{Op: expression.OpNot, Args: []expression.Expression{
-					&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-						&expression.FieldRef{Name: expression.EventFieldTimeSinceStart, Level: expression.LevelEvent},
-						&expression.DurationValue{Value: time.Millisecond},
-					}},
-				}},
-			}},
+			name:     "a predicate buried under a quantifier and a negation",
+			filter:   p.Some(p.Event(), p.Not(p.Event().TimeSinceStart.Gt("1ms"))),
+			expected: p.Some(p.Event(), p.Not(p.Event().TimeSinceStart.Gt(p.Duration(time.Millisecond)))),
 		},
 	}
 	for _, test := range tests {
@@ -114,7 +90,7 @@ func TestResolveConstants(t *testing.T) {
 // about a field this API does not define: there is no type to read the constant as, and
 // ValidateFilter is what refuses the reference.
 func TestResolveConstants_LeavesAnUndefinedFieldAlone(t *testing.T) {
-	filter := eq(spanField("durtion"), &expression.AnyValue{Value: "2s"})
+	filter := p.Span().Field("durtion").Eq("2s")
 	require.Error(t, ValidateFilter(filter))
 
 	resolved, err := ResolveFilterConstants(filter)
@@ -133,25 +109,22 @@ func TestResolveConstants_RefusesAConstantThatWillNotParse(t *testing.T) {
 	}{
 		{
 			name:        "a word where a duration belongs",
-			filter:      &expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.AnyValue{Value: "banana"}}},
+			filter:      p.Span().Duration.Gt("banana"),
 			expectedErr: `cannot compare span.duration against "banana": time: invalid duration "banana"`,
 		},
 		{
 			name:        "a bare number, since a duration carries its unit",
-			filter:      &expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.AnyValue{Value: "500"}}},
+			filter:      p.Span().Duration.Gt("500"),
 			expectedErr: `cannot compare span.duration against "500"`,
 		},
 		{
 			name:        "a timestamp that is not RFC 3339",
-			filter:      &expression.Call{Op: expression.OpLt, Args: []expression.Expression{spanField(expression.SpanFieldEndTime), &expression.AnyValue{Value: "yesterday"}}},
+			filter:      p.Span().EndTime.Lt("yesterday"),
 			expectedErr: `cannot compare span.endTime against "yesterday"`,
 		},
 		{
-			name: "buried in a conjunction",
-			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				eq(attr("a"), &expression.AnyValue{Value: "1"}),
-				&expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.AnyValue{Value: "banana"}}},
-			}},
+			name:        "buried in a conjunction",
+			filter:      p.And(p.Attr("a").Eq("1"), p.Span().Duration.Gt("banana")),
 			expectedErr: `cannot compare span.duration against "banana"`,
 		},
 	}
@@ -172,93 +145,60 @@ func TestResolveConstants_RefusesAConstantThatWillNotParse(t *testing.T) {
 // from either half of that: the type has to be one the field could hold, and the elements have
 // to be readable as it. The list is not rewritten, so what this asserts is the refusal.
 func TestResolveConstants_ChecksMembershipElements(t *testing.T) {
-	duration := &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}
+	duration := p.Span().Duration
 
-	_, err := ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		duration, &expression.List{Values: []string{"2s", "banana"}},
-	}})
+	_, err := ResolveFilterConstants(duration.In("2s", "banana"))
 	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpNotIn, Args: []expression.Expression{
-		duration, &expression.List{Values: []string{"2s", "3m"}},
-	}})
+	_, err = ResolveFilterConstants(duration.NotIn("2s", "3m"))
 	require.NoError(t, err)
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		duration, &expression.List{Values: []string{"banana"}, Type: expression.ValueTypeString},
-	}})
+	_, err = ResolveFilterConstants(duration.In(p.List(expression.ValueTypeString, "banana")))
 	require.ErrorContains(t, err, "cannot compare span.duration against a list of string")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		duration, &expression.List{Values: []string{"12"}, Type: expression.ValueTypeInt},
-	}})
+	_, err = ResolveFilterConstants(duration.In(p.List(expression.ValueTypeInt, "12")))
 	require.ErrorContains(t, err, "cannot compare span.duration against a list of int")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		duration, &expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool},
-	}})
+	_, err = ResolveFilterConstants(duration.In(p.List(expression.ValueTypeBool, "true")))
 	require.ErrorContains(t, err, "cannot compare span.duration against a list of bool")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
-		&expression.List{Values: []string{"GET /a", "GET /b"}, Type: expression.ValueTypeString},
-	}})
+	_, err = ResolveFilterConstants(p.Span().Name.In(p.List(expression.ValueTypeString, "GET /a", "GET /b")))
 	require.NoError(t, err, "a declared type the field can hold, with elements that read as it")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "size"}, &expression.List{Values: []string{"banana"}},
-	}})
+	_, err = ResolveFilterConstants(p.Attr("size").In("banana"))
 	require.NoError(t, err, "an attribute's values are storage's to read")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
-		&expression.List{Values: []string{"server", "client"}, Type: expression.ValueTypeString},
-	}})
+	_, err = ResolveFilterConstants(p.Span().Kind.In(p.List(expression.ValueTypeString, "server", "client")))
 	require.NoError(t, err, "a word-valued field holds text, so a list of strings suits it")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldStatus, Level: expression.LevelSpan},
-		&expression.List{Values: []string{"banana"}, Type: expression.ValueTypeString},
-	}})
+	_, err = ResolveFilterConstants(p.Span().Status.In(p.List(expression.ValueTypeString, "banana")))
 	require.ErrorContains(t, err, "not one of unset, ok, error")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
-		&expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool},
-	}})
+	_, err = ResolveFilterConstants(p.Span().Name.In(p.List(expression.ValueTypeBool, "true")))
 	require.ErrorContains(t, err, "cannot compare span.name against a list of bool")
 
 	// A declared element type is authoritative wherever it appears, so the elements are read at
 	// that type whether or not there is a built-in field to compare the list against.
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "size"}, &expression.List{Values: []string{"banana"}, Type: expression.ValueTypeInt},
-	}})
+	_, err = ResolveFilterConstants(p.Attr("size").In(p.List(expression.ValueTypeInt, "banana")))
 	require.ErrorContains(t, err, `element "banana" of a list of int`)
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "size"}, &expression.List{Values: []string{"12", "banana"}, Type: expression.ValueTypeDouble},
-	}})
+	_, err = ResolveFilterConstants(p.Attr("size").In(p.List(expression.ValueTypeDouble, "12", "banana")))
 	require.ErrorContains(t, err, `element "banana" of a list of double`)
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "cache.hit"}, &expression.List{Values: []string{"yes"}, Type: expression.ValueTypeBool},
-	}})
+	_, err = ResolveFilterConstants(p.Attr("cache.hit").In(p.List(expression.ValueTypeBool, "yes")))
 	require.ErrorContains(t, err, `element "yes" of a list of bool`)
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.AttributeRef{Key: "size"}, &expression.List{Values: []string{"12"}, Type: expression.ValueTypeInt},
-	}})
+	_, err = ResolveFilterConstants(p.Attr("size").In(p.List(expression.ValueTypeInt, "12")))
 	require.NoError(t, err, "elements that read as their declared type")
 
-	// ValidateFilter refuses both of these, so resolution only has to not choke on them.
+	// ValidateFilter refuses both of these, so resolution only has to not choke on them. The
+	// builder cannot write membership against a constant, so that tree is built by hand.
 	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		duration, &expression.AnyValue{Value: "2s"},
+		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, &expression.AnyValue{Value: "2s"},
 	}})
 	require.NoError(t, err, "membership without a list is ValidateFilter's refusal")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		&expression.FieldRef{Name: "nosuchfield", Level: expression.LevelSpan}, &expression.List{Values: []string{"banana"}},
-	}})
+	_, err = ResolveFilterConstants(p.Span().Field("nosuchfield").In("banana"))
 	require.NoError(t, err, "an undefined field has no type to read against")
 }
 
@@ -266,38 +206,34 @@ func TestResolveConstants_ChecksMembershipElements(t *testing.T) {
 // words. A word outside the set can never match any span, so it is answered here with the set,
 // rather than passed to a backend that would return nothing and say why.
 func TestResolveConstants_ChecksEnumSpellings(t *testing.T) {
-	kind := &expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan}
-	status := &expression.FieldRef{Name: expression.SpanFieldStatus, Level: expression.LevelSpan}
+	kind := p.Span().Kind
+	status := p.Span().Status
 
-	got, err := ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{kind, &expression.AnyValue{Value: "server"}}})
+	got, err := ResolveFilterConstants(kind.Eq("server"))
 	require.NoError(t, err)
 	assert.Equal(t, &expression.StringValue{Value: "server"}, got.Args[1])
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{kind, &expression.AnyValue{Value: "SPAN_KIND_SERVER"}}})
+	_, err = ResolveFilterConstants(kind.Eq("SPAN_KIND_SERVER"))
 	require.ErrorContains(t, err, `cannot compare span.kind against "SPAN_KIND_SERVER"`)
 	require.ErrorContains(t, err, "not one of unspecified, internal, server, client, producer, consumer")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{status, &expression.AnyValue{Value: "Error"}}})
+	_, err = ResolveFilterConstants(status.Eq("Error"))
 	require.ErrorContains(t, err, "not one of unset, ok, error")
 
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-		status, &expression.List{Values: []string{"ok", "banana"}},
-	}})
+	_, err = ResolveFilterConstants(status.In("ok", "banana"))
 	require.ErrorContains(t, err, `cannot compare span.status against "banana"`)
 
 	// An ID stays a string: one nobody recorded reads the same as one being looked for.
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldTraceID, Level: expression.LevelSpan}, &expression.AnyValue{Value: "not-hex"},
-	}})
+	_, err = ResolveFilterConstants(p.Span().TraceID.Eq("not-hex"))
 	require.NoError(t, err)
 
 	// Declaring the constant a string does not get it past the vocabulary. Validation has nothing
 	// to say about it: span.status holds text and so does the constant.
-	_, err = ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{status, &expression.StringValue{Value: "banana"}}})
+	_, err = ResolveFilterConstants(status.Eq(p.String("banana")))
 	require.ErrorContains(t, err, `cannot compare span.status against "banana"`)
 	require.ErrorContains(t, err, "not one of unset, ok, error")
 
-	got, err = ResolveFilterConstants(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{kind, &expression.StringValue{Value: "client"}}})
+	got, err = ResolveFilterConstants(kind.Eq(p.String("client")))
 	require.NoError(t, err)
 	assert.Equal(t, &expression.StringValue{Value: "client"}, got.Args[1])
 }
@@ -311,31 +247,23 @@ func TestResolveConstants_AcceptsCompatibleTypedConstants(t *testing.T) {
 		expected expression.Expression
 	}{
 		{
-			name: "a duration against a duration field",
-			filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				spanField(expression.SpanFieldDuration), &expression.DurationValue{Value: 2 * time.Second},
-			}},
+			name:     "a duration against a duration field",
+			filter:   p.Span().Duration.Gt(p.Duration(2 * time.Second)),
 			expected: &expression.DurationValue{Value: 2 * time.Second},
 		},
 		{
-			name: "a string against a text field",
-			filter: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				spanField(expression.SpanFieldName), &expression.StringValue{Value: "GET /"},
-			}},
+			name:     "a string against a text field",
+			filter:   p.Span().Name.Eq(p.String("GET /")),
 			expected: &expression.StringValue{Value: "GET /"},
 		},
 		{
-			name: "a boolean against a field that holds one, which no built-in field does",
-			filter: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "cache.hit"}, &expression.BoolValue{Value: true},
-			}},
+			name:     "a boolean against a field that holds one, which no built-in field does",
+			filter:   p.Attr("cache.hit").Eq(p.Bool(true)),
 			expected: &expression.BoolValue{Value: true},
 		},
 		{
-			name: "an integer against an attribute, whose type only storage knows",
-			filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.AttributeRef{Key: "http.status_code"}, &expression.IntValue{Value: 500},
-			}},
+			name:     "an integer against an attribute, whose type only storage knows",
+			filter:   p.Attr("http.status_code").Gt(p.Int(500)),
 			expected: &expression.IntValue{Value: 500},
 		},
 	}
@@ -352,8 +280,8 @@ func TestResolveConstants_AcceptsCompatibleTypedConstants(t *testing.T) {
 // relies on. A caller may write the constant on the left, so resolution swaps the operands and
 // inverts an ordered operator, which leaves the query asking the same thing.
 func TestResolveConstants_PutsTheReferenceFirst(t *testing.T) {
-	duration := spanField(expression.SpanFieldDuration)
-	name := spanField(expression.SpanFieldName)
+	duration := p.Span().Duration
+	name := p.Span().Name
 
 	tests := []struct {
 		name     string
@@ -362,38 +290,38 @@ func TestResolveConstants_PutsTheReferenceFirst(t *testing.T) {
 	}{
 		{
 			name:     "greater than becomes less than",
-			filter:   &expression.Call{Op: expression.OpGt, Args: []expression.Expression{&expression.AnyValue{Value: "2s"}, duration}},
-			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{duration, &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   constantFirst(expression.OpGt, "2s", duration),
+			expected: duration.Lt(p.Duration(2 * time.Second)),
 		},
 		{
 			name:     "at least becomes at most",
-			filter:   &expression.Call{Op: expression.OpGte, Args: []expression.Expression{&expression.AnyValue{Value: "2s"}, duration}},
-			expected: &expression.Call{Op: expression.OpLte, Args: []expression.Expression{duration, &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   constantFirst(expression.OpGte, "2s", duration),
+			expected: duration.Lte(p.Duration(2 * time.Second)),
 		},
 		{
 			name:     "less than becomes greater than",
-			filter:   &expression.Call{Op: expression.OpLt, Args: []expression.Expression{&expression.AnyValue{Value: "2s"}, duration}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{duration, &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   constantFirst(expression.OpLt, "2s", duration),
+			expected: duration.Gt(p.Duration(2 * time.Second)),
 		},
 		{
 			name:     "at most becomes at least",
-			filter:   &expression.Call{Op: expression.OpLte, Args: []expression.Expression{&expression.AnyValue{Value: "2s"}, duration}},
-			expected: &expression.Call{Op: expression.OpGte, Args: []expression.Expression{duration, &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   constantFirst(expression.OpLte, "2s", duration),
+			expected: duration.Gte(p.Duration(2 * time.Second)),
 		},
 		{
 			name:     "equality keeps its operator",
-			filter:   &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.AnyValue{Value: "GET /"}, name}},
-			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{name, &expression.StringValue{Value: "GET /"}}},
+			filter:   constantFirst(expression.OpEq, "GET /", name),
+			expected: name.Eq(p.String("GET /")),
 		},
 		{
 			name:     "inequality keeps its operator",
-			filter:   &expression.Call{Op: expression.OpNe, Args: []expression.Expression{&expression.AnyValue{Value: "GET /"}, name}},
-			expected: &expression.Call{Op: expression.OpNe, Args: []expression.Expression{name, &expression.StringValue{Value: "GET /"}}},
+			filter:   constantFirst(expression.OpNe, "GET /", name),
+			expected: name.Ne(p.String("GET /")),
 		},
 		{
 			name:     "a comparison already the right way round is left alone",
-			filter:   &expression.Call{Op: expression.OpGt, Args: []expression.Expression{duration, &expression.AnyValue{Value: "2s"}}},
-			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{duration, &expression.DurationValue{Value: 2 * time.Second}}},
+			filter:   duration.Gt("2s"),
+			expected: duration.Gt(p.Duration(2 * time.Second)),
 		},
 	}
 	for _, test := range tests {
@@ -419,48 +347,34 @@ func TestResolveConstants_ReadsEveryListElement(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name: "a declared type its elements read as",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				attr("size"), &expression.List{Values: []string{"1", "2"}, Type: expression.ValueTypeInt},
-			}},
+			name:   "a declared type its elements read as",
+			filter: p.Attr("size").In(p.List(expression.ValueTypeInt, "1", "2")),
 		},
 		{
-			name: "durations, whose type the field supplies",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldDuration), &expression.List{Values: []string{"2s", "50us"}},
-			}},
+			name:   "durations, whose type the field supplies",
+			filter: p.Span().Duration.In("2s", "50us"),
 		},
 		{
-			name: "instants, whose type the field supplies",
-			filter: &expression.Call{Op: expression.OpNotIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldStartTime), &expression.List{Values: []string{"2026-08-18T00:00:00Z"}},
-			}},
+			name:   "instants, whose type the field supplies",
+			filter: p.Span().StartTime.NotIn("2026-08-18T00:00:00Z"),
 		},
 		{
-			name: "words a closed set holds",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldKind), &expression.List{Values: []string{"server", "client"}, Type: expression.ValueTypeString},
-			}},
+			name:   "words a closed set holds",
+			filter: p.Span().Kind.In(p.List(expression.ValueTypeString, "server", "client")),
 		},
 		{
-			name: "elements of mixed types under one declared type",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				attr("size"), &expression.List{Values: []string{"1", "true"}, Type: expression.ValueTypeInt},
-			}},
+			name:        "elements of mixed types under one declared type",
+			filter:      p.Attr("size").In(p.List(expression.ValueTypeInt, "1", "true")),
 			expectedErr: `element "true" of a list of int`,
 		},
 		{
-			name: "a duration among instants",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldStartTime), &expression.List{Values: []string{"2026-08-18T00:00:00Z", "2s"}},
-			}},
+			name:        "a duration among instants",
+			filter:      p.Span().StartTime.In("2026-08-18T00:00:00Z", "2s"),
 			expectedErr: `cannot compare span.startTime against "2s"`,
 		},
 		{
-			name: "a word outside the set the field holds",
-			filter: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				spanField(expression.SpanFieldKind), &expression.List{Values: []string{"server", "banana"}, Type: expression.ValueTypeString},
-			}},
+			name:        "a word outside the set the field holds",
+			filter:      p.Span().Kind.In(p.List(expression.ValueTypeString, "server", "banana")),
 			expectedErr: "not one of unspecified, internal, server, client, producer, consumer",
 		},
 	}
@@ -479,9 +393,7 @@ func TestResolveConstants_ReadsEveryListElement(t *testing.T) {
 }
 
 func TestResolveConstants_LeavesTwoReferencesAlone(t *testing.T) {
-	filter := &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-		spanField(expression.SpanFieldStartTime), spanField(expression.SpanFieldEndTime),
-	}}
+	filter := p.Span().StartTime.Lt(p.Span().EndTime)
 	resolved, err := ResolveFilterConstants(filter)
 	require.NoError(t, err)
 	assert.Equal(t, filter, resolved)
@@ -489,7 +401,7 @@ func TestResolveConstants_LeavesTwoReferencesAlone(t *testing.T) {
 
 func TestResolveConstants_LeavesItsInputAlone(t *testing.T) {
 	constant := &expression.AnyValue{Value: "2s"}
-	filter := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{spanField(expression.SpanFieldDuration), constant}}
+	filter := p.Span().Duration.Gt(constant)
 
 	resolved, err := ResolveFilterConstants(filter)
 	require.NoError(t, err)
@@ -519,52 +431,52 @@ func TestReadElement(t *testing.T) {
 	}{
 		{
 			name:     "a declared integer",
-			list:     &expression.List{Values: []string{"500"}, Type: expression.ValueTypeInt},
+			list:     p.List(expression.ValueTypeInt, "500"),
 			element:  "500",
 			expected: &expression.IntValue{Value: 500},
 		},
 		{
 			name:     "a declared double",
-			list:     &expression.List{Values: []string{"1.50"}, Type: expression.ValueTypeDouble},
+			list:     p.List(expression.ValueTypeDouble, "1.50"),
 			element:  "1.50",
 			expected: &expression.DoubleValue{Value: 1.5},
 		},
 		{
 			name:     "a declared boolean",
-			list:     &expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool},
+			list:     p.List(expression.ValueTypeBool, "true"),
 			element:  "true",
 			expected: &expression.BoolValue{Value: true},
 		},
 		{
 			name:     "a declared string",
-			list:     &expression.List{Values: []string{"/cart"}, Type: expression.ValueTypeString},
+			list:     p.List(expression.ValueTypeString, "/cart"),
 			element:  "/cart",
 			expected: &expression.StringValue{Value: "/cart"},
 		},
 		{
 			name:      "a duration, whose type the field supplies",
-			list:      &expression.List{Values: []string{"2s"}},
+			list:      words("2s"),
 			fieldType: expression.FieldTypeDuration,
 			element:   "2s",
 			expected:  &expression.DurationValue{Value: 2 * time.Second},
 		},
 		{
 			name:      "a word the field's closed set holds",
-			list:      &expression.List{Values: []string{"server"}},
+			list:      words("server"),
 			fieldType: expression.FieldTypeSpanKind,
 			element:   "server",
 			expected:  &expression.StringValue{Value: "server"},
 		},
 		{
 			name:      "a word outside that set",
-			list:      &expression.List{Values: []string{"banana"}},
+			list:      words("banana"),
 			fieldType: expression.FieldTypeSpanKind,
 			element:   "banana",
 			wantErr:   "not one of unspecified, internal, server, client, producer, consumer",
 		},
 		{
 			name:    "an element that is not the type the list declares",
-			list:    &expression.List{Values: []string{"banana"}, Type: expression.ValueTypeInt},
+			list:    p.List(expression.ValueTypeInt, "banana"),
 			element: "banana",
 			wantErr: `element "banana" of a list of int`,
 		},
@@ -572,7 +484,7 @@ func TestReadElement(t *testing.T) {
 			// Beside an attribute nothing declares a type, and the element is under no type
 			// constraint rather than unreadable.
 			name:     "no type declared and no field to supply one",
-			list:     &expression.List{Values: []string{"GET"}},
+			list:     words("GET"),
 			element:  "GET",
 			expected: &expression.AnyValue{Value: "GET"},
 		},
@@ -614,12 +526,14 @@ func TestResolveConstants_BoundsNesting(t *testing.T) {
 	_, err = ResolveFilterConstants(nestedTo(expression.MaxNestingDepth + 1))
 	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 
+	// A tree that contains itself cannot be built by the builder.
 	cycle := &expression.Call{Op: expression.OpNot}
 	cycle.Args = []expression.Expression{cycle}
 	_, err = ResolveFilterConstants(cycle)
 	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 }
 
+// TestResolveConstants_NeverPanics feeds trees the builder cannot spell, so they are built by hand.
 func TestResolveConstants_NeverPanics(t *testing.T) {
 	trees := map[string]*expression.Call{
 		"no operator":                {},
@@ -627,8 +541,8 @@ func TestResolveConstants_NeverPanics(t *testing.T) {
 		"a nil argument":             {Op: expression.OpEq, Args: []expression.Expression{nil, nil}},
 		"a nil nested call":          {Op: expression.OpAnd, Args: []expression.Expression{(*expression.Call)(nil), (*expression.Call)(nil)}},
 		"a nil field reference":      {Op: expression.OpEq, Args: []expression.Expression{(*expression.FieldRef)(nil), &expression.AnyValue{Value: "1"}}},
-		"one argument too few":       {Op: expression.OpEq, Args: []expression.Expression{spanField(expression.SpanFieldDuration)}},
-		"a field against two things": {Op: expression.OpEq, Args: []expression.Expression{spanField(expression.SpanFieldDuration), &expression.AnyValue{Value: "2s"}, &expression.AnyValue{Value: "3s"}}},
+		"one argument too few":       {Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}}},
+		"a field against two things": {Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, &expression.AnyValue{Value: "2s"}, &expression.AnyValue{Value: "3s"}}},
 	}
 	for name, filter := range trees {
 		t.Run(name, func(t *testing.T) {

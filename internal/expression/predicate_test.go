@@ -59,6 +59,14 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "reference built elsewhere",
+			built: p.RefOf(&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}).Gt("2s"),
+			want: &ast.Call{Op: ast.OpGt, Args: []ast.Expression{
+				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
+				&ast.AnyValue{Value: "2s"},
+			}},
+		},
+		{
 			name:  "regular expression",
 			built: p.Span().Name.Matches("GET|POST"),
 			want: &ast.Call{Op: ast.OpRegex, Args: []ast.Expression{
@@ -213,6 +221,11 @@ func TestLowering(t *testing.T) {
 // TestCompareTakesTheOperatorAtRunTime covers the prefix form, which exists for an operator the
 // caller does not know when writing the query. It has to agree with the named methods, and the
 // membership operators have to take a list rather than a scalar operand.
+func TestTermIsTheReference(t *testing.T) {
+	assert.Equal(t, &ast.FieldRef{Level: ast.LevelSpan, Name: ast.SpanFieldDuration}, p.Span().Duration.Term())
+	assert.Equal(t, &ast.AttributeRef{Key: "http.route"}, p.Attr("http.route").Term())
+}
+
 func TestCompareTakesTheOperatorAtRunTime(t *testing.T) {
 	ref := p.Resource().Service
 
