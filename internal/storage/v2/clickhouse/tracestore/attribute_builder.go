@@ -46,7 +46,8 @@ func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attrib
 // appendComparison writes to q the condition that an attribute of the given level has the
 // key of tav and a value that compares to the value of tav as op says, and returns args
 // extended with the values that the condition binds. It writes the placeholders of the
-// condition together with their bind values, so the two cannot drift apart between callers. A hoisted attribute is compared in its dedicated column; every other
+// condition together with their bind values, so the two cannot drift apart between callers.
+// A hoisted attribute is compared in its dedicated column; every other
 // attribute, and the same key at another level or type, is searched in the typed groups by
 // the condition of the layout. The condition is a whole one for every level, because an
 // event or a link attribute has one value per event or link and can be compared only
