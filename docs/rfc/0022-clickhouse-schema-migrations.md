@@ -450,7 +450,7 @@ Jaeger issues schema statements with `distributed_ddl_output_mode = 'throw_only_
 
 #### Startup checks
 
-Jaeger checks the configuration against the deployment at every start, before it creates or alters anything. The checks only read: the database engine from `system.databases`, the shards and replicas of the named cluster and of the database's own cluster from `system.clusters`, and the `shard` and `replica` macros of every node from `system.macros`. A failed check stops startup with an error that names the setting, what Jaeger found in the deployment, and the setup that the deployment appears to be. Each subsection lists the checks for its setup and states what Jaeger cannot detect.
+Jaeger checks the configuration against the deployment at every start, before it creates or alters anything. The checks only read: the database engine from `system.databases`, the shards and replicas of the named cluster and of the database's own cluster from `system.clusters`, and the `shard` and `replica` macros of every node from `system.macros`. A failed check stops startup with an error that names the setting, what Jaeger found in the deployment, and the setup that the deployment appears to be. Each subsection lists them under "Jaeger validation", with the outcome of each check and what Jaeger cannot detect.
 
 Two checks apply to every setup: `cluster.name` must not contain a single quote or a backslash, and the named cluster must exist in `system.clusters`.
 
@@ -463,14 +463,12 @@ table_engine:
 
 One node holds all data in `MergeTree` tables under the public names. The configuration is the same on an ordinary database and on a `Replicated` database with one node. A node that will gain replicas later can use `replicated: {}` from the start, which needs Keeper and the macros of setup 2.
 
-Jaeger refuses to start when:
+Jaeger validation:
 
-- the database is a `Replicated` database with more than one node, because every node would get its own unconnected tables. The deployment is setup 2.
-- a `cluster` block is present, because `merge_tree` with `cluster.name` and without `distributed_tables` creates unconnected tables on every node of the cluster.
-
-Jaeger warns when `addresses` lists more than one address, because the addresses of a single node are normally one.
-
-Jaeger cannot detect several nodes with ordinary databases behind one address. Each node then holds only the rows that it received, and a trace is found on one node and not on another.
+- **Refuses to start:** the database is a `Replicated` database with more than one node. Every node would get its own unconnected tables. The deployment is setup 2.
+- **Refuses to start:** a `cluster` block is present without `distributed_tables`. It would create unconnected tables on every node of the cluster.
+- **Warns:** `addresses` lists more than one address. A single node normally has one.
+- **Cannot detect:** several nodes with ordinary databases behind one address. Each node then holds only the rows that it received, and a trace is found on one node and not on another.
 
 #### Setup 2: replicas only
 
@@ -498,14 +496,13 @@ Jaeger's configuration is not enough for this setup. The ClickHouse administrato
 - The `shard` and `replica` macros on every node. `replicated: {}` renders the engine without arguments, so each table takes the server's default Keeper path, `/clickhouse/tables/{uuid}/{shard}`, and the replica name `{replica}`. The `shard` value is the same on all nodes, and the `replica` value is different on each.
 - On an ordinary database, a cluster in `remote_servers` that lists all nodes as replicas of one shard, and the `CLUSTER` grant for the Jaeger user.
 
-Jaeger refuses to start when:
+Jaeger validation:
 
-- the named cluster has more than one shard, because the shards would have no `Distributed` table over them. The deployment is setup 3a.
-- a node lacks the `shard` or the `replica` macro, two nodes have the same `replica` value, or two nodes have different `shard` values.
-- the database is a `Replicated` database and a `cluster` block is present without `distributed_tables`, because the database already delivers the statements.
-- the database is ordinary, there is no `cluster` block, and `system.replicas` shows more than one replica for a Jaeger table. Jaeger's statements would reach one node only.
-
-Jaeger cannot detect the last case on an empty database, where no table has replicas yet. The tables are then created on one node, and the other nodes stay empty.
+- **Refuses to start:** the named cluster has more than one shard. The shards would have no `Distributed` table over them. The deployment is setup 3a.
+- **Refuses to start:** a node lacks the `shard` or the `replica` macro, two nodes have the same `replica` value, or two nodes have different `shard` values.
+- **Refuses to start:** the database is a `Replicated` database and a `cluster` block is present without `distributed_tables`. The database already delivers the statements.
+- **Refuses to start:** the database is ordinary, there is no `cluster` block, and `system.replicas` shows more than one replica for a Jaeger table. Jaeger's statements would reach one node only.
+- **Cannot detect:** the previous case on an empty database, where no table has replicas yet. The tables are then created on one node, and the other nodes stay empty.
 
 #### Setup 3a: shards with replicas
 
@@ -541,12 +538,12 @@ Jaeger's configuration is not enough for this setup. The ClickHouse administrato
 - On an ordinary database, the `CLUSTER` grant for the Jaeger user.
 - On a `Replicated` database, a database created with a different `shard_name` on each shard. The database's own cluster does not set `internal_replication`, so `cluster.name` names a cluster in `remote_servers` that lists the same shards and replicas and sets it.
 
-Jaeger refuses to start when:
+Jaeger validation:
 
-- the named cluster does not set `internal_replication`.
-- a node lacks a macro, two nodes have the same `replica` value, two replicas of one shard have different `shard` values, or two shards have the same `shard` value.
-- the database is a `Replicated` database and the named cluster does not list the same nodes as the database's own cluster.
-- the database is a `Shared` database, because ClickHouse Cloud does not offer the `Distributed` engine.
+- **Refuses to start:** the named cluster does not set `internal_replication`.
+- **Refuses to start:** a node lacks a macro, two nodes have the same `replica` value, two replicas of one shard have different `shard` values, or two shards have the same `shard` value.
+- **Refuses to start:** the database is a `Replicated` database and the named cluster does not list the same nodes as the database's own cluster.
+- **Refuses to start:** the database is a `Shared` database. ClickHouse Cloud does not offer the `Distributed` engine.
 
 #### Setup 3b: shards without replicas
 
@@ -560,9 +557,10 @@ table_engine:
 
 This setup has the tables, sharding keys and insert setting of setup 3a, with `MergeTree` storage tables. The administrator defines the cluster in `remote_servers`, and Keeper and the macros are not needed. Each shard is one node, so losing a node loses that shard's data, and the setup is discouraged.
 
-Jaeger warns at every start that the data has no second copy.
+Jaeger validation:
 
-Jaeger refuses to start when a shard of the named cluster has more than one replica, because the replicas would hold different rows. The deployment is setup 3a.
+- **Warns:** at every start, that the data has no second copy.
+- **Refuses to start:** a shard of the named cluster has more than one replica. The replicas would hold different rows. The deployment is setup 3a.
 
 #### Setup 4: shared storage
 
@@ -573,7 +571,9 @@ table_engine:
 
 This is ClickHouse Cloud. Every database is a `Shared` database, and every table is stored once, whatever the number of nodes. The service substitutes `SharedMergeTree` for `MergeTree`, and the database delivers every statement to all nodes. `replicated: {}` is accepted as well and produces the same tables.
 
-Jaeger refuses to start when a `cluster` block is present on a `Shared` database.
+Jaeger validation:
+
+- **Refuses to start:** a `cluster` block is present on a `Shared` database.
 
 #### Verifying every node
 
