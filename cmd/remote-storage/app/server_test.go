@@ -287,6 +287,7 @@ type grpcClient struct {
 func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredentials, tm *tenancy.Manager) *grpcClient {
 	dialOpts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tm)),
+		grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tm)),
 	}
 	if creds != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
@@ -397,7 +398,9 @@ func TestServerRejectsUnlistedTenantReadsBeforeMemoryStoreAccess(t *testing.T) {
 			_, err := client.GetServices(ctx, &storage.GetServicesRequest{})
 			require.Equal(t, codes.PermissionDenied, status.Code(err))
 
-			_, err = client.FindTraces(ctx, &storage.FindTracesRequest{})
+			stream, err := client.FindTraces(ctx, &storage.FindTracesRequest{})
+			require.NoError(t, err)
+			_, err = stream.Recv()
 			require.Equal(t, codes.PermissionDenied, status.Code(err))
 		})
 	}
