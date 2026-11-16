@@ -1,69 +1,101 @@
-# Hot R.O.D. - Rides on Demand on Kubernetes
+# HotROD Kubernetes test fixture
 
-Example deployment for the [hotrod app](..) using Helm charts in your Kubernetes environment (Kind, minikube, k3s, EKS, GKE).
+This core-owned fixture tests locally built Jaeger and HotROD images in a disposable
+Kind cluster. It contains one memory-backed Jaeger instance, HotROD and their
+Services in the `hotrod-test` namespace. It needs no Helm chart, hosted-demo
+configuration, external storage, monitoring stack or production credentials.
 
-## Prerequisites
+`config.yaml` and `ui-config.json` are independent test inputs. The Jaeger config
+accepts OTLP/HTTP traces and serves the query API/UI under `/jaeger`; the empty UI
+config uses the UI defaults without hosted analytics. HotROD runs under `/hotrod`.
+These files belong to core CI, not the hosted demo deployment.
 
-- Kubernetes cluster
-- Helm 3.x installed
-- kubectl configured
+## Build and test
 
-## Usage
-
-### Deploy with Default Configuration
-
-```bash
-cd examples/oci
-./deploy-all.sh clean
-```
-
-### Deploy with Local Images (for development)
+The full image test requires a Linux environment with Docker (Compose and Buildx),
+Bash 4.4+, Go, Node.js/Yarn, Kind, kubectl, curl and jq. Initialize the repository submodules,
+create a disposable Kind cluster and set `GITHUB_SHA` to the revision being tested:
 
 ```bash
-# For Jaeger v2 with local images
-cd examples/oci
-./deploy-all.sh local <image-tag>
+git submodule update --init --recursive
+kind create cluster --name hotrod-test
+export GITHUB_SHA="$(git rev-parse HEAD)"
+bash scripts/build/build-hotrod-image.sh -l -p linux/amd64 -r k8s
 ```
 
-### Deploy Modes
+Use `linux/arm64` on an ARM Linux host. `-l` restricts publication to the local
+registry. The build script creates the local registry, builds both images, loads
+them into Kind, applies this fixture, waits for both Deployments, and forwards
+ports 8080 and 16686. It checks the HotROD page, dispatches a ride, and verifies
+that the returned trace contains at least 35 spans. Its exit trap removes the
+fixture namespace and port-forwards; the Kind cluster remains available for reuse.
+Use a single Kind cluster, since the existing build script loads the first cluster
+returned by `kind get clusters`.
 
-- **`upgrade`** (default): Upgrade existing deployment or install if not present
-- **`local`**: Deploy using local registry images (localhost:5000)
-- **`clean`**: Clean install (removes existing deployment first)
+The Docker test path remains available with `-r docker`. Core's image build and
+publishing workflow continues to own both paths and publishes HotROD only after
+its functional checks pass.
 
-### Access Applications
+## Use already-built images
 
-After deployment completes, use port-forwarding:
+Run from the repository root with a disposable cluster selected. Both images must
+already exist in the local registry under the same tag:
 
 ```bash
-# Jaeger UI
-kubectl port-forward svc/jaeger-query 16686:16686
-
-# HotROD application
-kubectl port-forward svc/jaeger-hotrod 8080:80
-
-# Prometheus (optional)
-kubectl port-forward svc/prometheus 9090:9090
-
-# Grafana (optional)
-kubectl port-forward svc/prometheus-grafana 9091:80
+export GITHUB_SHA="$(git rev-parse HEAD)"
+docker pull "localhost:5000/jaegertracing/jaeger:${GITHUB_SHA}"
+docker pull "localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA}"
+kind load docker-image --name hotrod-test \
+  "localhost:5000/jaegertracing/jaeger:${GITHUB_SHA}" \
+  "localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA}"
+bash examples/hotrod/kubernetes/deploy.sh render "$GITHUB_SHA"
+bash examples/hotrod/kubernetes/deploy.sh apply "$GITHUB_SHA"
+kubectl -n hotrod-test rollout status deployment/jaeger --timeout=180s
+kubectl -n hotrod-test rollout status deployment/jaeger-hotrod --timeout=180s
 ```
 
-Then access:
-- 🔍 **Jaeger UI**: http://localhost:16686/jaeger
-- 🚕 **HotROD App**: http://localhost:8080/hotrod
-- 📈 **Prometheus**: http://localhost:9090
-- 📊 **Grafana**: http://localhost:9091
+`render` prints the complete manifest without invoking kubectl. Both containers
+use `imagePullPolicy: Never`, so a missing loaded image fails instead of falling
+back to a published image. To browse the fixture, run each port-forward in its own
+terminal:
 
-## Configuration
+```bash
+kubectl -n hotrod-test port-forward svc/jaeger-query 16686:16686
+kubectl -n hotrod-test port-forward svc/jaeger-hotrod 8080:80
+```
 
-The deployment uses:
-- **Helm charts** from [jaeger-helm-charts](https://github.com/jaegertracing/helm-charts)
-- **Prometheus** for metrics collection
-- **Load generator** for creating sample traces
+Open [Jaeger](http://localhost:16686/jaeger/) or
+[HotROD](http://localhost:8080/hotrod).
 
-Configuration files:
-- `jaeger-values.yaml` - Jaeger Helm chart values
-- `config.yaml` - Jaeger configuration
-- `ui-config.json` - Jaeger UI configuration
-- `monitoring-values.yaml` - Prometheus configuration
+## Cleanup and troubleshooting
+
+Stop manual port-forwards, then remove only the test namespace:
+
+```bash
+bash examples/hotrod/kubernetes/deploy.sh delete
+# Optional: remove the disposable cluster too.
+kind delete cluster --name hotrod-test
+```
+
+For a rollout failure, inspect the pod events and both application logs:
+
+```bash
+kubectl -n hotrod-test get pods
+kubectl -n hotrod-test describe pods
+kubectl -n hotrod-test logs deployment/jaeger
+kubectl -n hotrod-test logs deployment/jaeger-hotrod
+```
+
+`ErrImageNeverPull` means the exact registry/tag was not loaded into the selected
+Kind cluster. Connection failures commonly indicate that kubectl targets a
+different cluster or that local ports 8080/16686 are occupied. Missing traces
+require checking the HotROD OTLP endpoint and Jaeger logs.
+
+The shell regression tests use command stubs and require no cluster or Docker:
+
+```bash
+SHUNIT2=/path/to/shunit2 bash examples/hotrod/kubernetes/deploy.test.sh
+```
+
+The full shell-test runner also includes this suite. The Docker/Kubernetes CI
+matrix provides the real image, networking and trace-ingestion checks.
