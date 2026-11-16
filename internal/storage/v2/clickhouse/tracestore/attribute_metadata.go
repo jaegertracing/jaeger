@@ -9,9 +9,32 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
+
+// metadataValueType reads the type column of the attribute_metadata table. The names are the
+// literals that the materialized views write, so they are spelled out here and not shared with
+// code outside this schema. A name the views do not write reads as ValueTypeEmpty.
+func metadataValueType(name string) pcommon.ValueType {
+	switch name {
+	case "bool":
+		return pcommon.ValueTypeBool
+	case "double":
+		return pcommon.ValueTypeDouble
+	case "int":
+		return pcommon.ValueTypeInt
+	case "str":
+		return pcommon.ValueTypeStr
+	case "bytes":
+		return pcommon.ValueTypeBytes
+	case "map":
+		return pcommon.ValueTypeMap
+	case "slice":
+		return pcommon.ValueTypeSlice
+	default:
+		return pcommon.ValueTypeEmpty
+	}
+}
 
 // attrTypes holds the value types for an attribute key at different levels.
 // These types are populated by the materialized views defined in
@@ -92,15 +115,15 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 		levels := metadata[attrMeta.AttributeKey]
 		switch attrMeta.Level {
 		case "resource":
-			levels.resource = append(levels.resource, jptrace.StringToValueType(attrMeta.Type))
+			levels.resource = append(levels.resource, metadataValueType(attrMeta.Type))
 		case "scope":
-			levels.scope = append(levels.scope, jptrace.StringToValueType(attrMeta.Type))
+			levels.scope = append(levels.scope, metadataValueType(attrMeta.Type))
 		case "span":
-			levels.span = append(levels.span, jptrace.StringToValueType(attrMeta.Type))
+			levels.span = append(levels.span, metadataValueType(attrMeta.Type))
 		case "event":
-			levels.event = append(levels.event, jptrace.StringToValueType(attrMeta.Type))
+			levels.event = append(levels.event, metadataValueType(attrMeta.Type))
 		case "link":
-			levels.link = append(levels.link, jptrace.StringToValueType(attrMeta.Type))
+			levels.link = append(levels.link, metadataValueType(attrMeta.Type))
 		default:
 			return nil, fmt.Errorf("unknown attribute level %q", attrMeta.Level)
 		}

@@ -18,19 +18,18 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
-func compare(op expression.Operator, args ...expression.Expression) *expression.Call {
-	return &expression.Call{Op: op, Args: args}
-}
+var p builder.Predicate
 
 // tag builds a predicate on an unqualified attribute, whose constant declares no type because a
 // tag never did.
 func tag(op expression.Operator, key string, value string) *expression.Call {
-	return compare(op, &expression.AttributeRef{Key: key}, &expression.AnyValue{Value: value})
+	return p.Compare(op, p.Attr(key), value)
 }
 
 // filterQuery is the search a test sends when its subject is something other than the envelope:
@@ -62,20 +61,12 @@ func TestPrepareFilteredQuery_PassesFilterToADeclaringReader(t *testing.T) {
 			expression.OpEq, expression.OpGt, expression.OpRegex, expression.OpSome,
 		},
 	}}
-	filter := compare(expression.OpAnd,
-		compare(expression.OpGt,
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-			&expression.DurationValue{Value: 2 * time.Second}),
-		compare(expression.OpOr,
+	filter := p.And(
+		p.Span().Duration.Gt(p.Duration(2*time.Second)),
+		p.Or(
 			tag(expression.OpEq, "http.status_code", "500"),
-			compare(expression.OpRegex,
-				&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-				&expression.AnyValue{Value: "/cart/.*"})),
-		compare(expression.OpSome,
-			&expression.NestedRef{Level: expression.LevelEvent},
-			compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
-				&expression.StringValue{Value: "exception"})))
+			p.Span().Attr("http.route").Matches("/cart/.*")),
+		p.Some(p.Event(), p.Event().Name.Eq(p.String("exception"))))
 	query := readerQuery(t, filterQuery(filter))
 
 	got, err := queryToReaderCapabilities(query, caps)
@@ -109,21 +100,21 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 		{
 			name:        "an operator it did not list, nested in a conjunction",
 			caps:        conjunctive,
-			filter:      compare(expression.OpAnd, eqRef("a"), tag(expression.OpGt, "b", "1")),
+			filter:      p.And(eqRef("a"), tag(expression.OpGt, "b", "1")),
 			expectedErr: `does not support the operator "gt"`,
 		},
 		{
 			name:        "a disjunction against a flat index",
 			caps:        conjunctive,
-			filter:      compare(expression.OpOr, eqRef("a"), eqRef("b")),
+			filter:      p.Or(eqRef("a"), eqRef("b")),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
 			name: "a disjunction nested in a conjunction against a flat index",
 			caps: conjunctive,
-			filter: compare(expression.OpAnd,
+			filter: p.And(
 				eqRef("a"),
-				compare(expression.OpOr, eqRef("b"), eqRef("c"))),
+				p.Or(eqRef("b"), eqRef("c"))),
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
@@ -132,9 +123,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpEq},
 			},
-			filter: compare(expression.OpEq,
-				&expression.AttributeRef{Key: "peer.service", Level: expression.LevelLink},
-				&expression.AnyValue{Value: "cart"}),
+			filter:      p.Link().Attr("peer.service").Eq("cart"),
 			expectedErr: `does not index the "link" level`,
 		},
 		{
@@ -143,9 +132,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpEq},
 			},
-			filter: compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelScope, Name: expression.ScopeFieldName},
-				&expression.StringValue{Value: "otelhttp"}),
+			filter:      p.Scope().Name.Eq(p.String("otelhttp")),
 			expectedErr: `does not index the "scope" level`,
 		},
 		{
@@ -154,11 +141,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpSome, expression.OpEq},
 			},
-			filter: compare(expression.OpSome,
-				&expression.NestedRef{Level: expression.LevelEvent},
-				compare(expression.OpEq,
-					&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
-					&expression.StringValue{Value: "exception"})),
+			filter:      p.Some(p.Event(), p.Event().Name.Eq(p.String("exception"))),
 			expectedErr: `does not index the "event" level`,
 		},
 		{
@@ -167,9 +150,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 				Levels:    []expression.Level{expression.LevelSpan},
 				Operators: []expression.Operator{expression.OpNe},
 			},
-			filter: compare(expression.OpNe,
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelSpan},
-				&expression.AttributeRef{Key: "enduser.id", Level: expression.LevelResource}),
+			filter:      p.Span().Attr("enduser.id").Ne(p.Resource().Attr("enduser.id")),
 			expectedErr: `does not index the "resource" level`,
 		},
 	}
@@ -286,17 +267,13 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 		expectedErr string
 	}{
 		{
-			name: "a duration nobody can read",
-			filter: compare(expression.OpGte,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.AnyValue{Value: "quickly"}),
+			name:        "a duration nobody can read",
+			filter:      p.Span().Duration.Gte("quickly"),
 			expectedErr: `cannot compare span.duration against "quickly"`,
 		},
 		{
-			name: "a span kind that is not one of the words",
-			filter: compare(expression.OpEq,
-				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldKind},
-				&expression.AnyValue{Value: "SPAN_KIND_SERVER"}),
+			name:        "a span kind that is not one of the words",
+			filter:      p.Span().Kind.Eq("SPAN_KIND_SERVER"),
 			expectedErr: "not one of unspecified, internal, server, client, producer, consumer",
 		},
 	}
@@ -319,9 +296,7 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 // reader that serves only the legacy fields as the length of time it names.
 func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
 	enableStructuredFilters(t)
-	filter := compare(expression.OpGte,
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.AnyValue{Value: "1m30s"})
+	filter := p.Span().Duration.Gte("1m30s")
 
 	var dispatched tracestore.TraceQueryParams
 	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
@@ -411,10 +386,7 @@ func TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration(t *testing.T) {
 }
 
 func serviceIs(name string) *expression.Call {
-	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-		&expression.StringValue{Value: name},
-	}}
+	return p.Resource().Service.Eq(p.String(name))
 }
 
 // TestQueryToReaderShape covers the two conversions toward what a reader declared: a filter is handed
@@ -469,18 +441,13 @@ func TestQueryToReaderShape(t *testing.T) {
 	})
 
 	t.Run("a filter the legacy fields cannot carry is refused", func(t *testing.T) {
-		disjunction := &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
-			serviceIs("cart"), serviceIs("checkout"),
-		}}
+		disjunction := p.Or(serviceIs("cart"), serviceIs("checkout"))
 		_, err := queryToReaderCapabilities(tracestore.TraceQueryParams{Filter: disjunction}, tracestore.SearchCapabilities{})
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
 
 	t.Run("a predicate the reader did not declare is refused", func(t *testing.T) {
-		spanLevel := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "/cart"},
-		}}
+		spanLevel := p.Span().Attr("http.route").Eq("/cart")
 		_, err := queryToReaderCapabilities(tracestore.TraceQueryParams{Filter: spanLevel}, filterCapable)
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 		require.ErrorContains(t, err, `it does not index the "span" level`)

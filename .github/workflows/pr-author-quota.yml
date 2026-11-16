@@ -1,0 +1,50 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Author PR Quota
+
+on:
+  pull_request_target:  # Runs with write permissions even for fork PRs
+    types: [opened, closed, reopened, synchronize]  # synchronize = new commits pushed
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'GitHub username to process quota for'
+        required: true
+        type: string
+      dryRun:
+        description: 'Dry run mode - show actions without making changes'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: quota-${{ github.event.pull_request.user.login || github.event.inputs.username }}
+  cancel-in-progress: false
+
+jobs:
+  label-prs-over-quota:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # The job only needs the default branch's copy of the composite action and
+          # its script. Without an explicit ref, checkout resolves github.sha, which
+          # on the closed event of a merged PR is that PR's merge commit, and
+          # checkout v7 refuses it in a pull_request_target workflow as fork code.
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Label pull requests over the author's quota
+        uses: ./.github/actions/pr-quota-manager
+        with:
+          # The default GITHUB_TOKEN suffices: the pull_request_target trigger runs in
+          # the base repo context, so the job-level issues/pull-requests write
+          # permissions above cover labelling and commenting even on fork PRs.
+          token: ${{ github.token }}
+          username: ${{ github.event.inputs.username }}
+          dry-run: ${{ github.event.inputs.dryRun }}

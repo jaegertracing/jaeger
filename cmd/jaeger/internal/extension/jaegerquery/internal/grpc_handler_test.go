@@ -734,6 +734,20 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		assertGRPCError(t, err, codes.Unauthenticated, "missing tenant header")
 		assert.Nil(t, spanResChunk)
 
+		// An empty tenant is rejected even though there is no tenant allow-list
+		res, err = client.GetTrace(
+			withOutgoingMetadata(t, context.Background(), tm.Header, ""),
+			&api_v2.GetTraceRequest{
+				TraceID: mockTraceID,
+			},
+		)
+
+		require.NoError(t, err, "could not initiate GetTraceRequest")
+
+		spanResChunk, err = res.Recv()
+		assertGRPCError(t, err, codes.PermissionDenied, "unknown tenant")
+		assert.Nil(t, spanResChunk)
+
 		// Next try with tenancy
 		res, err = client.GetTrace(
 			withOutgoingMetadata(t, context.Background(), tm.Header, "acme"),

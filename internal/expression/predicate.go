@@ -103,6 +103,14 @@ func (Predicate) Link() LinkLevel {
 	}
 }
 
+// RefOf wraps a reference term the caller already holds, for a compiler from another syntax
+// that resolves a name to a FieldRef or AttributeRef first and chooses the operator after. A
+// term that is not a reference builds a tree ValidateFilter refuses, which is the same answer
+// a hand-written tree gets.
+func (Predicate) RefOf(term ast.Expression) Ref {
+	return Ref{term}
+}
+
 // Attr names an attribute without saying which level it lives in, which a backend looks for at
 // the span and resource levels. It is the filter counterpart of the legacy attributes map.
 func (Predicate) Attr(name string) Ref {
@@ -277,6 +285,10 @@ func (l level) Field(name string) Ref {
 type Ref struct {
 	ref ast.Expression
 }
+
+// Term returns the reference itself, for a clause that lists references rather than predicates:
+// the projection of a span query, or an ordering.
+func (r Ref) Term() ast.Expression { return r.ref }
 
 func (r Ref) Eq(value any) *ast.Call  { return r.compare(ast.OpEq, value) }
 func (r Ref) Ne(value any) *ast.Call  { return r.compare(ast.OpNe, value) }

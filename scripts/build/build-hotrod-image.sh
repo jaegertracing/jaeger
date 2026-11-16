@@ -187,9 +187,9 @@ SLEEP_INTERVAL=3
 
 poll_jaeger() {
   local trace_id=$1
-  local url="${JAEGER_QUERY_URL}/api/traces/${trace_id}"
+  local url="${JAEGER_QUERY_URL}/api/v3/traces/${trace_id}"
 
-  curl -s "${url}" | jq '.data[0].spans | length' || echo "0"
+  curl -s "${url}" | jq '[.result.resourceSpans[]?.scopeSpans[]?.spans[]?] | length' || echo "0"
 }
 
 # Poll Jaeger until trace with desired number of spans is loaded or we timeout.

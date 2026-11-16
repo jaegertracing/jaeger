@@ -41,7 +41,7 @@ func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.T
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
 		// FindTraceSummaries contract).
-		query, err := paginationAsDepth(query)
+		query, err := query.ReplacePaginationWithDepth()
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return

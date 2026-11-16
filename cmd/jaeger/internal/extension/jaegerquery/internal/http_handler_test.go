@@ -6,7 +6,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -26,8 +24,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
@@ -38,25 +34,15 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
-
-type IoReaderMock struct {
-	mock.Mock
-}
-
-func (m *IoReaderMock) Read(b []byte) (int, error) {
-	args := m.Called(b)
-	return args.Int(0), args.Error(1)
-}
 
 var (
 	errStorageMsg = "storage error"
@@ -95,23 +81,6 @@ func tracesIter(traces ...ptrace.Traces) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		yield(traces, nil)
 	}
-}
-
-func errorIter(err error) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {
-		yield(nil, err)
-	}
-}
-
-func makeTraceWithID(traceID model.TraceID) ptrace.Traces {
-	trace := ptrace.NewTraces()
-	resources := trace.ResourceSpans().AppendEmpty()
-	resources.Resource().Attributes().PutStr("service.name", "service")
-	scopes := resources.ScopeSpans().AppendEmpty()
-	span := scopes.Spans().AppendEmpty()
-	span.SetTraceID(v1adapter.FromV1TraceID(traceID))
-	span.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(1)))
-	return trace
 }
 
 // structuredTraceResponse is similar to structuredResponse but defines `data`
@@ -180,90 +149,6 @@ type testServer struct {
 func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, queryOptions, options...)
 	doTest(ts)
-}
-
-func TestGetTraceSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeMockPTrace())).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-}
-
-func TestGetTraceBase64Success(t *testing.T) {
-	// base64 "AAAAAAAAAP///////////w==" decodes to traceID {High: 0xFF, Low: 0xFFFFFFFFFFFFFFFF}
-	expectedTraceID := v1adapter.FromV1TraceID(model.NewTraceID(0xFF, 0xFFFFFFFFFFFFFFFF))
-
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 1 && params[0].TraceID == expectedTraceID
-	})).Return(tracesIter(makeMockPTrace())).Once()
-
-	// "/" in base64 is percent-encoded as %2F in the URL path
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-}
-
-func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
-	var traces []ui.Trace
-	b, err := json.Marshal(response.Data)
-	require.NoError(t, err)
-	err = json.Unmarshal(b, &traces)
-	require.NoError(t, err)
-	return traces
-}
-
-// TestGetTraceDedupeSuccess partially verifies that the standard adjusteres
-// are defined in correct order.
-func TestGetTraceDedupeSuccess(t *testing.T) {
-	dupedTrace := ptrace.NewTraces()
-	resources := dupedTrace.ResourceSpans().AppendEmpty()
-	resources.Resource().Attributes().PutStr("service.name", "service")
-	scopes := resources.ScopeSpans().AppendEmpty()
-
-	// Add 4 spans (2 original + 2 duplicates)
-	for i := range 4 {
-		span := scopes.Spans().AppendEmpty()
-		span.SetTraceID(v1adapter.FromV1TraceID(mockTraceID))
-		span.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(uint64(i%2 + 1))))
-	}
-
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(dupedTrace)).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	traces := extractTraces(t, &response)
-	assert.Len(t, traces[0].Spans, 2)
-	for _, span := range traces[0].Spans {
-		assert.Empty(t, span.Warnings, "clock skew adjuster would've complained about dupes")
-	}
-}
-
-func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		if len(params) != 1 {
-			return false
-		}
-		p := params[0]
-		return p.TraceID == v1adapter.FromV1TraceID(mockTraceID) &&
-			p.Start.Equal(time.UnixMicro(1)) &&
-			p.End.Equal(time.UnixMicro(2))
-	})).Return(tracesIter(makeMockPTrace())).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?start=1&end=2`, &response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
 }
 
 func TestLogOnServerError(t *testing.T) {
@@ -356,197 +241,6 @@ func TestWriteJSON(t *testing.T) {
 			assert.Contains(t, out, testCase.output)
 		})
 	}
-}
-
-func TestGetTrace(t *testing.T) {
-	testCases := []struct {
-		suffix   string
-		numSpans int
-	}{
-		{suffix: "", numSpans: 2},
-		{suffix: "?raw=true", numSpans: 3},
-		{suffix: "?raw=false", numSpans: 2},
-	}
-
-	makeMockTraceWithDupe := func() ptrace.Traces {
-		trace := makeMockPTrace()
-		// Add a duplicate of span1
-		scopes := trace.ResourceSpans().At(0).ScopeSpans().At(0)
-		span3 := scopes.Spans().AppendEmpty()
-		span3.SetTraceID(v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc)))
-		span3.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(1)))
-		return trace
-	}
-
-	for _, tc := range testCases {
-		testCase := tc // capture loop var
-		t.Run(testCase.suffix, func(t *testing.T) {
-			exporter := tracetest.NewInMemoryExporter()
-			tracerProvider := sdktrace.NewTracerProvider(
-				sdktrace.WithSyncer(exporter),
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
-			)
-			t.Cleanup(func() {
-				require.NoError(t, tracerProvider.Shutdown(context.Background()))
-			})
-
-			ts := initializeTestServer(t, HandlerOptions.Tracer(tracerProvider))
-
-			ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-				return len(params) == 1 && params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc))
-			})).Return(tracesIter(makeMockTraceWithDupe())).Once()
-
-			var response structuredResponse
-			err := getJSON(ts.server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
-			require.NoError(t, err)
-			assert.Empty(t, response.Errors)
-
-			traces := extractTraces(t, &response)
-			assert.Len(t, traces[0].Spans, testCase.numSpans)
-		})
-	}
-}
-
-func TestGetTraceDBFailure(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(errorIter(errStorage)).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.Error(t, err)
-}
-
-func TestGetTraceNotFound(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(emptyIter()).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.EqualError(t, err, parsedError(404, "trace not found"))
-}
-
-func TestGetTraceBadTraceID(t *testing.T) {
-	ts := initializeTestServer(t)
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/chumbawumba`, &response)
-	require.Error(t, err)
-}
-
-func TestGetTraceBadTimeWindow(t *testing.T) {
-	testCases := []struct {
-		name  string
-		query string
-	}{
-		{
-			name:  "Bad start time",
-			query: "start=a",
-		},
-		{
-			name:  "Bad end time",
-			query: "end=b",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := initializeTestServer(t)
-			var response structuredResponse
-			err := getJSON(ts.server.URL+`/api/traces/123456?`+tc.query, &response)
-			require.Error(t, err)
-			require.ErrorContains(t, err, "400 error from server")
-			require.ErrorContains(t, err, "unable to parse param")
-		})
-	}
-}
-
-func TestGetTraceWithRawTracesParameter(t *testing.T) {
-	// TODO: extend the test cases to ensure raw traces are obtained
-	// when the flag is set once the differentiating logic has been implemented
-	tests := []struct {
-		rawTraces bool
-	}{
-		{rawTraces: true},
-		{rawTraces: false},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
-			ts := initializeTestServer(t)
-			ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-				return len(params) == 1 && params[0].TraceID == v1adapter.FromV1TraceID(mockTraceID)
-			})).Return(tracesIter(makeMockPTrace())).Once()
-
-			var response structuredResponse
-			err := getJSON(fmt.Sprintf("%s/api/traces/%s?raw=%v", ts.server.URL, mockTraceID.String(), test.rawTraces), &response)
-			require.NoError(t, err)
-			assert.Empty(t, response.Errors)
-		})
-	}
-}
-
-func TestGetTraceBadRawTracesFlag(t *testing.T) {
-	ts := initializeTestServer(t)
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456?raw=foobar`, &response)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "400 error from server")
-	require.ErrorContains(t, err, "unable to parse param 'raw'")
-}
-
-func TestTransformOTLPSuccess(t *testing.T) {
-	reformat := func(in []byte) []byte {
-		obj := new(any)
-		require.NoError(t, json.Unmarshal(in, obj))
-		// format json similar to `jq .`
-		out, err := json.MarshalIndent(obj, "", "  ")
-		require.NoError(t, err)
-		return out
-	}
-	withTestServer(t, func(ts *testServer) {
-		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
-		require.NoError(t, err)
-
-		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", inFile)
-		require.NoError(t, err)
-
-		responseBytes, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		responseBytes = reformat(responseBytes)
-
-		expectedBytes, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
-		require.NoError(t, err)
-		expectedBytes = reformat(expectedBytes)
-
-		assert.Equal(t, string(expectedBytes), string(responseBytes))
-	}, querysvc.QueryServiceOptions{})
-}
-
-func TestTransformOTLPReadError(t *testing.T) {
-	withTestServer(t, func(ts *testServer) {
-		bytesReader := &IoReaderMock{}
-		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
-		_, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytesReader)
-		require.Error(t, err)
-	}, querysvc.QueryServiceOptions{})
-}
-
-func TestTransformOTLPBadPayload(t *testing.T) {
-	withTestServer(t, func(ts *testServer) {
-		response := new(any)
-		request := "Bad Payload"
-		err := postJSON(ts.server.URL+"/api/transform", request, response)
-		require.ErrorContains(t, err, "cannot unmarshal OTLP")
-	}, querysvc.QueryServiceOptions{})
-}
-
-func TestBadOTLPReturns400(t *testing.T) {
-	withTestServer(t, func(ts *testServer) {
-		err := postJSON(ts.server.URL+"/api/transform", "Bad Payload", nil)
-		var httpErr *HTTPError
-		require.ErrorAs(t, err, &httpErr)
-		require.Equal(t, 400, httpErr.StatusCode)
-	}, querysvc.QueryServiceOptions{})
 }
 
 func TestGetMetricsSuccess(t *testing.T) {
@@ -706,13 +400,324 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(disabledReader))
 	defer ts.server.Close()
 
-	const urlPath = "/api/metrics/latencies?service=emailservice&quantile=0.95"
-	var response any
-	err = getJSON(ts.server.URL+urlPath, &response)
-	var httpErr *HTTPError
-	require.ErrorAs(t, err, &httpErr)
-	require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
-	require.Contains(t, httpErr.Body, "currently disabled")
+	for _, tc := range []struct {
+		name             string
+		urlPath          string
+		wantErrorMessage string
+	}{
+		{
+			name:             "metrics query disabled error returned when fetching latency metrics",
+			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "dimensions endpoint on disabled backend returns 501",
+			urlPath:          "/api/metrics/dimensions",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "filtered calls on disabled backend returns 501",
+			urlPath:          "/api/metrics/calls?service=svc&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "filtered latencies on disabled backend returns 501",
+			urlPath:          "/api/metrics/latencies?service=svc&quantile=0.95&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+		{
+			name:             "filtered errors on disabled backend returns 501",
+			urlPath:          "/api/metrics/errors?service=svc&filter=k8s.cluster:foo",
+			wantErrorMessage: disabled.ErrDisabled.Error(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test
+			var response any
+			err := getJSON(ts.server.URL+tc.urlPath, &response)
+
+			// Verify
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
+			require.Contains(t, httpErr.Body, tc.wantErrorMessage)
+		})
+	}
+}
+
+func TestGetDimensionsEndpoint(t *testing.T) {
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster"},
+	}
+	metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+
+	var got []metricstore.Dimension
+	require.NoError(t, getJSON(ts.server.URL+"/api/metrics/dimensions", &got))
+	assert.Equal(t, configured, got)
+}
+
+func TestGetDimensionsEndpointEmpty(t *testing.T) {
+	// Backends without dimension support return nil/empty; the handler must
+	// emit a JSON array (not null) so the UI can iterate without a nil-guard.
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+	metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
+
+	resp, err := http.Get(ts.server.URL + "/api/metrics/dimensions")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(bytes.TrimSpace(body)))
+}
+
+func TestGetDimensionsEndpointError(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{name: "internal failure", err: assert.AnError, status: http.StatusInternalServerError},
+		{name: "unsupported", err: fmt.Errorf("dimensions: %w", errors.ErrUnsupported), status: http.StatusNotImplemented},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(reader))
+			reader.On("GetDimensions", mock.Anything).Return(nil, tc.err).Once()
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/dimensions", &response)
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, tc.status, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, tc.err.Error())
+			reader.AssertExpectations(t)
+		})
+	}
+}
+
+func TestMetricsMalformedQuery(t *testing.T) {
+	for _, endpoint := range []string{"calls", "errors", "latencies"} {
+		for _, query := range []string{
+			"filter=k8s.cluster:%ZZ",
+			"filter=k8s.cluster:%",
+			"filter=k8s.cluster:prod;staging",
+			"filter=k8s.cluster:prod&filter=deployment.environment:%ZZ",
+		} {
+			t.Run(endpoint+"/"+query, func(t *testing.T) {
+				reader := &metricsmocks.Reader{}
+				ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(reader))
+				var response any
+				err := getJSON(ts.server.URL+"/api/metrics/"+endpoint+"?service=svc&quantile=0.95&"+query, &response)
+				var httpErr *HTTPError
+				require.ErrorAs(t, err, &httpErr)
+				assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+				assert.Contains(t, httpErr.Body, "invalid query")
+				assert.Empty(t, reader.Calls, "malformed queries must not reach the reader")
+			})
+		}
+	}
+}
+
+func TestMetricFilterConfiguredOrder(t *testing.T) {
+	dims := []metricstore.Dimension{{Name: "z"}, {Name: "a"}, {Name: "m"}}
+	for range 20 {
+		err := validateMetricFilters(map[string]string{"unknown": "value"}, dims)
+		require.EqualError(t, err, `unknown filter dimension "unknown"; configured: [z a m]`)
+	}
+}
+
+func TestMetricFilterValidationOrder(t *testing.T) {
+	dims := []metricstore.Dimension{
+		{Name: "z"},
+		{Name: "a", Values: []string{"prod"}},
+		{Name: "m"},
+	}
+	for _, tc := range []struct {
+		name    string
+		filters map[string]string
+		wantErr string
+	}{
+		{
+			name:    "unknown keys",
+			filters: map[string]string{"y": "value", "b": "value"},
+			wantErr: `unknown filter dimension "b"; configured: [z a m]`,
+		},
+		{
+			name:    "invalid value before unknown key",
+			filters: map[string]string{"unknown": "value", "a": "dev", "m": "bad\nvalue"},
+			wantErr: `value "dev" not allowed for filter "a"; allowed: [prod]`,
+		},
+		{
+			name:    "valid value before invalid filters",
+			filters: map[string]string{"a": "prod", "unknown": "value", "m": "bad\nvalue"},
+			wantErr: `invalid value for filter "m" (control characters, quotes, and backslashes are not allowed)`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for range 20 {
+				require.EqualError(t, validateMetricFilters(tc.filters, dims), tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestMetricsFilterMalformed(t *testing.T) {
+	for _, filter := range []string{"missing-colon", ":value", "key:"} {
+		t.Run(filter, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/calls?service=svc&filter="+filter, &response)
+
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, http.StatusBadRequest, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, "malformed filter")
+			metricsReader.AssertNotCalled(t, "GetDimensions", mock.Anything)
+		})
+	}
+}
+
+func TestMetricsFilterValidation(t *testing.T) {
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster"}, // free-text dimension
+	}
+	// Note: assertions match against JSON-encoded response bodies, where double
+	// quotes are escaped as \". Use substrings that survive that escaping.
+	for _, tc := range []struct {
+		name     string
+		urlPath  string
+		wantCode int
+		wantMsg  string
+	}{
+		{
+			name:     "unknown filter key returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=unknown.key:v",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `unknown filter dimension`,
+		},
+		{
+			name:     "value not in declared set returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=deployment.environment:notInSet",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `not allowed for filter`,
+		},
+		{
+			name:     "free-text value with control character returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=k8s.cluster:bad%0Avalue",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  "invalid value for filter",
+		},
+		{
+			name:     "free-text value with DEL returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=k8s.cluster:bad%7Fvalue",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  "invalid value for filter",
+		},
+		{
+			name:     "free-text value with double-quote returns 400",
+			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad"value`,
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `invalid value for filter`,
+		},
+		{
+			name:     "free-text value with backslash returns 400",
+			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad\value`,
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `invalid value for filter`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+
+			resp, err := http.Get(ts.server.URL + tc.urlPath)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, tc.wantCode, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), tc.wantMsg)
+			metricsReader.AssertNumberOfCalls(t, "GetDimensions", 1)
+			assert.Len(t, metricsReader.Calls, 1, "invalid filters must not execute a metrics query")
+		})
+	}
+}
+
+func TestMetricsFilterHappyPath(t *testing.T) {
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", Values: []string{"prod", "staging"}},
+	}
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+	metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+	metricsReader.On(
+		"GetCallRates",
+		mock.Anything,
+		mock.MatchedBy(func(p *metricstore.CallRateQueryParameters) bool {
+			return p.Filters["deployment.environment"] == "prod"
+		}),
+	).Return(&metrics.MetricFamily{}, nil).Once()
+
+	var response metrics.MetricFamily
+	require.NoError(t, getJSON(
+		ts.server.URL+"/api/metrics/calls?service=svc&filter=deployment.environment:prod",
+		&response,
+	))
+}
+
+func TestMetricsFilterGetDimensionsError(t *testing.T) {
+	for _, endpoint := range []string{"calls", "latencies", "errors"} {
+		t.Run(endpoint, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.
+				On("GetDimensions", mock.Anything).
+				Return(nil, assert.AnError).
+				Once()
+
+			var response any
+			err := getJSON(ts.server.URL+"/api/metrics/"+endpoint+"?service=svc&quantile=0.95&filter=k8s.cluster:foo", &response)
+
+			var httpErr *HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, http.StatusInternalServerError, httpErr.StatusCode)
+			assert.Contains(t, httpErr.Body, assert.AnError.Error())
+			metricsReader.AssertExpectations(t)
+		})
+	}
+}
+
+func TestMetricsFilterRequestOnBackendWithoutDimensions(t *testing.T) {
+	// A backend that advertises no dimensions must reject filter requests
+	// with 501; otherwise the operator would silently get an unfiltered
+	// response when they intended to filter.
+	for _, endpoint := range []string{"calls", "errors", "latencies"} {
+		t.Run(endpoint, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
+
+			resp, err := http.Get(ts.server.URL + "/api/metrics/" + endpoint + "?service=svc&quantile=0.95&filter=anything:x")
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "metric filtering is not supported by this backend")
+			metricsReader.AssertExpectations(t)
+			assert.Len(t, metricsReader.Calls, 1, "unsupported filters must not execute a metrics query")
+		})
+	}
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
@@ -787,109 +792,6 @@ func execJSON(req *http.Request, additionalHeaders map[string]string, out any) e
 	}
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
-}
-
-// Generates a JSON response that the server should produce given a certain error code and error.
-func parsedError(code int, err string) string {
-	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
-}
-
-func TestGetTraceTenancyHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t,
-		tenancy.NewManager(&tenancyOptions),
-		querysvc.QueryServiceOptions{})
-	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 1 &&
-			params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 1))
-	})).Return(tracesIter(makeTraceWithID(model.NewTraceID(0, 1)))).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/1`, &response)
-	require.Error(t, err)
-	assert.Equal(t, "401 error from server: missing tenant header", err.Error())
-	assert.Empty(t, response.Errors)
-	assert.Nil(t, response.Data)
-
-	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces/1`,
-		map[string]string{"x-tenant": "acme"},
-		&response,
-	)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 1)
-}
-
-func TestGetTraceTenancyRejectionHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeMockPTrace())).Twice()
-
-	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces/1`, http.NoBody)
-	require.NoError(t, err)
-	req.Header.Add("Accept", "application/json")
-	// We don't set tenant header
-	resp, err := httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-
-	tm := tenancy.NewManager(&tenancyOptions)
-	req.Header.Set(tm.Header, "acme")
-	resp, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	// Skip unmarshal of response; it is enough that it succeeded
-}
-
-func TestGetTraceTenancyFlowTenantHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
-	ts.traceReader.On("GetTraces", mock.MatchedBy(func(v any) bool {
-		ctx, ok := v.(context.Context)
-		if !ok || tenancy.GetTenant(ctx) != "acme" {
-			return false
-		}
-		return true
-	}), mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-		return len(params) == 1
-	})).Return(tracesIter(makeTraceWithID(model.NewTraceID(0, 1)))).Once()
-	ts.traceReader.On("GetTraces", mock.MatchedBy(func(v any) bool {
-		ctx, ok := v.(context.Context)
-		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
-			return false
-		}
-		return true
-	}), mock.Anything).Return(errorIter(errStorage)).Once()
-
-	var responseAcme structuredResponse
-	err := getJSONCustomHeaders(
-		ts.server.URL+`/api/traces/1`,
-		map[string]string{"x-tenant": "acme"},
-		&responseAcme,
-	)
-	require.NoError(t, err)
-	assert.Empty(t, responseAcme.Errors)
-	assert.Len(t, responseAcme.Data, 1)
-
-	var responseMegacorp structuredResponse
-	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces/1`,
-		map[string]string{"x-tenant": "megacorp"},
-		&responseMegacorp,
-	)
-	require.ErrorContains(t, err, "storage error")
-	assert.Empty(t, responseMegacorp.Errors)
-	assert.Nil(t, responseMegacorp.Data)
 }
 
 func TestNewAPIHandler_Defaults(t *testing.T) {

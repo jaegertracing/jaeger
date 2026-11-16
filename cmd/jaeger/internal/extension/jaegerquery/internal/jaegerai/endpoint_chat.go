@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
@@ -16,6 +18,8 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
@@ -30,9 +34,8 @@ type ChatRequest = aguitypes.RunAgentInput
 // resulting ACP notifications are streamed back to the caller as AG-UI SSE
 // events.
 type chatEndpoint struct {
-	Logger   *zap.Logger
-	ctxTools *ContextualToolsStore
-	// turns registers each turn's SSE streaming client and UI tools so the
+	Logger *zap.Logger
+	// turns registers each turn's AG-UI run and UI tools so the
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
 	turns *turnRegistry
@@ -41,7 +44,7 @@ type chatEndpoint struct {
 	// a reachable address is known, so empty means announce nothing.
 	mcpBaseURL   string
 	sidecarWSURL string
-	// sidecarHeaders are sent on the agent WebSocket handshake; see AIConfig.AgentHeaders.
+	// sidecarHeaders are sent on the agent WebSocket handshake; see Config.AgentHeaders.
 	sidecarHeaders     configopaque.MapList
 	basePath           string
 	maxRequestBodySize int64
@@ -60,30 +63,53 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
-	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
+func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabilities, grant turnGrant) []acp.McpServer {
+	if grant.routeID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
 	return []acp.McpServer{{
 		Http: &acp.McpServerHttpInline{
 			Type:    "http",
 			Name:    mcpServerName,
-			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
+			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + grant.routeID + "/",
+			Headers: turnServerHeaders(ctx, grant),
 		},
 	}}
 }
 
+// turnServerHeaders lists the headers the agent must send on every request to the
+// turn's MCP server: the turn's token, and the chat caller's identity as the query
+// server's middleware captured it from the chat request: the propagated bearer
+// token and the header_forwarding captures. The captures keep their inbound names,
+// because the tool request comes back to this same server and its middleware reads
+// those names; the handshake sends the captures under their outbound names and no
+// bearer token (see DialWsAdapter). The agent returns the headers on its tool calls,
+// so the same middleware that read the caller's identity from the chat request reads
+// it from each tool call, and the turn-scoped endpoint never has to remember who
+// the caller was.
+func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
+	header := make(http.Header)
+	for _, c := range headerforwarding.CapturedFromContext(ctx) {
+		header.Set(c.Header.HTTPName, c.Value)
+	}
+	bearertoken.SetAuthorizationHeader(ctx, header)
+	header.Set(turnTokenHeader, grant.token)
+	names := slices.Sorted(maps.Keys(header))
+	headers := make([]acp.HttpHeader, 0, len(names))
+	for _, name := range names {
+		headers = append(headers, acp.HttpHeader{Name: name, Value: header.Get(name)})
+	}
+	return headers
+}
+
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
-// ctxTools may be nil in tests that do not exercise contextual tooling. basePath
-// is the jaeger-query base path; it is normalized once and kept on the endpoint
+// basePath is the jaeger-query base path; it is normalized once and kept on the endpoint
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(logger *zap.Logger, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
-		ctxTools:           ctxTools,
 		turns:              turns,
 		sidecarWSURL:       sidecarWSURL,
 		sidecarHeaders:     sidecarHeaders,
@@ -118,13 +144,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject blank tool names up front. Empty or whitespace-only names
-	// would prefix to "ui_" (or "ui_   "), which the dispatcher later
-	// rejects as InvalidParams and which would also pollute both the Meta
-	// payload and the ContextualToolsStore snapshot with unusable entries.
-	// Failing fast here keeps both gateway-side data structures clean and
-	// surfaces frontend bugs as a 400 rather than a silent mid-turn error.
-	if err := validateContextualToolNames(req.Tools); err != nil {
+	if err := validateUIToolNames(req.Tools); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -134,16 +154,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
-	// Build two snapshots from the same input:
-	//   - prefixedTools (Meta wire shape): names are UIToolPrefix-namespaced
-	//     so the sidecar registers them with the LLM under the prefix, which
-	//     guarantees no collision with built-in Jaeger MCP tool names.
-	//   - rawTools (ContextualToolsStore): the original frontend names, so
-	//     handleJaegerToolCall can validate dispatches against the unprefixed
-	//     name it gets after stripping. Storing prefixed bytes here would
-	//     force every consumer to know about the transport-level prefix.
-	prefixedTools := prefixContextualTools(req.Tools)
-	rawTools := encodeToolsAsRaw(req.Tools)
+	// Preserve the original AG-UI tool declarations for the turn-scoped MCP
+	// endpoint and browser events.
+	rawUITools := encodeUIToolsAsRaw(req.Tools)
 
 	ctx := r.Context()
 	acpCtx, cancel := context.WithCancel(ctx)
@@ -156,23 +169,19 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
-	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
+	run := newAGUIRun(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
+	// Register this turn's run and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto the stream. The registry mints the route id, which we announce to the
-	// sidecar below as the turn's MCP URL, and hands back a closer.
-	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawTools)
+	// onto that run. The registry mints the route id and token, which we announce
+	// to the sidecar below as the turn's MCP URL and header, and hands back a
+	// closer.
+	grant, closeTurn := h.turns.register(run, rawUITools)
 	defer closeTurn()
 
-	// Build the ACP connection ourselves so the inbound dispatcher can
-	// route both standard ACP methods (session/update etc.) and our
-	// extension method (ExtMethodJaegerToolCall) — the SDK's
-	// NewClientSideConnection has a hardcoded dispatcher that returns
-	// MethodNotFound for any extension method we add.
-	acpConn := acp.NewConnection(newACPHandler(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
+	acpConn := acp.NewClientSideConnection(newACPClient(run), adapter, adapter)
 
-	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
+	init, err := acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
 			Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
@@ -210,16 +219,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
+		McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
 	}
-	if len(prefixedTools) > 0 {
-		newSessionReq.Meta = map[string]any{
-			ContextualToolsMetaKey: map[string]any{
-				"tools": prefixedTools,
-			},
-		}
-	}
-	sess, err := acp.SendRequest[acp.NewSessionResponse](acpConn, acpCtx, acp.AgentMethodSessionNew, newSessionReq)
+	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
@@ -227,15 +229,6 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(otelsemconv.GenAIConversationID(string(sess.SessionId)))
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
-
-	// Publish the unprefixed snapshot under the assigned ACP session id so
-	// handleJaegerToolCall can confirm dispatches by their post-strip
-	// (frontend) name. Cleared at turn end regardless of success.
-	if h.ctxTools != nil && len(rawTools) > 0 {
-		sessionID := string(sess.SessionId)
-		h.ctxTools.SetForSession(sessionID, rawTools)
-		defer h.ctxTools.DeleteForSession(sessionID)
-	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks
 	// start firing SSE frames from here on, and headers must be committed
@@ -245,7 +238,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	clientImpl.startRun()
+	run.startRun()
 
 	// Prompt blocks until the sidecar completes the ACP turn. The
 	// acp-go-sdk drains pending SessionUpdate notifications before the
@@ -256,15 +249,17 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// it (SEP-414 style, same as the MCP tool-call boundary) parents its own
 	// agentic-loop spans under this request's span, joining what would
 	// otherwise be two disconnected traces into one.
-	promptResp, err := acp.SendRequest[acp.PromptResponse](acpConn, acpCtx, acp.AgentMethodSessionPrompt, acp.PromptRequest{
+	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    promptBlocks,
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
-		clientImpl.failRun(fmt.Sprintf("Error starting prompt: %v", err))
+		// The agent, not Jaeger, refused or failed the turn. Saying so names the
+		// layer, because the agent's own error text rarely does.
+		run.failRun(fmt.Sprintf("The agent failed the turn (ACP session/prompt): %v", err))
 		return
 	}
 
-	clientImpl.finishRun(string(promptResp.StopReason))
+	run.finishRun(string(promptResp.StopReason))
 }

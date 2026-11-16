@@ -6,8 +6,11 @@ package promcfg
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -49,6 +52,140 @@ func TestValidateLatencyUnit(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestValidateExtraDimensions(t *testing.T) {
+	tests := []struct {
+		name    string
+		dims    []metricstore.Dimension
+		wantErr string
+	}{
+		{
+			name: "valid single",
+			dims: []metricstore.Dimension{{Name: "deployment.environment", Values: []string{"prod", "staging"}}},
+		},
+		{
+			name: "valid multiple",
+			dims: []metricstore.Dimension{
+				{Name: "deployment.environment"},
+				{Name: "k8s.cluster"},
+				{Name: "team_id"},
+			},
+		},
+		{
+			name:    "empty name",
+			dims:    []metricstore.Dimension{{Name: ""}},
+			wantErr: "invalid name",
+		},
+		{
+			name:    "leading digit",
+			dims:    []metricstore.Dimension{{Name: "0env"}},
+			wantErr: "invalid name",
+		},
+		{
+			name:    "hyphen disallowed",
+			dims:    []metricstore.Dimension{{Name: "kebab-case"}},
+			wantErr: "invalid name",
+		},
+		{
+			name:    "space disallowed",
+			dims:    []metricstore.Dimension{{Name: "with space"}},
+			wantErr: "invalid name",
+		},
+		{
+			name: "duplicate names rejected",
+			dims: []metricstore.Dimension{
+				{Name: "deployment.environment"},
+				{Name: "deployment.environment"},
+			},
+			wantErr: "duplicate name",
+		},
+		{
+			name:    "translated names collide",
+			dims:    []metricstore.Dimension{{Name: "k8s.cluster"}, {Name: "k8s_cluster"}},
+			wantErr: "duplicate name",
+		},
+		{
+			name:    "translated names collide in reverse order",
+			dims:    []metricstore.Dimension{{Name: "k8s_cluster"}, {Name: "k8s.cluster"}},
+			wantErr: "duplicate name",
+		},
+		{
+			name:    "empty allowed value",
+			dims:    []metricstore.Dimension{{Name: "environment", Values: []string{"prod", ""}}},
+			wantErr: "empty value",
+		},
+	}
+	for _, spelling := range []string{"service_name", "service.name", "span_kind", "span.kind", "status_code", "status.code", "span_name", "span.name", "job", "instance", "le", "__name__", "__name.."} {
+		tests = append(tests, struct {
+			name    string
+			dims    []metricstore.Dimension
+			wantErr string
+		}{
+			name:    "reserved " + spelling,
+			dims:    []metricstore.Dimension{{Name: spelling}},
+			wantErr: "reserved",
+		})
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Configuration{
+				ServerURL:       "localhost:1234",
+				ExtraDimensions: tc.dims,
+			}
+			err := cfg.Validate()
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateExtraDimensionSeparators(t *testing.T) {
+	for _, name := range []string{"foo..bar", "foo__bar", "foo._bar", "foo_.bar", ".foo", "_foo", "foo.", "foo_", "_"} {
+		t.Run("reject "+name, func(t *testing.T) {
+			cfg := Configuration{
+				ServerURL:       "localhost:1234",
+				ExtraDimensions: []metricstore.Dimension{{Name: name}},
+			}
+			require.ErrorContains(t, cfg.Validate(), "invalid name")
+		})
+	}
+	for _, name := range []string{"a", "deployment.environment", "team_id", "k8s.cluster.name", "Team0.cluster_1"} {
+		t.Run("accept "+name, func(t *testing.T) {
+			cfg := Configuration{
+				ServerURL:       "localhost:1234",
+				ExtraDimensions: []metricstore.Dimension{{Name: name}},
+			}
+			require.NoError(t, cfg.Validate())
+		})
+	}
+}
+
+// TestExtraDimensionsConfmapDecode locks in the mapstructure tags on
+// metricstore.Dimension. Without them, OTel's confmap strict-decode rejects
+// the snake_case YAML keys (display_name, etc.) so operator configs fail to
+// load.
+func TestExtraDimensionsConfmapDecode(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"endpoint": "http://prom:9090",
+		"extra_dimensions": []any{
+			map[string]any{
+				"name":         "deployment.environment",
+				"display_name": "Environment",
+				"values":       []any{"prod", "staging"},
+			},
+		},
+	})
+	var cfg Configuration
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Len(t, cfg.ExtraDimensions, 1)
+	assert.Equal(t, "deployment.environment", cfg.ExtraDimensions[0].Name)
+	assert.Equal(t, "Environment", cfg.ExtraDimensions[0].DisplayName)
+	assert.Equal(t, []string{"prod", "staging"}, cfg.ExtraDimensions[0].Values)
 }
 
 func TestMain(m *testing.M) {
