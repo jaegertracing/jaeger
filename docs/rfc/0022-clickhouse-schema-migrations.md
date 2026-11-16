@@ -476,6 +476,11 @@ Jaeger validation:
 
 #### Setup 2: replicas only
 
+```yaml
+table_engine:
+  replicated: {}
+```
+
 Several nodes each hold a full copy of all data in `ReplicatedMergeTree` tables under the public names. The database is a `Replicated` database, which delivers every statement to all nodes, so the configuration has no `cluster` block. There are no `Distributed` tables, and a reader or writer can use any node.
 
 Jaeger's configuration is not enough for this setup. The ClickHouse administrator sets up the following on the ClickHouse servers before Jaeger starts:
