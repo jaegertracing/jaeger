@@ -1,4 +1,4 @@
-# RFC 0019: ClickHouse Schema Migrations
+# RFC TBD: ClickHouse Schema Migrations
 
 - **Status:** Draft
 - **Author:** Yuri Shkuro
