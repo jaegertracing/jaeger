@@ -913,7 +913,7 @@ func newStatusCodeMetadataReader(layout AttributeLayout) *Reader {
 }
 
 // TestBuildFilterCondition_ExistsNeAndMembership snapshots, in one file per layout, the
-// condition that each filter below lowers to, followed by the values that it binds.
+// condition that each filter below lowers to, after the values that it binds.
 func TestBuildFilterCondition_ExistsNeAndMembership(t *testing.T) {
 	filters := []struct {
 		label  string
@@ -1009,7 +1009,7 @@ func TestBuildFilterCondition_ExistsNeAndMembership(t *testing.T) {
 				q := reader.newSQLBuilder()
 				args, err := lowerFilter(t, reader, q, filterCase.filter)
 				require.NoError(t, err, filterCase.label)
-				fmt.Fprintf(&snapshot, "\n-- %s%s\n-- binds %v", filterCase.label, q.String(), args)
+				fmt.Fprintf(&snapshot, "\n-- %s\n-- binds %v%s", filterCase.label, args, q.String())
 			}
 			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
 		})
