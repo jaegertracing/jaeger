@@ -530,7 +530,14 @@ The sharding key of a `Distributed` table decides which shard receives a row:
 | `dependencies` | `cityHash64(timestamp)` | The writer inserts through the `Distributed` table, and the rows of one timestamp are stored on one shard. |
 | `services`, `operations`, `attribute_metadata` | none | Nothing inserts through the `Distributed` table. Only the views write to the storage tables. |
 
-The database argument of every `Distributed` table is `currentDatabase()`, which ClickHouse resolves and stores at creation. An empty argument would select the default database of the remote user, which is not necessarily Jaeger's.
+A `Distributed` table is created with the cluster, the database and the storage table that it forwards to, and its sharding key:
+
+```sql
+CREATE TABLE spans AS spans_local
+ENGINE = Distributed('my_cluster', currentDatabase(), 'spans_local', cityHash64(trace_id))
+```
+
+The second argument is the database in which the `Distributed` table looks for `spans_local` on the other nodes. Jaeger writes `currentDatabase()` there, a ClickHouse function that returns the database of the connection. The `Distributed` table therefore points at the database that it is created in, also when Jaeger's `database` setting is empty and the connection uses the user's default database. ClickHouse evaluates the function once, at creation, and stores the name. With an empty second argument the table would look in the default database of the user on each remote node, which is not necessarily Jaeger's.
 
 A `Distributed` table by default queues an insert on the node that receives it and forwards the rows in the background. Jaeger sets `distributed_foreground_insert = 1` on its inserts, so an acknowledged insert is stored on its shard.
 
