@@ -5,6 +5,7 @@ package mcptools
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"regexp"
 	"strings"
@@ -72,6 +73,62 @@ func TestRegisterTools(t *testing.T) {
 		assert.True(t, tool.Annotations.ReadOnlyHint, tool.Name)
 		require.NotNil(t, tool.Annotations.OpenWorldHint, tool.Name)
 		assert.False(t, *tool.Annotations.OpenWorldHint, tool.Name)
+	}
+}
+
+// TestOutputSchemasHaveNoDescriptions ensures every registered tool still advertises a
+// structural OutputSchema while omitting field description text, which inflates tools/list
+// without helping the model interpret the returned JSON values.
+func TestOutputSchemasHaveNoDescriptions(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.0"}, nil)
+	registerTools(server, svc, DefaultServerParams())
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	defer serverSession.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	defer clientSession.Close()
+
+	listed, err := clientSession.ListTools(ctx, &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	require.NotEmpty(t, listed.Tools)
+
+	var totalOutputBytes int
+	for _, tool := range listed.Tools {
+		require.NotNil(t, tool.OutputSchema, tool.Name)
+		raw, err := json.Marshal(tool.OutputSchema)
+		require.NoError(t, err, tool.Name)
+		totalOutputBytes += len(raw)
+		t.Logf("%s: outputSchema=%d bytes", tool.Name, len(raw))
+
+		var parsed any
+		require.NoError(t, json.Unmarshal(raw, &parsed), tool.Name)
+		assertNoJSONKey(t, tool.Name, parsed, "description")
+	}
+	t.Logf("total outputSchema bytes across %d tools: %d", len(listed.Tools), totalOutputBytes)
+}
+
+func assertNoJSONKey(t *testing.T, path string, node any, forbiddenKey string) {
+	t.Helper()
+	switch v := node.(type) {
+	case map[string]any:
+		for k, child := range v {
+			assert.NotEqual(t, forbiddenKey, k, "unexpected %q key at %s", forbiddenKey, path)
+			assertNoJSONKey(t, path+"."+k, child, forbiddenKey)
+		}
+	case []any:
+		for _, child := range v {
+			assertNoJSONKey(t, path+"[]", child, forbiddenKey)
+		}
 	}
 }
 
