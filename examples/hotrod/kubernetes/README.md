@@ -13,19 +13,21 @@ These files belong to core CI, not the hosted demo deployment.
 ## Build and test
 
 The full image test requires a Linux environment with Docker (Compose and Buildx),
-Bash 4.4+, Go, Node.js/Yarn, Kind, kubectl, curl and jq. Initialize the repository submodules,
-create a disposable Kind cluster and set `GITHUB_SHA` to the revision being tested:
+Bash 4.4+, Go, Node.js/Yarn, Kind, kubectl, curl and jq. Initialize the repository
+submodules, create a disposable Kind cluster and set the build variables from
+the checkout being tested:
 
 ```bash
 git submodule update --init --recursive
 kind create cluster --name hotrod-test
+export BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 export GITHUB_SHA="$(git rev-parse HEAD)"
 bash scripts/build/build-hotrod-image.sh -l -p linux/amd64 -r k8s
 ```
 
-Use `linux/arm64` on an ARM Linux host. `-l` restricts publication to the local
-registry. The build script creates the local registry, builds both images, loads
-them into Kind, applies this fixture, waits for both Deployments, and forwards
+Use `linux/arm64` on an ARM Linux host. The image builder requires `BRANCH` even
+with `-l`, which restricts publication to the local registry. The build script
+creates the local registry, builds both images, loads them into Kind, applies this fixture, waits for both Deployments, and forwards
 ports 8080 and 16686. It checks the HotROD page, dispatches a ride, and verifies
 that the returned trace contains at least 35 spans. Its exit trap removes the
 fixture namespace and port-forwards; the Kind cluster remains available for reuse.
