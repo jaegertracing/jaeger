@@ -30,10 +30,8 @@ func call(op expression.Operator, args ...expression.Expression) *expression.Cal
 	return &expression.Call{Op: op, Args: args}
 }
 
-// matchesString builds a regular-expression test whose pattern is a string constant rather than
-// the untyped constant Ref.Matches builds.
-func matchesString(ref builder.Ref, pattern string) *expression.Call {
-	return p.Compare(expression.OpRegex, ref, p.String(pattern))
+func unsupportedPredicate() *expression.Call {
+	return call("no_such_operator", fieldRef(expression.LevelSpan, expression.SpanFieldName), str("checkout"))
 }
 
 func fieldRef(level expression.Level, name string) *expression.FieldRef {
@@ -55,7 +53,7 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.ElementsMatch(t, []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq,
 		expression.OpNe, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
-		expression.OpExists, expression.OpIn, expression.OpNotIn,
+		expression.OpRegex, expression.OpExists, expression.OpIn, expression.OpNotIn,
 	}, caps.Operators)
 }
 
@@ -131,7 +129,7 @@ func TestBuildFilterCondition_NestedBoolean(t *testing.T) {
 func TestBuildFilterCondition_UnsupportedOperator(t *testing.T) {
 	r := newTestReader()
 	q := newNestedSQLBuilder()
-	predicate := matchesString(p.Span().Name, "check.*")
+	predicate := unsupportedPredicate()
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
@@ -613,7 +611,7 @@ func TestBuildFindTraceIDsQuery_MetadataError(t *testing.T) {
 func TestBuildFindTraceIDsQuery_FilterError(t *testing.T) {
 	r := newTestReader()
 	query := tracestore.TraceQueryParams{
-		Filter:       matchesString(p.Span().Name, "check.*"),
+		Filter:       unsupportedPredicate(),
 		StartTimeMin: time.Unix(0, 0),
 		StartTimeMax: time.Unix(100, 0),
 	}
@@ -625,7 +623,7 @@ func TestBuildFilterCondition_NotPropagatesChildError(t *testing.T) {
 	r := newTestReader()
 	q := newNestedSQLBuilder()
 	predicate := p.Not(
-		matchesString(p.Span().Name, "check.*"),
+		unsupportedPredicate(),
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
@@ -636,7 +634,7 @@ func TestBuildBooleanCondition_PropagatesChildError(t *testing.T) {
 	q := newNestedSQLBuilder()
 	predicate := p.And(
 		p.Span().Name.Eq(p.String("checkout")),
-		matchesString(p.Span().Name, "check.*"),
+		unsupportedPredicate(),
 	)
 	_, err := lowerFilter(t, r, &q, predicate)
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
@@ -1344,4 +1342,140 @@ func appendFilterSnapshot(t *testing.T, snapshot *strings.Builder, reader *Reade
 	args, err := lowerFilter(t, reader, q, filter)
 	require.NoError(t, err, label)
 	fmt.Fprintf(snapshot, "\n-- %s\n-- binds %v%s", label, args, q.String())
+}
+
+// TestBuildFilterCondition_Regex snapshots, for each attribute layout, the condition that
+// each filter below lowers to, after the values that it binds.
+func TestBuildFilterCondition_Regex(t *testing.T) {
+	filters := []struct {
+		label  string
+		filter *expression.Call
+	}{
+		{
+			label:  "a pattern on the span name",
+			filter: p.Span().Name.Matches("^GET /cart"),
+		},
+		{
+			label:  "a pattern with a dot clears the flag that lets the dot match a newline",
+			filter: p.Span().Name.Matches("^GET /c.rt|^POST"),
+		},
+		{
+			label:  "a pattern whose dot matches a newline is sent as written",
+			filter: p.Span().Name.Matches("(?s)^GET.*cart"),
+		},
+		{
+			label:  "a pattern that is a typed string",
+			filter: p.Compare(expression.OpRegex, p.Span().Name, p.String("^GET /cart")),
+		},
+		{
+			label:  "a pattern on a field that a span can lack",
+			filter: p.Span().StatusMessage.Matches("time.?out"),
+		},
+		{
+			label:  "a pattern on the span kind matches the word, not the stored value",
+			filter: p.Span().Kind.Matches("^(server|unspecified)$"),
+		},
+		{
+			label:  "a pattern on the span status matches the word, not the stored value",
+			filter: p.Span().Status.Matches("^(error|unset)$"),
+		},
+		{
+			label:  "a pattern on the name of an event",
+			filter: p.Event().Name.Matches("^cache"),
+		},
+		{
+			label:  "a pattern on the trace state of a link, which a link can lack",
+			filter: p.Link().TraceState.Matches("^congo="),
+		},
+		{
+			label:  "a pattern on a span attribute",
+			filter: p.Span().Attr("http.route").Matches("^/api/"),
+		},
+		{
+			label:  "a pattern on an unqualified attribute searches the span and the resource",
+			filter: p.Attr("zone").Matches("^us-"),
+		},
+		{
+			label:  "a pattern on a scope attribute",
+			filter: p.Scope().Attr("library.language").Matches("^go"),
+		},
+		{
+			label:  "a pattern on a link attribute",
+			filter: p.Link().Attr("zone").Matches("^us-"),
+		},
+		{
+			label:  "a pattern on an event attribute",
+			filter: p.Event().Attr("exception.type").Matches("Error$"),
+		},
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			var snapshot strings.Builder
+			for _, filterCase := range filters {
+				reader := newFilterMetadataReader(tt.layout)
+				appendFilterSnapshot(t, &snapshot, reader, filterCase.label, filterCase.filter)
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+// TestBuildFilterCondition_Regex_HoistedColumn snapshots the condition of a pattern on the
+// span attribute "model", which the table hoists into a column.
+func TestBuildFilterCondition_Regex_HoistedColumn(t *testing.T) {
+	var snapshot strings.Builder
+	appendFilterSnapshot(t, &snapshot, newHoistedColumnReader(), "a pattern on a hoisted attribute", p.Span().Attr("model").Matches("^claude"))
+	clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+}
+
+func TestBuildFilterCondition_Regex_Refusals(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter *expression.Call
+		err    error
+	}{
+		{
+			name:   "one operand",
+			filter: call(expression.OpRegex, attrRef(expression.LevelSpan, "k")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a pattern that is not a string",
+			filter: call(expression.OpRegex, attrRef(expression.LevelSpan, "k"), &expression.IntValue{Value: 1}),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a pattern that does not parse",
+			filter: call(expression.OpRegex, attrRef(expression.LevelSpan, "k"), str("a(")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a constant as the subject",
+			filter: call(expression.OpRegex, str("v"), str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a field that holds a duration",
+			filter: call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldDuration), str("1")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a field without a column",
+			filter: call(expression.OpRegex, fieldRef(expression.LevelScope, expression.ScopeFieldSchemaURL), str("v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "an attribute of an unknown level",
+			filter: call(expression.OpRegex, attrRef("trace", "k"), str("v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTestReader()
+			q := reader.newSQLBuilder()
+			_, err := lowerFilter(t, reader, q, tt.filter)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
 }
