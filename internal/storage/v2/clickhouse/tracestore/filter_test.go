@@ -53,7 +53,8 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.ElementsMatch(t, []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq,
 		expression.OpNe, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
-		expression.OpRegex, expression.OpExists, expression.OpIn, expression.OpNotIn, expression.OpSome,
+		expression.OpRegex, expression.OpExists, expression.OpIn, expression.OpNotIn,
+		expression.OpPhrase, expression.OpFulltext, expression.OpSome,
 	}, caps.Operators)
 }
 
@@ -1783,4 +1784,126 @@ func TestCollectMetadataKeys_Some(t *testing.T) {
 	keys := pcommon.NewMap()
 	collectMetadataKeys(p.Some(p.Event(), p.Event().Attr("untyped").Eq("v")), keys)
 	assert.Equal(t, map[string]any{"untyped": ""}, keys.AsRaw())
+}
+
+// TestBuildFilterCondition_TextSearch snapshots, in one file per layout, the condition that
+// each filter below lowers to, after the values that it binds.
+func TestBuildFilterCondition_TextSearch(t *testing.T) {
+	filters := []struct {
+		label  string
+		filter *expression.Call
+	}{
+		{
+			label:  "every listed word in a span attribute, with ASCII letters lowercased",
+			filter: p.Span().Attr("note").Fulltext("Premium", "REFUND", "ÜBER"),
+		},
+		{
+			label:  "the listed words adjacent and in order in a span attribute, with ASCII letters lowercased",
+			filter: p.Span().Attr("note").Phrase("Refund", "POLICY"),
+		},
+		{
+			label:  "words in an unqualified attribute search the span and the resource",
+			filter: p.Attr("note").Fulltext("refund"),
+		},
+		{
+			label:  "a phrase in an event attribute",
+			filter: p.Event().Attr("exception.message").Phrase("connection", "refused"),
+		},
+		{
+			label:  "words in a link attribute",
+			filter: p.Link().Attr("note").Fulltext("refund"),
+		},
+		{
+			label: "a phrase in an attribute of the event that a some operator binds",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Eq("exception"),
+				p.Event().Attr("exception.message").Phrase("connection", "refused"),
+			)),
+		},
+		{
+			label:  "a negated phrase also matches a span without the attribute",
+			filter: p.Not(p.Span().Attr("note").Phrase("refund", "policy")),
+		},
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			var snapshot strings.Builder
+			for _, filterCase := range filters {
+				reader := newFilterMetadataReader(tt.layout)
+				// The query boundary reads each constant as the type of its field before the
+				// reader sees the filter.
+				filter, err := tracestore.ResolveFilterConstants(filterCase.filter)
+				require.NoError(t, err, filterCase.label)
+				appendFilterSnapshot(t, &snapshot, reader, filterCase.label, filter)
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+// TestBuildFilterCondition_TextSearch_HoistedColumn snapshots the conditions of both
+// text-search operators on the span attribute "model", which the table hoists into a column.
+func TestBuildFilterCondition_TextSearch_HoistedColumn(t *testing.T) {
+	var snapshot strings.Builder
+	appendFilterSnapshot(t, &snapshot, newHoistedColumnReader(), "words in a hoisted attribute", p.Span().Attr("model").Fulltext("claude"))
+	appendFilterSnapshot(t, &snapshot, newHoistedColumnReader(), "a phrase in a hoisted attribute", p.Span().Attr("model").Phrase("claude", "fable"))
+	clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+}
+
+func TestBuildFilterCondition_TextSearch_Refusals(t *testing.T) {
+	words := func(valueType expression.ValueType, values ...string) *expression.List {
+		return &expression.List{
+			Type:   valueType,
+			Values: values,
+		}
+	}
+	tests := []struct {
+		name   string
+		filter *expression.Call
+		err    error
+	}{
+		{
+			name:   "one operand",
+			filter: call(expression.OpPhrase, attrRef(expression.LevelSpan, "k")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a built-in field as the subject",
+			filter: call(expression.OpFulltext, fieldRef(expression.LevelSpan, expression.SpanFieldName), words("", "v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a constant in place of the list",
+			filter: call(expression.OpPhrase, attrRef(expression.LevelSpan, "k"), str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a nil list",
+			filter: call(expression.OpPhrase, attrRef(expression.LevelSpan, "k"), (*expression.List)(nil)),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "an empty list",
+			filter: call(expression.OpFulltext, attrRef(expression.LevelSpan, "k"), &expression.List{}),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a list of integers",
+			filter: call(expression.OpFulltext, attrRef(expression.LevelSpan, "k"), words(expression.ValueTypeInt, "1")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "an attribute of an unknown level",
+			filter: call(expression.OpPhrase, attrRef("trace", "k"), words(expression.ValueTypeString, "v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTestReader()
+			q := reader.newSQLBuilder()
+			_, err := lowerFilter(t, reader, q, tt.filter)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
 }

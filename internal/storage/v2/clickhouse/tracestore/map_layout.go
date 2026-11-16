@@ -54,15 +54,15 @@ func (MapLayout) valueSQL(group AttributeGroup, key string) string {
 // The subscript returns the first value of a key that a span carries more than once, so a
 // search for a later value does not match, unlike in the nested layout.
 func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
-	comparison := "[?] " + sqlComparisonOperators[op] + " ?"
 	group := attributeGroup(level, tav.valueType)
 	column := group.operandSQL()
+	comparison := attributeComparisonSQL(op, column+"[?]")
 	if arrayColumn := q.arrayColumnToSearch(level); arrayColumn != "" {
 		// Events and links are arrays inside the span row, so the condition searches the
 		// attributes of every event or link.
-		q.WriteString("arrayExists(x -> mapContains(" + column + ", ?) AND " + column + comparison + ", s." + arrayColumn + ")")
+		q.WriteString("arrayExists(x -> mapContains(" + column + ", ?) AND " + comparison + ", s." + arrayColumn + ")")
 	} else {
-		q.WriteString("(mapContains(" + column + ", ?) AND " + column + comparison + ")")
+		q.WriteString("(mapContains(" + column + ", ?) AND " + comparison + ")")
 	}
 	return append(args, tav.key, tav.key, tav.value)
 }

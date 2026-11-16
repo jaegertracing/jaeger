@@ -27,6 +27,12 @@
                   "value": {
                     "stringValue": "Refund Policy Updated for Premium users"
                   }
+                },
+                {
+                  "key": "summary",
+                  "value": {
+                    "stringValue": "Invoice Dispute Opened by Standard users"
+                  }
                 }
               ],
               "status": {}
