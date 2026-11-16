@@ -467,8 +467,8 @@ Jaeger validation:
 
 - **Refuses to start:** the database is a `Replicated` database with more than one node. Every node would get its own unconnected tables. The deployment is setup 2.
 - **Refuses to start:** a `cluster` block is present without `distributed_tables`. It would create unconnected tables on every node of the cluster.
-- **Warns:** `addresses` lists more than one address. A single node normally has one.
-- **Cannot detect:** several nodes with ordinary databases behind one address. Each node then holds only the rows that it received, and a trace is found on one node and not on another.
+- **Refuses to start:** `addresses` lists more than one address. If the addresses are different nodes, each node would hold only the rows that it received. A single node needs one address.
+- **Cannot detect:** several nodes with ordinary databases behind one address, such as a load balancer. Each node then holds only the rows that it received, and a trace is found on one node and not on another.
 
 #### Setup 2: replicas only
 
