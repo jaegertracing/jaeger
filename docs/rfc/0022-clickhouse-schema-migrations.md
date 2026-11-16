@@ -423,6 +423,8 @@ This section defines the ClickHouse deployments that the backend supports, how e
 | Public name | The table name that the reader and the writer use, such as `spans`. |
 | Ordinary database | A database with the default `Atomic` engine. A statement that creates or alters a table in it runs on the node that receives the statement. |
 | `Replicated` database | A database created with the `Replicated` engine on several nodes. ClickHouse runs every statement that creates or alters a table in it on all of those nodes. ClickHouse also lets those nodes be addressed as a cluster that has the database's name, without an entry in `remote_servers`. This RFC calls it the database's own cluster. |
+| `SharedMergeTree` | The storage engine of ClickHouse Cloud. Its rows are kept once in object storage, and every node reads and writes that one copy. The service substitutes it for `MergeTree` in a `CREATE TABLE` statement, and likewise `SharedAggregatingMergeTree` for `AggregatingMergeTree`. |
+| `Shared` database | The database engine of ClickHouse Cloud, which the service gives to every database. Like a `Replicated` database, it runs every statement that creates or alters a table on all nodes. Its nodes are addressed as the cluster named `default`. |
 
 #### Where the data lives
 
@@ -432,7 +434,7 @@ This section defines the ClickHouse deployments that the backend supports, how e
 | 2. Replicas only | Several nodes, and each holds a full copy of all data. There is one shard. | `ReplicatedMergeTree` | no |
 | 3a. Shards with replicas | The data is divided into shards, and each shard has more than one replica. | `ReplicatedMergeTree` | yes |
 | 3b. Shards without replicas | The data is divided into shards, and each shard is one node. Losing a node loses that shard's data, so this setup is discouraged. | `MergeTree` | yes |
-| 4. Shared storage | ClickHouse Cloud. The data is stored once in object storage, and every node reads and writes that one copy. | `SharedMergeTree`, which the service substitutes for `MergeTree` | no |
+| 4. Shared storage | ClickHouse Cloud. The data is stored once, and every node reads and writes that one copy. | `SharedMergeTree` | no |
 
 In setups 1, 2 and 4 the storage tables carry the public names. In setups 3a and 3b each of the six tables exists twice on every node. The storage table is named `<table>_local`, and a `Distributed` table carries the public name, so the reader and the writer use the same names in every setup. The materialized views read `spans_local` and write `<table>_local`, because a view fires on the node that stores the inserted rows.
 
@@ -454,8 +456,8 @@ A `Distributed` table by default queues an insert on the node that receives it a
 The delivery mechanism depends on the engine of the database, which the backend reads from `system.databases`. It does not depend on where the data lives, except that ClickHouse Cloud offers only the third mechanism and only setup 4.
 
 - **An ordinary (`Atomic`) database.** A `CREATE`, a `MODIFY SETTING`, a view's `MODIFY QUERY`, and any `ALTER` of a table that is not `Replicated*` run only on the node that receives them (§2.3). When `cluster.name` is set, the backend adds `ON CLUSTER <name>` to every statement, and ClickHouse runs the statement on every node of that cluster. The Jaeger user needs the `CLUSTER` grant, as required by the server's `on_cluster_queries_require_cluster_grant` setting.
-- **A self-hosted `Replicated` database.** The database delivers every statement to all of its nodes by itself. It rejects `ON CLUSTER` with any name except its own, so the backend adds none. Since ClickHouse 24.9 it also rejects `Replicated*` engines with explicit arguments by default, so `table_engine.replicated` is used without `keeper_path` or `replica_name`.
-- **The `Shared` database of ClickHouse Cloud.** It delivers statements as a `Replicated` database does, and the backend adds no `ON CLUSTER`.
+- **A `Replicated` database.** The database delivers every statement to all of its nodes by itself. It rejects `ON CLUSTER` with any name except its own, so the backend adds none. Since ClickHouse 24.9 it also rejects `Replicated*` engines with explicit arguments by default, so `table_engine.replicated` is used without `keeper_path` or `replica_name`.
+- **A `Shared` database.** It delivers statements as a `Replicated` database does, and the backend adds no `ON CLUSTER`.
 
 The backend issues schema statements with `distributed_ddl_output_mode = 'throw_only_active'`, which waits for the nodes that are up and reports a failure on any of them. In contrast, `throw` waits the full `distributed_ddl_task_timeout` for a node that is down. The documentation describes the setting for a `Replicated` database, and the server source applies it to `ON CLUSTER` statements too.
 
@@ -474,7 +476,7 @@ table_engine:
 - `name` identifies the cluster. On an ordinary database it makes the backend add `ON CLUSTER` to every statement.
 - `distributed_tables: true` creates the `<table>_local` storage tables, the `Distributed` tables and the views described above. The `Distributed` tables take `name` as their cluster argument.
 
-| Setup | Ordinary database | Self-hosted `Replicated` database | ClickHouse Cloud |
+| Setup | Ordinary database | `Replicated` database | `Shared` database |
 | --- | --- | --- | --- |
 | 1. Single node | `merge_tree: {}`, or `replicated: {}` for a node that will gain replicas | the same | not offered |
 | 2. Replicas only | `replicated: {}` and `cluster.name` | `replicated: {}` and no `cluster` block | not offered |
@@ -504,7 +506,7 @@ The backend checks the block at startup against `system.databases` and `system.c
 - Setup 3b is accepted with a warning that losing a node loses that shard's data.
 - On a `Replicated` database, `cluster.name` without `distributed_tables: true` is refused, because the database already delivers the statements. With it, the named cluster must list the same nodes as the database's own cluster.
 - On a `Replicated` database with more than one node, `merge_tree` without `distributed_tables` is refused.
-- On ClickHouse Cloud, a `cluster` block is refused. The service does not offer the `Distributed` engine.
+- On a `Shared` database, a `cluster` block is refused. ClickHouse Cloud does not offer the `Distributed` engine.
 
 #### Verifying every node
 
@@ -512,7 +514,7 @@ The verification below, and the ledger read of §5.3, need a cluster that lists 
 
 - On an ordinary database they read through the cluster named by `cluster.name`. Without a `cluster` block they read the connected node only.
 - On a `Replicated` database they read through the database's own cluster, whether or not `cluster.name` is set. That cluster connects with the credentials of the named collection in the database's `collection_name` setting, or as `default` with no password when there is none, so a database with a password on `default` needs such a collection.
-- On ClickHouse Cloud they read through the cluster named `default`.
+- On a `Shared` database they read through the cluster named `default`.
 
 The runner sets `alter_sync = 1` explicitly on every `ALTER`, because ClickHouse Cloud ships `0` as its default on several releases. Under either mechanism, the DDL worker executes an `ALTER` on a `Replicated*` table on one replica per shard, and the other replicas apply the replication-log entry afterwards. The statement can therefore return before the replica connected to Jaeger has the column. The other wait modes do not provide a suitable guarantee: with `alter_sync = 2` an active replica can delay completion without a bound and a down replica raises `UNFINISHED`, and the settings catalogs of some supported releases do not describe `alter_sync = 3`.
 
