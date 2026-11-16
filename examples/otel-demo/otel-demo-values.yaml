@@ -57,19 +57,19 @@ components:
   accounting:
     initContainers:
       - name: wait-for-kafka
-        image: docker.io/busybox:latest
+        image: docker.io/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
         command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
 
   cart:
     initContainers:
       - name: wait-for-valkey-cart
-        image: docker.io/busybox:latest
+        image: docker.io/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
         command: ["sh", "-c", "until nc -z -v -w30 valkey-cart 6379; do echo waiting for valkey-cart; sleep 2; done;"]
 
   checkout:
     initContainers:
       - name: wait-for-kafka
-        image: docker.io/busybox:latest
+        image: docker.io/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
         command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
     # The chart default (20Mi, GOMEMLIMIT=16MiB) gets checkout OOM-killed and starves its outbound calls under load.
     envOverrides:
@@ -82,13 +82,13 @@ components:
   fraud-detection:
     initContainers:
       - name: wait-for-kafka
-        image: docker.io/busybox:latest
+        image: docker.io/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
         command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
 
   flagd:
     initContainers:
       - name: init-config
-        image: docker.io/busybox:latest
+        image: docker.io/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
         command: ["sh", "-c", "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
         volumeMounts:
           - mountPath: /config-ro
@@ -106,12 +106,12 @@ components:
   valkey-cart:
     imageOverride:
       repository: docker.io/valkey/valkey
-      tag: "8.1.3-alpine"
+      tag: "8.1.3-alpine@sha256:d827e7f7552cdee40cc7482dbae9da020f42bc47669af6f71182a4ef76a22773"
 
   postgresql:
     imageOverride:
       repository: docker.io/library/postgres
-      tag: "17.6"
+      tag: "17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929"
     resources:
       limits:
         memory: 256Mi

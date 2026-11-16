@@ -17,6 +17,8 @@ extensions:
       endpoint: 0.0.0.0:13133
 
   jaeger_query:
+    ui:
+      config_file: /etc/jaeger/ui-config/ui-config.json
     storage:
       traces: some_storage
       traces_archive: another_storage

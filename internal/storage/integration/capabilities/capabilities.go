@@ -223,12 +223,14 @@ func Cassandra() Capabilities {
 			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
-			// A search with a duration bound reads the duration_index table alone, which ignores
-			// the tag and operation predicates sent with it (ADR-001).
+			// A search with a duration bound reads the duration_index table alone, so the reader
+			// refuses one that also has tags (ADR-001).
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
+			// The reader does not refuse this search, which has no tags; why it is skipped is not
+			// recorded.
 			"Operation_name_+_max_Duration",
 			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
