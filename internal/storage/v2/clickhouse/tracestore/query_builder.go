@@ -51,6 +51,20 @@ type typedAttributeValue struct {
 type sqlBuilder struct {
 	strings.Builder
 	attrBuilder attributeBuilder
+	// boundLevel is the level of the events or the links while the predicate of a some
+	// operator is being written. A lambda then binds one event or link to x, and a reference
+	// at that level reads x and does not search the array again (RFC 0005 §5.5).
+	boundLevel expression.Level
+}
+
+// arrayColumnToSearch returns the array column, events or links, that a condition on the
+// level has to search for an event or a link. It returns an empty string for a level with
+// one value per span, and for the level that a some operator has bound.
+func (q *sqlBuilder) arrayColumnToSearch(level expression.Level) string {
+	if level == q.boundLevel {
+		return ""
+	}
+	return AttributeGroup{Level: level}.arrayColumn()
 }
 
 func (q *sqlBuilder) appendNewlineAndIndent(indent int) {
