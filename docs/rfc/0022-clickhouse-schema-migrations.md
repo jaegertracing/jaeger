@@ -417,10 +417,12 @@ This section defines the ClickHouse deployments that the backend supports, how e
 | Node | One ClickHouse server. |
 | Shard | A part of the data. Every row belongs to exactly one shard. |
 | Replica | A node that is listed for a shard. A shard has one replica or several. When it has several and its tables use a `Replicated*` engine, the replicas copy each other's rows through Keeper. |
-| Cluster | A named grouping of shards and their replicas, which ClickHouse can address as a whole. An administrator defines a cluster in the server configuration (`remote_servers`). A `Replicated` database also registers one under the database's own name. |
+| Cluster | A named grouping of shards and their replicas, which ClickHouse can address as a whole. An administrator defines a cluster in the server configuration (`remote_servers`). |
 | Storage table | A table that owns stored rows, such as a `MergeTree` or `ReplicatedMergeTree` table. |
 | `Distributed` table | A table that owns no stored rows. It forwards an insert to the storage table on the shard that the sharding key selects. It runs a query on the storage tables of every shard and merges the results. |
 | Public name | The table name that the reader and the writer use, such as `spans`. |
+| Ordinary database | A database with the default `Atomic` engine. A statement that creates or alters a table in it runs on the node that receives the statement. |
+| `Replicated` database | A database created with the `Replicated` engine on several nodes. ClickHouse runs every statement that creates or alters a table in it on all of those nodes. ClickHouse also lets those nodes be addressed as a cluster that has the database's name, without an entry in `remote_servers`. This RFC calls it the database's own cluster. |
 
 #### Where the data lives
 
@@ -489,11 +491,11 @@ The backend's configuration is not sufficient by itself in the replicated and sh
 - **Macros.** `replicated: {}` renders the engine without arguments, so the table takes the server's default Keeper path, `/clickhouse/tables/{uuid}/{shard}`, and the replica name `{replica}`. Every node therefore defines the `shard` and `replica` macros. The `shard` value is the same on the replicas of one shard and different between shards, and the `replica` value is different on every node.
 - **One table UUID.** The default path contains the table's UUID. ClickHouse gives a table the same UUID on every node only when the statement is delivered by `ON CLUSTER` or by a `Replicated` database. Tables created node by node get different UUIDs and do not replicate, so such a deployment sets `keeper_path` explicitly.
 - **`internal_replication`.** In setup 3a the cluster in `remote_servers` sets `internal_replication` to true. Otherwise the `Distributed` table writes every insert to every replica of the shard, in addition to the copy that replication makes.
-- **A sharded `Replicated` database.** The database is created with a different `shard_name` on each shard. The cluster that it registers under its own name does not set `internal_replication`, so `cluster.name` names a cluster in `remote_servers` that lists the same shards and replicas and sets it.
+- **A sharded `Replicated` database.** The database is created with a different `shard_name` on each shard. The database's own cluster does not set `internal_replication`, so `cluster.name` names a cluster in `remote_servers` that lists the same shards and replicas and sets it.
 
 #### Validation
 
-The backend checks the block at startup against `system.databases` and `system.clusters`, which gives the shards and replicas of the named cluster and of a `Replicated` database's own cluster.
+The backend checks the block at startup against `system.databases` and `system.clusters`, which gives the shards and replicas of the named cluster and of the database's own cluster.
 
 - `name` must not contain a single quote or a backslash, and the cluster must exist.
 - `merge_tree` with `cluster.name` and without `distributed_tables` is refused. It would create unconnected storage tables on every node.
@@ -509,7 +511,7 @@ The backend checks the block at startup against `system.databases` and `system.c
 The verification below, and the ledger read of §5.3, need a cluster that lists every node:
 
 - On an ordinary database they read through the cluster named by `cluster.name`. Without a `cluster` block they read the connected node only.
-- On a `Replicated` database they read through the cluster that the database registers under its own name, whether or not `cluster.name` is set. That cluster connects with the credentials of the named collection in the database's `collection_name` setting, or as `default` with no password when there is none, so a database with a password on `default` needs such a collection.
+- On a `Replicated` database they read through the database's own cluster, whether or not `cluster.name` is set. That cluster connects with the credentials of the named collection in the database's `collection_name` setting, or as `default` with no password when there is none, so a database with a password on `default` needs such a collection.
 - On ClickHouse Cloud they read through the cluster named `default`.
 
 The runner sets `alter_sync = 1` explicitly on every `ALTER`, because ClickHouse Cloud ships `0` as its default on several releases. Under either mechanism, the DDL worker executes an `ALTER` on a `Replicated*` table on one replica per shard, and the other replicas apply the replication-log entry afterwards. The statement can therefore return before the replica connected to Jaeger has the column. The other wait modes do not provide a suitable guarantee: with `alter_sync = 2` an active replica can delay completion without a bound and a down replica raises `UNFINISHED`, and the settings catalogs of some supported releases do not describe `alter_sync = 3`.
