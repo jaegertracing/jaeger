@@ -23,8 +23,9 @@ func FromDomainDependencies(dLinks []model.DependencyLink) []DependencyLink {
 }
 
 // ToDomainDependencies converts database representation of dependencies to model.
-// A link stored without a source is returned as a link from Jaeger's own traces,
-// because earlier versions stored no source and an empty source is omitted on write.
+// A link stored without a source field is returned as a link from Jaeger's own
+// traces. The field is absent when an earlier version wrote the link, and when the
+// link's source was the empty string, which the JSON encoding leaves out.
 func ToDomainDependencies(dLinks []DependencyLink) []model.DependencyLink {
 	if dLinks == nil {
 		return nil
