@@ -24,8 +24,8 @@ func dependencyLinkFromModel(d model.DependencyLink) dependencyLink {
 }
 
 // toModel returns a link stored without a source field as a link from Jaeger's own
-// traces. The field is absent when an earlier version wrote the link, and when the
-// link's source was the empty string, which the JSON encoding leaves out.
+// traces. The field is absent whenever the writer set no source: a writer older than
+// the field never stores it, and the omitempty tag on Source leaves out an empty string.
 func (l dependencyLink) toModel() model.DependencyLink {
 	return model.DependencyLink{
 		Parent:    l.Parent,
