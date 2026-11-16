@@ -661,27 +661,50 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	source := model.JaegerDependencyLinkSource
-	if !s.Capabilities.GetDependenciesMissingSource() {
-		source = ""
-	}
-
-	expected := []model.DependencyLink{
+	// One link carries a source other than the default, so a backend that drops the
+	// source and returns the default on every link fails the comparison.
+	links := []model.DependencyLink{
 		{
 			Parent:    "hello",
 			Child:     "world",
 			CallCount: uint64(1),
-			Source:    source,
+			Source:    model.JaegerDependencyLinkSource,
+		},
+		{
+			Parent:    "unsourced",
+			Child:     "world",
+			CallCount: uint64(2),
 		},
 		{
 			Parent:    "world",
 			Child:     "hello",
 			CallCount: uint64(3),
-			Source:    source,
+			Source:    "mesh",
+		},
+	}
+	// A link written without a source comes back as a link from Jaeger's own traces.
+	expected := []model.DependencyLink{
+		{
+			Parent:    "hello",
+			Child:     "world",
+			CallCount: uint64(1),
+			Source:    model.JaegerDependencyLinkSource,
+		},
+		{
+			Parent:    "unsourced",
+			Child:     "world",
+			CallCount: uint64(2),
+			Source:    model.JaegerDependencyLinkSource,
+		},
+		{
+			Parent:    "world",
+			Child:     "hello",
+			CallCount: uint64(3),
+			Source:    "mesh",
 		},
 	}
 	startTime := time.Now()
-	require.NoError(t, s.DependencyWriter.WriteDependencies(t.Context(), startTime, expected))
+	require.NoError(t, s.DependencyWriter.WriteDependencies(t.Context(), startTime, links))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {

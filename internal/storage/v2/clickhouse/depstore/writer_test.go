@@ -17,7 +17,12 @@ import (
 
 var testDeps = []model.DependencyLink{
 	{Parent: "serviceA", Child: "serviceB", CallCount: 10},
-	{Parent: "serviceB", Child: "serviceC", CallCount: 5},
+	{
+		Parent:    "serviceB",
+		Child:     "serviceC",
+		CallCount: 5,
+		Source:    "mesh",
+	},
 }
 
 func TestWriteDependencies(t *testing.T) {
@@ -36,7 +41,7 @@ func TestWriteDependencies(t *testing.T) {
 	require.Len(t, b.Appended, 1)
 	row := b.Appended[0]
 	assert.Equal(t, ts, row[0])
-	expectedJSON := `[{"parent":"serviceA","child":"serviceB","callCount":10},{"parent":"serviceB","child":"serviceC","callCount":5}]`
+	expectedJSON := `[{"parent":"serviceA","child":"serviceB","callCount":10},{"parent":"serviceB","child":"serviceC","callCount":5,"source":"mesh"}]`
 	assert.JSONEq(t, expectedJSON, row[1].(string))
 }
 
