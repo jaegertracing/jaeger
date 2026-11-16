@@ -77,7 +77,7 @@ Storage backends configured under `jaeger_storage`:
 
 | Trace backend | Notes |
 | --- | --- |
-| `memory` | Default. Bounded by `max_traces` (100000 in the embedded config). |
+| `memory` | Default. Bounded by `max_traces` (100000 in the embedded config) per tenant. With multi-tenancy, the store only accepts tenants in `multi_tenancy.tenants`, plus one untenanted ring, so the bound is `max_traces` × (tenants + 1). |
 | `badger` | Local disk. |
 | `elasticsearch`, `opensearch` | HTTP client. TLS and basic, bearer, or API-key auth are config. |
 | `cassandra` | CQL. TLS and basic auth are config. |

@@ -209,6 +209,25 @@ func TestStorageTenancyOptionsAreScopedToConfiguredBackends(t *testing.T) {
 		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "remote"))
 	})
 
+	t.Run("failure on a later name leaves earlier names unchanged", func(t *testing.T) {
+		ext := makeStorageExtension(t, storageconfig.Config{TraceBackends: map[string]storageconfig.TraceBackend{
+			"first":  memoryBackend,
+			"second": memoryBackend,
+		}})
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ext.Start(t.Context(), host))
+		t.Cleanup(func() {
+			require.NoError(t, ext.Shutdown(t.Context()))
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "second"))
+
+		err := ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-b"}}, "first", "second")
+		require.ErrorContains(t, err, "conflicting multi_tenancy tenant lists for storage \"second\"")
+		storage := ext.(*storageExt)
+		require.NotContains(t, storage.tenancyOptions, "first")
+		require.Equal(t, []string{"team-a"}, storage.tenancyOptions["second"].Tenants)
+	})
+
 	t.Run("different lists on distinct memory backends", func(t *testing.T) {
 		host := newHost(t, map[string]storageconfig.TraceBackend{
 			"query":  memoryBackend,

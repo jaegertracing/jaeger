@@ -129,6 +129,105 @@ func TestNewStoreTenancy(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsUnlistedTenantsWithoutAllocatingRings(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{Enabled: true, Tenants: []string{"allowed"}})
+	require.NoError(t, err)
+
+	newTrace := func() ptrace.Traces {
+		td := ptrace.NewTraces()
+		rs := td.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service-x")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+		span.SetSpanID(spanIdFromString(t, "0000000000000001"))
+		span.SetName("op")
+		now := time.Now()
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(now))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(now.Add(time.Second)))
+		return td
+	}
+	firstErr := func(seq func(func(any, error) bool)) error {
+		var got error
+		seq(func(_ any, err error) bool {
+			got = err
+			return false
+		})
+		return got
+	}
+	traceQuery := tracestore.TraceQueryParams{ServiceName: "service-x", SearchDepth: 10, Attributes: pcommon.NewMap()}
+
+	for _, tenant := range []string{"outside-a", "outside-b"} {
+		t.Run(tenant, func(t *testing.T) {
+			ctx := tenancy.WithTenant(context.Background(), tenant)
+
+			require.ErrorIs(t, store.WriteTraces(ctx, newTrace()), errUnknownTenant)
+			_, err := store.GetServices(ctx)
+			require.ErrorIs(t, err, errUnknownTenant)
+			_, err = store.GetOperations(ctx, tracestore.OperationQueryParams{ServiceName: "service-x"})
+			require.ErrorIs(t, err, errUnknownTenant)
+			_, err = store.GetDependencies(ctx, depstore.QueryParameters{})
+			require.ErrorIs(t, err, errUnknownTenant)
+			require.ErrorIs(t, firstErr(func(yield func(any, error) bool) {
+				for v, err := range store.FindTraces(ctx, traceQuery) {
+					if !yield(v, err) {
+						return
+					}
+				}
+			}), errUnknownTenant)
+			require.ErrorIs(t, firstErr(func(yield func(any, error) bool) {
+				for v, err := range store.FindTraceIDs(ctx, traceQuery) {
+					if !yield(v, err) {
+						return
+					}
+				}
+			}), errUnknownTenant)
+			require.ErrorIs(t, firstErr(func(yield func(any, error) bool) {
+				for v, err := range store.FindSpans(ctx, tracestore.SpanQueryParams{}) {
+					if !yield(v, err) {
+						return
+					}
+				}
+			}), errUnknownTenant)
+			require.ErrorIs(t, firstErr(func(yield func(any, error) bool) {
+				for v, err := range store.GetTraces(ctx, tracestore.GetTraceParams{TraceID: fromString(t, "00000000000000010000000000000000")}) {
+					if !yield(v, err) {
+						return
+					}
+				}
+			}), errUnknownTenant)
+
+			require.Empty(t, store.perTenant, "an unlisted tenant must not allocate a ring")
+		})
+	}
+
+	t.Run("listed tenant gets exactly one ring", func(t *testing.T) {
+		ctx := tenancy.WithTenant(context.Background(), "allowed")
+		require.NoError(t, store.WriteTraces(ctx, newTrace()))
+		var found []ptrace.Traces
+		for traces, err := range store.FindTraces(ctx, traceQuery) {
+			require.NoError(t, err)
+			found = append(found, traces...)
+		}
+		require.Len(t, found, 1)
+		require.Len(t, store.perTenant, 1)
+		require.Contains(t, store.perTenant, "allowed")
+	})
+
+	t.Run("untenanted writes share one ring", func(t *testing.T) {
+		require.NoError(t, store.WriteTraces(context.Background(), newTrace()))
+		require.Len(t, store.perTenant, 2)
+		require.Contains(t, store.perTenant, "")
+	})
+}
+
+func TestStoreWithoutTenancyAcceptsAnyTenant(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
+	require.NoError(t, err)
+	_, err = store.GetServices(tenancy.WithTenant(context.Background(), "anyone"))
+	require.NoError(t, err)
+	require.Len(t, store.perTenant, 1)
+}
+
 func getQueryAttributes() pcommon.Map {
 	queryAttrs := pcommon.NewMap()
 	queryAttrs.PutStr("peer.service", "service-y")

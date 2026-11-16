@@ -67,6 +67,8 @@ func (s *storageExt) SetTenancyOptions(options tenancy.Options, storageNames ...
 	if s.tenancyOptions == nil {
 		s.tenancyOptions = make(map[string]tenancy.Options)
 	}
+	// Validate every name before storing any, so an error leaves the map unchanged.
+	toStore := make([]string, 0, len(storageNames))
 	for _, name := range storageNames {
 		configuredOptions := s.tenancyOptions[name]
 		if s.config.TraceBackends[name].Memory != nil && configuredOptions.Enabled {
@@ -82,6 +84,9 @@ func (s *storageExt) SetTenancyOptions(options tenancy.Options, storageNames ...
 				return fmt.Errorf("failed to initialize storage '%s': %w", name, err)
 			}
 		}
+		toStore = append(toStore, name)
+	}
+	for _, name := range toStore {
 		s.tenancyOptions[name] = options
 	}
 	return nil

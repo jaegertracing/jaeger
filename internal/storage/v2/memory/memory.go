@@ -24,7 +24,10 @@ import (
 
 const errorAttribute = "error"
 
-var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+var (
+	errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+	errUnknownTenant      = errors.New("tenant is not in the configured tenant list")
+)
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -37,6 +40,13 @@ type Store struct {
 	// In the future this can be extended to contain per-tenant configuration.
 	cfg       Configuration
 	perTenant map[string]*Tenant
+	// allowedTenants holds the configured tenant list when multi-tenancy is
+	// enabled, and is nil otherwise. A tenant outside it never gets a ring, so
+	// memory stays bounded even when no tenancy interceptor runs in front of
+	// the store. The empty tenant is always accepted: writes that reach the
+	// store without a tenant, such as those from the collector pipeline, share
+	// one ring.
+	allowedTenants map[string]struct{}
 }
 
 // NewStore creates an in-memory store
@@ -47,9 +57,17 @@ func NewStore(cfg Configuration, tenancyOpts tenancy.Options) (*Store, error) {
 	if err := ValidateTenancy(tenancyOpts); err != nil {
 		return nil, err
 	}
+	var allowedTenants map[string]struct{}
+	if tenancyOpts.Enabled {
+		allowedTenants = make(map[string]struct{}, len(tenancyOpts.Tenants))
+		for _, tenant := range tenancyOpts.Tenants {
+			allowedTenants[tenant] = struct{}{}
+		}
+	}
 	return &Store{
-		cfg:       cfg,
-		perTenant: make(map[string]*Tenant),
+		cfg:            cfg,
+		perTenant:      make(map[string]*Tenant),
+		allowedTenants: allowedTenants,
 	}, nil
 }
 
@@ -61,7 +79,20 @@ func ValidateTenancy(opts tenancy.Options) error {
 	return nil
 }
 
-// getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
+// tenantFor returns the storage of the tenant in ctx, refusing a tenant that
+// is not in the configured tenant list before any ring is allocated for it.
+func (st *Store) tenantFor(ctx context.Context) (*Tenant, error) {
+	tenantID := tenancy.GetTenant(ctx)
+	if st.allowedTenants != nil && tenantID != "" {
+		if _, ok := st.allowedTenants[tenantID]; !ok {
+			return nil, fmt.Errorf("%w: %q", errUnknownTenant, tenantID)
+		}
+	}
+	return st.getTenant(tenantID), nil
+}
+
+// getTenant returns the per-tenant storage, creating it if needed. Callers
+// outside tests go through tenantFor, which enforces the tenant list.
 func (st *Store) getTenant(tenantID string) *Tenant {
 	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
@@ -82,14 +113,20 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 // The traces will not be saved as they are coming, rather they would be reshuffled.
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return err
+	}
 	m.storeTraces(resourceSpansByTraceId)
 	return nil
 }
 
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var retMe []tracestore.Operation
@@ -105,7 +142,10 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var retMe []string
@@ -150,8 +190,12 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 // query.Pagination.PageSize when that is positive. The chunk carries the next
 // page's token if more spans match (RFC 0014).
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		if tenantErr != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, tenantErr)
+			return
+		}
 		// The query service settles the order before calling a reader, but a reader reached
 		// directly must still refuse terms it cannot execute, and the settled order is the one
 		// the fingerprint and the sort must agree on.
@@ -190,8 +234,12 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if tenantErr != nil {
+			yield(nil, tenantErr)
+			return
+		}
 		traceAndIds, err := m.findTraceAndIds(query)
 		if err != nil {
 			yield(nil, err)
@@ -216,8 +264,12 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 // token, at most PageSize traces, and carries the next page's token if more
 // traces match.
 func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		if tenantErr != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, tenantErr)
+			return
+		}
 		var chunk tracestore.PageChunk[[]tracestore.FoundTraceID]
 		fail := func(err error) {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
@@ -261,8 +313,12 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 }
 
 func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if tenantErr != nil {
+			yield(nil, tenantErr)
+			return
+		}
 		traces := m.getTraces(traceIDs...)
 		for i := range traces {
 			trace, err := cloneTrace(traces[i])
@@ -316,7 +372,10 @@ var (
 )
 
 func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return m.getDependencies(query)
 }
 
