@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -106,8 +107,8 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
-// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout, the
-// hoisted columns, and the cluster that cfg selects.
+// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and
+// the hoisted columns that cfg selects.
 func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	layout, err := cfg.attributeLayout()
 	if err != nil {
@@ -117,11 +118,7 @@ func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	cluster, err := cfg.TableEngine.clusterConfig(cfg.Database)
-	if err != nil {
-		return nil, err
-	}
-	return newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
+	return newSchemaBuilder(cfg, layout, hoistedColumns)
 }
 
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for
@@ -905,13 +902,10 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	})
 }
 
-// TestSchemaBuilder_Distributed checks the layout table_engine.cluster adds on top of the
-// Replicated schema: every table's own CREATE moves to its "_local" name, every
-// materialized view reads from and writes to the "_local" tables, and a Distributed wrapper
-// is created under each table's plain name, with the sharding key issue #9886 specifies for
-// the three tables the application writes to directly and none for the three populated only
-// by a materialized view. The two wrapper shapes, sharded and unsharded, are snapshotted so
-// a reviewer sees the whole Distributed statement.
+// TestSchemaBuilder_Distributed snapshots all 18 statements table_engine.cluster renders,
+// each statement's name in a leading comment, so a reviewer sees the whole layout: every
+// table's own CREATE under its "_local" name, every materialized view wired to the "_local"
+// tables, and a Distributed wrapper under each table's plain name.
 func TestSchemaBuilder_Distributed(t *testing.T) {
 	cfg := Configuration{
 		CreateSchema: true,
@@ -923,69 +917,13 @@ func TestSchemaBuilder_Distributed(t *testing.T) {
 	}
 	builder, err := buildSchema(cfg)
 	require.NoError(t, err)
+	require.Len(t, builder.statements, 18)
 
-	statements := map[string]string{}
-	for _, stmt := range builder.statements {
-		statements[stmt.name] = stmt.query
+	queries := make([]string, len(builder.statements))
+	for i, stmt := range builder.statements {
+		queries[i] = fmt.Sprintf("-- %s\n%s", stmt.name, stmt.query)
 	}
-
-	localTables := map[string]string{
-		"spans table":               "spans_local",
-		"services table":            "services_local",
-		"operations table":          "operations_local",
-		"trace id timestamps table": "trace_id_timestamps_local",
-		"attribute metadata table":  "attribute_metadata_local",
-		"dependencies table":        "dependencies_local",
-	}
-	for name, localName := range localTables {
-		require.Contains(t, statements, name)
-		assert.Contains(t, statements[name], "IF NOT EXISTS", name)
-		assert.Contains(t, statements[name], localName, name)
-	}
-
-	views := map[string][]string{
-		"services materialized view":                 {"spans_local", "services_local"},
-		"operations materialized view":               {"spans_local", "operations_local"},
-		"trace id timestamps materialized view":      {"spans_local", "trace_id_timestamps_local"},
-		"attribute metadata materialized view":       {"spans_local", "attribute_metadata_local"},
-		"event attribute metadata materialized view": {"spans_local", "attribute_metadata_local"},
-		"link attribute metadata materialized view":  {"spans_local", "attribute_metadata_local"},
-	}
-	for name, want := range views {
-		require.Contains(t, statements, name)
-		for _, w := range want {
-			assert.Contains(t, statements[name], w, name)
-		}
-	}
-
-	require.Contains(t, statements, "spans distributed table")
-	require.Contains(t, statements, "services distributed table")
-	clickhousetest.VerifyQuerySnapshot(t,
-		statements["spans distributed table"],
-		statements["services distributed table"],
-	)
-
-	// Every other wrapper follows the same two shapes, sharded or not; checking their table
-	// and sharding key by name is enough once the shape itself is snapshotted above.
-	wrappers := []struct {
-		table       string
-		shardingKey string
-	}{
-		{"trace_id_timestamps", "cityHash64(trace_id)"},
-		{"dependencies", "cityHash64(timestamp)"},
-		{"operations", ""},
-		{"attribute_metadata", ""},
-	}
-	for _, tt := range wrappers {
-		query, ok := statements[tt.table+" distributed table"]
-		require.True(t, ok, tt.table)
-		assert.Contains(t, query, "IF NOT EXISTS "+tt.table+" AS "+tt.table+"_local ENGINE = Distributed(")
-		if tt.shardingKey != "" {
-			assert.Contains(t, query, tt.shardingKey)
-		} else {
-			assert.NotContains(t, query, "cityHash64")
-		}
-	}
+	clickhousetest.VerifyQuerySnapshot(t, queries...)
 
 	t.Run("without cluster, nothing is distributed", func(t *testing.T) {
 		builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: localTableEngine})

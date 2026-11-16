@@ -1,7 +1,7 @@
 CREATE TABLE
-    IF NOT EXISTS {{ .Table }} AS {{ .Table }}_local ENGINE = Distributed(
+    IF NOT EXISTS {{ .Table }} AS {{ .LocalTable }} ENGINE = Distributed(
         '{{ .Cluster }}',
-        '{{ .Database }}',
-        '{{ .Table }}_local'{{ if .ShardingKey }},
+        currentDatabase(),
+        '{{ .LocalTable }}'{{ if .ShardingKey }},
         {{ .ShardingKey }}{{ end }}
     )

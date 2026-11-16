@@ -51,10 +51,10 @@ table_engine:
 
 `distributed_tables: true` creates every table twice: once under its name with a `_local`
 suffix, using the engine `table_engine` otherwise selects, and once under its plain name as a
-`Distributed` table over `_local`, with a sharding key for each table the application writes
-to directly. Application reads and writes against the plain name are then routed and fanned
-out across the cluster's shards without a code change. Materialized views attach to the
-`_local` tables, never to a `Distributed` wrapper.
+`Distributed` table over `_local`, with a sharding key for each table whose rows belong to
+one trace or one point in time. Application reads and writes against the plain name are then
+routed and fanned out across the cluster's shards without a code change. Materialized views
+attach to the `_local` tables, never to a `Distributed` wrapper.
 
 `distributed_tables` must be `true`: Jaeger issues no `ON CLUSTER` DDL and does not detect a
 cluster's own registration, so `name` alone has nothing to create this schema against.

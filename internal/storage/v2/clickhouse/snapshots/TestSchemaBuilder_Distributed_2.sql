@@ -1,6 +1,8 @@
+-- spans distributed table
 CREATE TABLE
-    IF NOT EXISTS services AS services_local ENGINE = Distributed(
+    IF NOT EXISTS spans AS spans_local ENGINE = Distributed(
         'my_cluster',
-        'jaeger',
-        'services_local'
+        currentDatabase(),
+        'spans_local',
+        cityHash64(trace_id)
     )

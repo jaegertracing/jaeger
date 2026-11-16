@@ -155,9 +155,8 @@ type ClusterConfig struct {
 	// under it. Required when `cluster` is set.
 	Name string `mapstructure:"name"`
 	// DistributedTables creates `<table>_local` tables and `Distributed` wrappers over them
-	// under the plain name, so reads and writes against the plain name are routed and
-	// fanned out across the cluster's shards without a code change. Must be true for now:
-	// Jaeger issues no `ON CLUSTER` DDL, so `name` alone has nothing to create against.
+	// under the plain name. Must be true for now: Jaeger issues no `ON CLUSTER` DDL, so
+	// `name` alone has nothing to create against.
 	DistributedTables bool `mapstructure:"distributed_tables"`
 }
 
@@ -203,9 +202,8 @@ func (e TableEngine) engineClause(family engineFamily) (string, error) {
 	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName), nil
 }
 
-// clusterConfig validates the TableEngine's Cluster block against database, the first
-// argument of every Distributed(...) table it renders, and returns it, or nil when unset.
-func (e TableEngine) clusterConfig(database string) (*ClusterConfig, error) {
+// clusterConfig validates the TableEngine's Cluster block and returns it, or nil when unset.
+func (e TableEngine) clusterConfig() (*ClusterConfig, error) {
 	c := e.Cluster.Get()
 	if c == nil {
 		return nil, nil
@@ -213,17 +211,14 @@ func (e TableEngine) clusterConfig(database string) (*ClusterConfig, error) {
 	if c.Name == "" {
 		return nil, errors.New("`table_engine.cluster.name` is required when `table_engine.cluster` is set")
 	}
-	// Name and database are both rendered inside single-quoted SQL literals, where a quote
-	// ends the literal and a backslash escapes the character after it.
+	// Name is rendered inside a single-quoted SQL literal, where a quote ends the literal
+	// and a backslash escapes the character after it.
 	if strings.ContainsAny(c.Name, `'\`) {
 		return nil, errors.New("`table_engine.cluster.name` must not contain a single quote or a backslash")
 	}
 	if !c.DistributedTables {
 		return nil, errors.New("`table_engine.cluster.distributed_tables` must be true: Jaeger does not yet create " +
 			"objects on every node of the cluster, so `name` alone has nothing to create this schema against")
-	}
-	if strings.ContainsAny(database, `'\`) {
-		return nil, errors.New("`database` must not contain a single quote or a backslash when `table_engine.cluster` is set")
 	}
 	return c, nil
 }
@@ -285,7 +280,7 @@ func (cfg *Configuration) Validate() error {
 		if _, err := cfg.TableEngine.engineClause(mergeTreeFamily); err != nil {
 			return err
 		}
-		if _, err := cfg.TableEngine.clusterConfig(cfg.Database); err != nil {
+		if _, err := cfg.TableEngine.clusterConfig(); err != nil {
 			return err
 		}
 	}

@@ -78,16 +78,14 @@ func (p schemaTemplateParams) KeysFn(level expression.Level, attributeType chtra
 // distributedTableParams is what create_distributed_table.sql is rendered with, once per
 // table in the schema, under the distributed layout.
 type distributedTableParams struct {
-	// Table is the public name the Distributed table is created under; its local
-	// counterpart is Table + "_local".
+	// Table is the public name the Distributed table is created under.
 	Table string
-	// Database is the configured database, threaded through because Distributed(...)
-	// takes it as an argument rather than inferring it from the connection.
-	Database string
+	// LocalTable is the table's local counterpart, Table with the schema's "_local" suffix.
+	LocalTable string
 	// Cluster is table_engine.cluster.name.
 	Cluster string
-	// ShardingKey is the expression Distributed(...) shards inserts by, or "" for a
-	// table nothing inserts into directly, which needs none.
+	// ShardingKey is the expression Distributed(...) shards inserts by, or "" for a table
+	// whose rows don't belong to one trace or one point in time, which needs none.
 	ShardingKey string
 }
 
@@ -100,20 +98,22 @@ type schemaBuilder struct {
 	statements []schemaStatement
 }
 
-// newSchemaBuilder renders the statements that create the schema, for the attribute layout,
-// the hoisted columns, and the distributed-layout cluster (nil for none) that the factory
-// resolved from cfg.
+// newSchemaBuilder renders the statements that create the schema, for the attribute layout
+// and the hoisted columns that the factory resolved from cfg, and cfg's own TableEngine.
 func newSchemaBuilder(
 	cfg Configuration,
 	layout chtracestore.AttributeLayout,
 	hoistedColumns []chtracestore.HoistedColumn,
-	cluster *ClusterConfig,
 ) (*schemaBuilder, error) {
 	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
 	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
+	if err != nil {
+		return nil, err
+	}
+	cluster, err := cfg.TableEngine.clusterConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +131,8 @@ func newSchemaBuilder(
 	for _, column := range hoistedColumns {
 		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
-	// distributedTable, when set, is the public name this table's underlying table is
-	// additionally wrapped under as a Distributed table; shardingKey is its
-	// Distributed(...) sharding key expression, empty for none. Only tables carry one, a
-	// materialized view's target table carries its own entry instead.
+	// shardingKey is set only for a table whose rows belong to one trace or one point in
+	// time.
 	schema := []struct {
 		name             string
 		query            string
@@ -164,7 +162,7 @@ func newSchemaBuilder(
 		if cluster != nil && s.distributedTable != "" {
 			wrapper, err := loadTemplate(s.distributedTable+" distributed table", sql.CreateDistributedTable, distributedTableParams{
 				Table:       s.distributedTable,
-				Database:    cfg.Database,
+				LocalTable:  s.distributedTable + suffix,
 				Cluster:     cluster.Name,
 				ShardingKey: s.shardingKey,
 			})
@@ -212,7 +210,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		cluster, err := cfg.TableEngine.clusterConfig(cfg.Database)
+		cluster, err := cfg.TableEngine.clusterConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +218,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			telset.Logger.Warn("table_engine.cluster.distributed_tables is set with merge_tree: " +
 				"each shard holds its data without a replica, and losing a node loses that shard's data")
 		}
-		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
+		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
 		if err != nil {
 			return nil, err
 		}

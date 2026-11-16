@@ -253,21 +253,22 @@ func TestValidate(t *testing.T) {
 			wantErr: "`table_engine.cluster.distributed_tables` must be true",
 		},
 		{
-			name: "cluster with a database containing a quote",
-			mutate: func(cfg *Configuration) {
-				cfg.CreateSchema = true
-				cfg.Database = "it's"
-				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true})
-			},
-			wantErr: "`database` must not contain a single quote or a backslash when `table_engine.cluster` is set",
-		},
-		{
 			name: "database with a quote is fine without cluster",
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.Database = "it's"
 				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			// database is never quoted in a Distributed(...) statement: it renders as
+			// currentDatabase(), a constant expression ClickHouse resolves server-side.
+			name: "database with a quote is fine with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true})
 			},
 		},
 	}
