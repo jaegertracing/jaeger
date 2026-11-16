@@ -9,6 +9,51 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
+// storedKeyForms lists every form in which the groups of one level can store an attribute
+// key. The complex group stores bytes, maps and slices under one prefix each, so an attribute
+// of unknown type can be in any of seven places.
+var storedKeyForms = []storedKeyForm{
+	{
+		valueType:     pcommon.ValueTypeBool,
+		attributeType: AttributeTypeBool,
+	},
+	{
+		valueType:     pcommon.ValueTypeDouble,
+		attributeType: AttributeTypeDouble,
+	},
+	{
+		valueType:     pcommon.ValueTypeInt,
+		attributeType: AttributeTypeInt,
+	},
+	{
+		valueType:     pcommon.ValueTypeStr,
+		attributeType: AttributeTypeStr,
+	},
+	{
+		valueType:     pcommon.ValueTypeBytes,
+		attributeType: AttributeTypeComplex,
+		keyPrefix:     "@bytes@",
+	},
+	{
+		valueType:     pcommon.ValueTypeMap,
+		attributeType: AttributeTypeComplex,
+		keyPrefix:     "@map@",
+	},
+	{
+		valueType:     pcommon.ValueTypeSlice,
+		attributeType: AttributeTypeComplex,
+		keyPrefix:     "@slice@",
+	},
+}
+
+// storedKeyForm is one form in which an attribute group stores a key of one value type: the
+// type of the group, and the prefix that the group puts before the key.
+type storedKeyForm struct {
+	valueType     pcommon.ValueType
+	attributeType AttributeType
+	keyPrefix     string
+}
+
 // attributeBuilder writes the conditions that search attributes, so that the way the spans
 // table stores an attribute is decided here and not at each place that builds a query. The
 // zero value is not usable, because every condition needs the layout.
@@ -45,9 +90,9 @@ func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attrib
 
 // appendComparison writes to q the condition that an attribute of the given level has the
 // key of tav and a value that compares to the value of tav as op says, and returns args
-// extended with the values that the condition binds. It is the only place that writes the
-// placeholders of an attribute condition, so they and their bind values cannot drift apart
-// between callers. A hoisted attribute is compared in its dedicated column; every other
+// extended with the values that the condition binds. It writes the placeholders of the
+// condition together with their bind values, so the two cannot drift apart between callers.
+// A hoisted attribute is compared in its dedicated column; every other
 // attribute, and the same key at another level or type, is searched in the typed groups by
 // the condition of the layout. The condition is a whole one for every level, because an
 // event or a link attribute has one value per event or link and can be compared only
@@ -77,4 +122,41 @@ func (b attributeBuilder) appendComparison(
 		return append(args, tav.value)
 	}
 	return b.layout.appendComparison(q, args, level, op, tav)
+}
+
+// appendExists writes to q the condition that the given level stores the key in one of the
+// forms, which must not be empty, and returns args extended with the values that the
+// condition binds. It searches the typed groups even for a hoisted attribute, because a
+// hoisted column copies one type only.
+func (b attributeBuilder) appendExists(
+	q *sqlBuilder,
+	indent int,
+	args []any,
+	level expression.Level,
+	key string,
+	forms []storedKeyForm,
+) []any {
+	q.appendNewlineAndIndent(indent)
+	arrayColumn := AttributeGroup{Level: level}.arrayColumn()
+	if arrayColumn == "" {
+		q.WriteString("(")
+	} else {
+		q.WriteString("arrayExists(x -> ")
+	}
+	for i, form := range forms {
+		if i > 0 {
+			q.WriteString(" OR ")
+		}
+		group := AttributeGroup{
+			Level: level,
+			Type:  form.attributeType,
+		}
+		args = b.layout.appendHasKey(q, args, group, form.keyPrefix+key)
+	}
+	if arrayColumn == "" {
+		q.WriteString(")")
+	} else {
+		q.WriteString(", s." + arrayColumn + ")")
+	}
+	return args
 }

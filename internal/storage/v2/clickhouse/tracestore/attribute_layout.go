@@ -54,6 +54,11 @@ type AttributeLayout interface {
 	// args extended with the values that the condition binds.
 	appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any
 
+	// appendHasKey writes to q the condition that the group holds the key, and returns args
+	// extended with the key. For a group of the events or of the links, the condition is on
+	// the one event or link that an enclosing lambda binds to x.
+	appendHasKey(q *sqlBuilder, args []any, group AttributeGroup, key string) []any
+
 	// bindAttributes appends the values that the insert statement binds for the five typed
 	// attribute groups of a span, a resource or a scope.
 	bindAttributes(values []any, attributes dbmodel.Attributes) []any
