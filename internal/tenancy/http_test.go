@@ -53,6 +53,18 @@ func TestProgationHandler(t *testing.T) {
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    false,
 		},
+		{
+			name:           "duplicate tenant headers",
+			tenancyMgr:     NewManager(&Options{Enabled: true}),
+			requestHeaders: map[string][]string{"x-tenant": {"acme", "megacorp"}},
+			shouldReach:    false,
+		},
+		{
+			name:           "duplicate tenant headers with valid first value",
+			tenancyMgr:     NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			requestHeaders: map[string][]string{"x-tenant": {"acme", "acme"}},
+			shouldReach:    false,
+		},
 	}
 
 	for _, test := range tests {
@@ -105,4 +117,37 @@ func TestMetadataAnnotator(t *testing.T) {
 			assert.Len(t, md, len(test.requestHeaders))
 		})
 	}
+}
+
+func TestProgationHandlerDuplicateTenantHeader(t *testing.T) {
+	handler := &testHttpHandler{}
+	tenancyMgr := NewManager(&Options{Enabled: true})
+	propH := ExtractTenantHTTPHandler(tenancyMgr, handler)
+	req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
+	require.NoError(t, err)
+	req.Header.Add("x-tenant", "acme")
+	req.Header.Add("x-tenant", "megacorp")
+	writer := httptest.NewRecorder()
+	propH.ServeHTTP(writer, req)
+	assert.False(t, handler.reached)
+	assert.Equal(t, http.StatusUnauthorized, writer.Code)
+	assert.Equal(t, "extra tenant header", writer.Body.String())
+}
+
+func TestMetadataAnnotatorDuplicateTenantHeader(t *testing.T) {
+	tenancyMgr := NewManager(&Options{Enabled: true})
+	annotator := tenancyMgr.MetadataAnnotator()
+
+	req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
+	require.NoError(t, err)
+	req.Header.Add("x-tenant", "acme")
+	req.Header.Add("x-tenant", "megacorp")
+	md := annotator(context.Background(), req)
+	assert.Empty(t, md)
+
+	singleReq, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
+	require.NoError(t, err)
+	singleReq.Header.Add("x-tenant", "acme")
+	singleMD := annotator(context.Background(), singleReq)
+	assert.Equal(t, []string{"acme"}, singleMD.Get("x-tenant"))
 }
