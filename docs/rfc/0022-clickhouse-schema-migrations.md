@@ -421,6 +421,7 @@ This section defines the ClickHouse deployments that Jaeger supports, how each i
 | Storage table | A table that owns stored rows, such as a `MergeTree` or `ReplicatedMergeTree` table. |
 | `Distributed` table | A table that owns no stored rows. It forwards an insert to the storage table on the shard that the sharding key selects. It runs a query on the storage tables of every shard and merges the results. |
 | Public name | The table name that the reader and the writer use, such as `spans`. |
+| Macro | A named value that an administrator defines in the server configuration of a node, such as `shard` and `replica`. Where a table's Keeper path or replica name contains `{shard}` or `{replica}`, ClickHouse puts that node's value in its place. |
 | Ordinary database | A database with the default `Atomic` engine. A statement that creates or alters a table in it runs on the node that receives the statement, unless the statement carries `ON CLUSTER <name>`, which makes ClickHouse run it on every node of that cluster. |
 | `Replicated` database | A database created with the `Replicated` engine on several nodes. ClickHouse runs every statement that creates or alters a table in it on all of those nodes. ClickHouse also lets those nodes be addressed as a cluster that has the database's name, without an entry in `remote_servers`. This RFC calls it the database's own cluster. |
 | `SharedMergeTree` | The storage engine of ClickHouse Cloud. Its rows are kept once in object storage, and every node reads and writes that one copy. The service substitutes it for `MergeTree` in a `CREATE TABLE` statement, and likewise `SharedAggregatingMergeTree` for `AggregatingMergeTree`. |
@@ -486,8 +487,17 @@ Several nodes each hold a full copy of all data in `ReplicatedMergeTree` tables 
 Jaeger's configuration is not enough for this setup. The ClickHouse administrator sets up the following on the ClickHouse servers before Jaeger starts:
 
 - Keeper, which the `Replicated*` engines use to copy rows between replicas.
-- The `shard` and `replica` macros on every node. `replicated: {}` renders the engine without arguments, so each table takes the server's default Keeper path, `/clickhouse/tables/{uuid}/{shard}`, and the replica name `{replica}`. The `shard` value is the same on all nodes, and the `replica` value is different on each.
 - A `Replicated` database on every node, created with the same `shard_name` and a different `replica_name` on each.
+- The `shard` and `replica` macros on every node. The replicas of one table find each other in Keeper through a path that they share, and each registers there under its own replica name. In a `Replicated` database ClickHouse chooses both for every table: the path `/clickhouse/tables/{uuid}/{shard}` and the replica name `{replica}`. It fills `{shard}` and `{replica}` from the node's macros, and not from the `shard_name` and `replica_name` of the database. The `shard` value is therefore the same on all nodes, and the `replica` value is different on each:
+
+  ```xml
+  <macros>
+      <shard>01</shard>
+      <replica>node-1</replica>
+  </macros>
+  ```
+
+A different Keeper path is also set on the servers, through the `default_replica_path` and `default_replica_name` server settings. It cannot be set in Jaeger's `replicated` block, because a `Replicated` database rejects a table whose engine names its own path. The `keeper_path` and `replica_name` fields of that block apply to an ordinary database only.
 
 Jaeger validation:
 
@@ -495,6 +505,7 @@ Jaeger validation:
 - **Refuses to start:** the database's own cluster has more than one shard. The shards would have no `Distributed` table over them. The deployment is setup 3a.
 - **Refuses to start:** a node lacks the `shard` or the `replica` macro, two nodes have the same `replica` value, or two nodes have different `shard` values.
 - **Refuses to start:** a `cluster` block is present without `distributed_tables`. The name would have no use.
+- **Refuses to start:** `keeper_path` or `replica_name` is set. The database would reject every `CREATE TABLE`.
 
 #### Setup 3a: shards with replicas
 
@@ -525,12 +536,13 @@ A `Distributed` table by default queues an insert on the node that receives it a
 
 Jaeger's configuration is not enough for this setup. The ClickHouse administrator sets up the following on the ClickHouse servers before Jaeger starts:
 
-- Keeper, and the `shard` and `replica` macros on every node, as in setup 2. Here the `shard` value is the same on the replicas of one shard and different between shards.
+- Keeper, and the `shard` and `replica` macros on every node, as in setup 2. Here the `shard` value is the same on the replicas of one shard and different between shards, so that each shard's replicas share a Keeper path that the other shards do not.
 - A cluster in `remote_servers` that lists the shards and their replicas and sets `internal_replication` to true. Without that setting the `Distributed` table writes every insert to every replica of the shard, in addition to the copy that replication makes.
 - A `Replicated` database on every node, created with a different `shard_name` on each shard and a different `replica_name` on each node. The database's own cluster does not set `internal_replication`, which is why `cluster.name` names a cluster in `remote_servers` and not the database's own.
 
 Jaeger validation:
 
+- **Refuses to start:** `keeper_path` or `replica_name` is set.
 - **Refuses to start:** the named cluster does not set `internal_replication`.
 - **Refuses to start:** a node lacks a macro, two nodes have the same `replica` value, two replicas of one shard have different `shard` values, or two shards have the same `shard` value.
 - **Refuses to start:** the database is ordinary and `create_schema` is true.
