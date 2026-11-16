@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS
-    operations (
+    operations{{ .LocalTableSuffix }} (
         service_name String,
         name String,
         span_kind String

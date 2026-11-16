@@ -26,7 +26,10 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -103,8 +106,8 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
-// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and the
-// hoisted columns that cfg selects.
+// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout, the
+// hoisted columns, and the cluster that cfg selects.
 func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	layout, err := cfg.attributeLayout()
 	if err != nil {
@@ -114,7 +117,11 @@ func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newSchemaBuilder(cfg, layout, hoistedColumns)
+	cluster, err := cfg.TableEngine.clusterConfig(cfg.Database)
+	if err != nil {
+		return nil, err
+	}
+	return newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
 }
 
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for
@@ -161,7 +168,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "services materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesMaterializedView: assert.AnError,
+				schemaQuery(t, "services materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create services materialized view",
 		},
@@ -175,7 +182,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "operations materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsMaterializedView: assert.AnError,
+				schemaQuery(t, "operations materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create operations materialized view",
 		},
@@ -189,7 +196,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsMaterializedView: assert.AnError,
+				schemaQuery(t, "trace id timestamps materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps materialized view",
 		},
@@ -397,11 +404,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		cfg           Configuration
 		mockFn        func(name, tmplBody string, data any) (string, error)
 		expectedError string
 	}{
 		{
 			name: "first loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
@@ -409,6 +418,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			name: "second loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -421,16 +431,37 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			}(),
 			expectedError: "mock template error",
 		},
+		{
+			// The second call under a distributed layout renders the first table's
+			// Distributed wrapper, a different template than the second call renders
+			// without one.
+			name: "distributed wrapper loadTemplate call fails",
+			cfg: Configuration{
+				CreateSchema: true,
+				Database:     "jaeger",
+				TableEngine: TableEngine{
+					Replicated: configoptional.Some(ReplicatedEngine{}),
+					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+				},
+			},
+			mockFn: func() func(name, tmplBody string, data any) (string, error) {
+				calls := 0
+				return func(name, tmplBody string, data any) (string, error) {
+					calls++
+					if calls == 2 {
+						return "", errors.New("mock distributed template error")
+					}
+					return loadTemplateImpl(name, tmplBody, data)
+				}
+			}(),
+			expectedError: "mock distributed template error",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
-			_, err := NewFactory(
-				context.Background(),
-				Configuration{CreateSchema: true, TableEngine: localTableEngine},
-				telemetry.NoopSettings(),
-			)
+			_, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
@@ -705,6 +736,48 @@ func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
 	require.ErrorContains(t, err, "attribute_layout must be nested or map")
 }
 
+// TestNewFactory_InvalidCluster checks that NewFactory rejects an invalid cluster block
+// before attempting to connect, the same way it rejects an invalid attribute layout.
+func TestNewFactory_InvalidCluster(t *testing.T) {
+	cfg := Configuration{
+		CreateSchema: true,
+		TableEngine: TableEngine{
+			MergeTree: configoptional.Some(MergeTreeEngine{}),
+			Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster"}),
+		},
+	}
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "`table_engine.cluster.distributed_tables` must be true")
+}
+
+// TestNewFactory_MergeTreeClusterWarns checks that NewFactory logs a warning, rather than
+// failing, when the cluster block distributes a merge_tree engine, which shards without
+// replicas.
+func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	core, observed := observer.New(zap.WarnLevel)
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Database = "jaeger"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.CreateSchema = true
+	cfg.TableEngine = TableEngine{
+		MergeTree: configoptional.Some(MergeTreeEngine{}),
+		Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+	}
+	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{
+		Logger:  zap.New(core),
+		Metrics: metrics.NullFactory,
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	require.Equal(t, 1, observed.Len())
+	assert.Contains(t, observed.All()[0].Message, "each shard holds its data without a replica")
+}
+
 // TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check
 // before it creates the schema: the test server reports a spans table in the map layout, and
 // the configuration is nested. A view of the other layout would fail to create with an error
@@ -829,6 +902,98 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 	t.Run("unset engine is refused", func(t *testing.T) {
 		_, err := buildSchema(Configuration{CreateSchema: true})
 		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
+	})
+}
+
+// TestSchemaBuilder_Distributed checks the layout table_engine.cluster adds on top of the
+// Replicated schema: every table's own CREATE moves to its "_local" name, every
+// materialized view reads from and writes to the "_local" tables, and a Distributed wrapper
+// is created under each table's plain name, with the sharding key issue #9886 specifies for
+// the three tables the application writes to directly and none for the three populated only
+// by a materialized view. The two wrapper shapes, sharded and unsharded, are snapshotted so
+// a reviewer sees the whole Distributed statement.
+func TestSchemaBuilder_Distributed(t *testing.T) {
+	cfg := Configuration{
+		CreateSchema: true,
+		Database:     "jaeger",
+		TableEngine: TableEngine{
+			Replicated: configoptional.Some(ReplicatedEngine{}),
+			Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+		},
+	}
+	builder, err := buildSchema(cfg)
+	require.NoError(t, err)
+
+	statements := map[string]string{}
+	for _, stmt := range builder.statements {
+		statements[stmt.name] = stmt.query
+	}
+
+	localTables := map[string]string{
+		"spans table":               "spans_local",
+		"services table":            "services_local",
+		"operations table":          "operations_local",
+		"trace id timestamps table": "trace_id_timestamps_local",
+		"attribute metadata table":  "attribute_metadata_local",
+		"dependencies table":        "dependencies_local",
+	}
+	for name, localName := range localTables {
+		require.Contains(t, statements, name)
+		assert.Contains(t, statements[name], "IF NOT EXISTS", name)
+		assert.Contains(t, statements[name], localName, name)
+	}
+
+	views := map[string][]string{
+		"services materialized view":                 {"spans_local", "services_local"},
+		"operations materialized view":               {"spans_local", "operations_local"},
+		"trace id timestamps materialized view":      {"spans_local", "trace_id_timestamps_local"},
+		"attribute metadata materialized view":       {"spans_local", "attribute_metadata_local"},
+		"event attribute metadata materialized view": {"spans_local", "attribute_metadata_local"},
+		"link attribute metadata materialized view":  {"spans_local", "attribute_metadata_local"},
+	}
+	for name, want := range views {
+		require.Contains(t, statements, name)
+		for _, w := range want {
+			assert.Contains(t, statements[name], w, name)
+		}
+	}
+
+	require.Contains(t, statements, "spans distributed table")
+	require.Contains(t, statements, "services distributed table")
+	clickhousetest.VerifyQuerySnapshot(t,
+		statements["spans distributed table"],
+		statements["services distributed table"],
+	)
+
+	// Every other wrapper follows the same two shapes, sharded or not; checking their table
+	// and sharding key by name is enough once the shape itself is snapshotted above.
+	wrappers := []struct {
+		table       string
+		shardingKey string
+	}{
+		{"trace_id_timestamps", "cityHash64(trace_id)"},
+		{"dependencies", "cityHash64(timestamp)"},
+		{"operations", ""},
+		{"attribute_metadata", ""},
+	}
+	for _, tt := range wrappers {
+		query, ok := statements[tt.table+" distributed table"]
+		require.True(t, ok, tt.table)
+		assert.Contains(t, query, "IF NOT EXISTS "+tt.table+" AS "+tt.table+"_local ENGINE = Distributed(")
+		if tt.shardingKey != "" {
+			assert.Contains(t, query, tt.shardingKey)
+		} else {
+			assert.NotContains(t, query, "cityHash64")
+		}
+	}
+
+	t.Run("without cluster, nothing is distributed", func(t *testing.T) {
+		builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: localTableEngine})
+		require.NoError(t, err)
+		for _, stmt := range builder.statements {
+			assert.NotContains(t, stmt.query, "_local", stmt.name)
+			assert.NotContains(t, stmt.query, "Distributed", stmt.name)
+		}
 	})
 }
 

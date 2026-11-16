@@ -36,6 +36,35 @@ The `Value` type here actually refers to the `pdata` data types from the `otel-c
 The OTel-contrib implementation uses `database/sql` for writing data. Using the provided generic interface is unnecessary; using the client provided by Clickhouse is a better choice.
 For write operations, `ch-go`'s `chpool` is used in batch mode. For read operations, `clickhouse-go` is used.
 
+### Distributed layout
+
+A `table_engine.cluster` block, beside `merge_tree` or `replicated`, additionally shards the
+schema across a named ClickHouse cluster:
+
+```yaml
+table_engine:
+  replicated: {}
+  cluster:
+    name: my_cluster
+    distributed_tables: true
+```
+
+`distributed_tables: true` creates every table twice: once under its name with a `_local`
+suffix, using the engine `table_engine` otherwise selects, and once under its plain name as a
+`Distributed` table over `_local`, with a sharding key for each table the application writes
+to directly. Application reads and writes against the plain name are then routed and fanned
+out across the cluster's shards without a code change. Materialized views attach to the
+`_local` tables, never to a `Distributed` wrapper.
+
+`distributed_tables` must be `true`: Jaeger issues no `ON CLUSTER` DDL and does not detect a
+cluster's own registration, so `name` alone has nothing to create this schema against.
+`create_schema: true` must be run against every replica directly, or the layout created by
+another means first. `merge_tree` with `distributed_tables: true` is accepted, with a startup
+warning, since a shard without replicas loses its data with its node.
+
+`Purge` truncates the `Distributed` tables and leaves the `_local` tables as they are; a
+correct purge needs `ON CLUSTER` and is not implemented yet.
+
 ### Attribute layout
 
 The `spans` table stores the attributes of each level in typed groups, such as `str_attributes` and `resource_int_attributes`. The `attribute_layout` setting selects the ClickHouse type of every group:
