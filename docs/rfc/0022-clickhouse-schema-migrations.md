@@ -88,7 +88,7 @@ Replication does not cover all DDL. A column, index or codec `ALTER` on a `Repli
 
 ### 2.4 Facilities ClickHouse offers a schema tool
 
-- **System catalogs.** The `system.tables` catalog provides `create_table_query`, the server's own normalized rendering of the whole object: columns in order, defaults, codecs, indexes, engine, keys, TTL and settings for a table, and the `SELECT` for a view. Two objects created on one server from equivalent DDL therefore print the same text, which makes equality of two schemas a string comparison without a SQL parser. One exception was measured on ClickHouse 26.8: the `SETTINGS` clause lists the settings in the order they were assigned, so a table that received a setting through `MODIFY SETTING` prints the clause in a different order from a table created with it (§5.7). The `system.columns` and `system.data_skipping_indices` catalogs provide each column and index by name.
+- **System catalogs.** The `system.tables` catalog provides `create_table_query`, the server's own normalized rendering of the whole object: columns in order, defaults, codecs, indexes, engine, keys, TTL and settings for a table, and the `SELECT` for a view. Two objects created on one server from equivalent DDL therefore print the same text, which makes equality of two schemas a string comparison without a SQL parser. One exception was measured (test A.10): the `SETTINGS` clause lists the settings in the order they were assigned, so a table that received a setting through `MODIFY SETTING` prints the clause in a different order from a table created with it (§5.7). The `system.columns` and `system.data_skipping_indices` catalogs provide each column and index by name.
 - **DDL fan-out.** The `Replicated` database engine replays every DDL statement issued to one replica on all replicas. ClickHouse Cloud's `Shared` database engine builds on it and does the same for every database there. On a self-hosted cluster with an `Atomic` database, `ON CLUSTER <name>` provides the same fan-out per statement, and this design does not use it (§6).
 - **No lock.** ClickHouse has no advisory locks. A `KeeperMap` table with `keeper_map_strict_mode = 1` provides a compare-and-set operation, but only on a server with a Keeper ensemble and the opt-in `keeper_map_path_prefix` setting, and it cannot revoke distributed DDL that a previous holder queued. The design therefore does not depend on a lock (§5.5).
 
@@ -352,7 +352,7 @@ CREATE TABLE IF NOT EXISTS jaeger_schema_migrations (
 ORDER BY (version, object, applied_at)
 ```
 
-The ledger is a storage table on every node, rendered with the deployment's engine and never wrapped in a `Distributed` table. The runner inserts into the table on the node it is connected to. On a cluster it reads the ledger through `clusterAllReplicas`, over the configured cluster or the database's own (§5.6), and takes the union of the rows of every node that answers. A row is therefore visible to every binary as soon as it is inserted, whichever node the binary is connected to, without waiting for replication and without a quorum. If the only node that holds a new row is down, another binary sees the file as pending and executes it again, which the automatic forms tolerate.
+The ledger is a storage table on every node, rendered with the deployment's engine and never wrapped in a `Distributed` table. The runner inserts into the table on the node it is connected to. On a cluster it reads the ledger through `clusterAllReplicas`, over the cluster that §5.6 chooses, and takes the union of the rows of every node that answers. A row is therefore visible to every binary as soon as it is inserted, whichever node the binary is connected to, without waiting for replication and without a quorum. If the only node that holds a new row is down, another binary sees the file as pending and executes it again, which the automatic forms tolerate.
 
 The ledger is insert-only. Version 1 has no rows. A file is pending when the ledger holds no row for its version and object, and a version is pending when any of its files is. For the highest version that the binary carries, the row also has to match the file's current checksum. That version is the open one in a build from trunk, where a later PR can extend a file that a fleet deployed from trunk has already applied, and the changed file is then pending again. Nothing in the ledger ever has to be updated or deleted.
 
@@ -411,18 +411,18 @@ Operator versions are applied by `clickhouse-schema apply`, which this RFC desig
 A statement that Jaeger issues has to take effect on every node of the setup (§6). The verification below, and the ledger read of §5.3, need a cluster that lists every node:
 
 - On an `Atomic` database they read through the cluster named by `cluster.name` when the configuration has a `cluster` block, and the connected node only when it has none. Such a database has several nodes only with `create_schema: false`, where the operator applies the plan, ledger inserts included, on every node.
-- On a `Replicated` database they read through the database's own cluster. That cluster connects with the credentials of the named collection in the database's `collection_name` setting, or as `default` with no password when there is none, so a database with a password on `default` needs such a collection.
+- On a `Replicated` database they read through the database's own cluster. That cluster connects with the credentials that the database's `collection_name` setting points to, which is a set of connection credentials stored in the server configuration, or as `default` with no password when there is none. A database with a password on `default` therefore needs such credentials.
 - On a `Shared` database they read through the cluster named `default`.
 
-The runner sets `alter_sync = 1` explicitly on every `ALTER`, because ClickHouse Cloud ships `0` as its default on several releases. An `ALTER` on a `Replicated*` table is executed on one replica of each shard, and the other replicas apply it afterwards. The statement can therefore return before the replica connected to Jaeger has the column. The other wait modes do not provide a suitable guarantee: with `alter_sync = 2` an active replica can delay completion without a bound and a down replica raises `UNFINISHED`, and the settings catalogs of some supported releases do not describe `alter_sync = 3`.
+The runner sets `alter_sync = 1` explicitly on every `ALTER`, because ClickHouse Cloud ships `0` as its default on several releases. An `ALTER` on a `Replicated*` table is executed on one replica of each shard, and the other replicas apply it afterwards. The statement can therefore return before the replica connected to Jaeger has the column. The runner does not rely on a stronger wait mode. With `alter_sync = 2` an active replica can delay completion without a bound and a down replica raises `UNFINISHED`.
 
-The runner therefore verifies what it applied before Jaeger serves traffic. The statement forms that add an object name the table and the column or index, so the runner extracts those names and reads `system.tables`, `system.columns` and `system.data_skipping_indices` through `clusterAllReplicas`, over the configured cluster or the database's own, always with `skip_unavailable_shards = 1`. This covers every shard and replica, and in the `Distributed` layout both the storage table and the `Distributed` table. A `MODIFY SETTING` and a view's `MODIFY QUERY` add no named object, and table replication does not carry them: only the database delivers them to the other nodes (§2.3). For these the runner reads the object's `create_table_query` from every node and requires each to equal the text on the node it is connected to. The check confirms presence by name and does not compare definitions, so a column that an operator created earlier under the same name with another type passes it (§9). Verification repeats with backoff for up to a minute while an object remains absent on a node that answers. If it remains absent after that minute, startup fails, because a node that still lacks a column would fail the first insert routed to it. The next start plans again. The `clusterAllReplicas` function needs the `REMOTE ON *.*` grant, and it connects to other hosts with the credentials in `remote_servers`, or as the initiating user if the cluster defines a `cluster_secret`. Jaeger's documentation has to say so.
+The runner therefore verifies what it applied before Jaeger serves traffic. The statement forms that add an object name the table and the column or index, so the runner extracts those names and reads `system.tables`, `system.columns` and `system.data_skipping_indices` through `clusterAllReplicas`, over the cluster chosen above, always with `skip_unavailable_shards = 1`. This covers every shard and replica, and in the `Distributed` layout both the storage table and the `Distributed` table. A `MODIFY SETTING` and a view's `MODIFY QUERY` add no named object, and table replication does not carry them: only the database delivers them to the other nodes (§2.3). For these the runner reads the object's `create_table_query` from every node and requires each to equal the text on the node it is connected to. The check confirms presence by name and does not compare definitions, so a column that an operator created earlier under the same name with another type passes it (§9). Verification repeats with backoff for up to a minute while an object remains absent on a node that answers. If it remains absent after that minute, startup fails, because a node that still lacks a column would fail the first insert routed to it. The next start plans again. The `clusterAllReplicas` function needs the `REMOTE ON *.*` grant, and it connects to other nodes with the credentials in `remote_servers`, or as the initiating user if the cluster definition there has a shared `secret`. Jaeger's documentation has to say so.
 
 A down node is neither certified nor fatal. It applies the queued DDL when it returns, but it accepts connections before its queue reaches the entry, and an insert routed there in that window fails with `NO_SUCH_COLUMN_IN_TABLE`. A fleet that cannot accept this window runs `clickhouse-schema apply` as a pre-upgrade job while every node is up.
 
 A `Replicated*` table executes alters in order. A statement that arrives during a mutation from an operator version on that table waits for the mutation to finish, which for `spans` takes hours. This cannot happen at startup. A pending operator version stops the binary before it issues any statement, and the `apply` command records an operator version only after its mutations have finished on every replica (§5.8).
 
-A multi-node deployment on an `Atomic` database receives no automatic version, because Jaeger refuses `create_schema: true` there. The `clickhouse-schema apply` command refuses it for the same reason, since it would reach one node. The operator runs the output of `clickhouse-schema plan` on every node.
+A multi-node deployment on an `Atomic` database receives no automatic version, because Jaeger refuses `create_schema: true` there from the first release that carries a version (§8). The `clickhouse-schema apply` command refuses it for the same reason, since it would reach one node. The operator runs the output of `clickhouse-schema plan` on every node.
 
 ### 5.7 Snapshots and the equality test
 
@@ -433,7 +433,7 @@ One release renders several schemas (§2.1), so the snapshot of a version is a d
 | `nested` | `merge_tree`, `attribute_layout: nested`, `ttl: 0` |
 | `map` | `merge_tree`, `attribute_layout: map`, `ttl: 0` |
 | `nested-ttl-hoisted` | `nested` with `ttl` set and two hoisted attributes |
-| `nested-replicated` | `replicated` in a `Replicated` database on a single node with the embedded Keeper of #9813, `attribute_layout: nested` |
+| `nested-replicated` | `replicated` in a `Replicated` database on a single node with the embedded Keeper and the macros of #9813, `attribute_layout: nested` |
 | `nested-distributed` | `replicated` in a `Replicated` database, `table_engine.cluster` |
 
 The package already keeps rendered schemas as golden files under `snapshots/TestSchemaBuilder_AttributeLayout/`; the version snapshots use the same rendering. The binary never reads a snapshot. Operators obtain executable statements from `clickhouse-schema plan`.
@@ -461,7 +461,7 @@ jaeger ... --config config.yaml clickhouse-schema render    # the rendered curre
 
 The `plan` command reads the ledger and prints every statement of every pending version, rendered for the deployment, in the order the runner would execute it, with each file's ledger `INSERT` after its statements. It marks each version as automatic or operator and prints the path of each procedure document. It exits non-zero when anything is pending, so it can serve as a CI check or a deployment gate. A database with `spans` and no ledger is treated as version 1, and the output then begins with the ledger's `CREATE TABLE`. The command needs `SELECT` on the ledger table and on `system.tables`, `system.columns` and `system.data_skipping_indices`, plus `REMOTE ON *.*` on a cluster, and nothing else. An operator who applies the printed statements by hand also applies the printed ledger inserts, which is what lets the binary start.
 
-The `apply` command applies the whole plan, operator versions included, and is the only way an operator version is applied by Jaeger. It executes each statement in order with `mutations_sync = 2` and `alter_sync = 2`, so a statement returns only when its mutation has finished on every replica, and a replica that is down fails the run. The command is a job for a time when every node is up. It verifies the added objects on every node (§5.6), and records each file. If a statement fails, the command stops, and the files recorded so far stay recorded; the next run resumes with the first file that is not, from that file's first statement (§5.2). It needs the `plan` grants, `INSERT` on the ledger, `ALTER` on the database's tables and `ALTER VIEW MODIFY QUERY` on its views, and `CREATE TABLE` and `CREATE VIEW` plus `SELECT` and `INSERT` on the database for a version that creates a table or view. An operator version can need more, such as `DROP` or `TRUNCATE`, and its procedure document lists what it needs. A cluster needs `REMOTE ON *.*`. The `--reapply-from <version>` flag executes that version onward again regardless of the ledger, for the cases in §5.5. The procedure documents of the operator versions in that range apply to the rerun as they do to an interrupted run.
+The `apply` command applies the whole plan, operator versions included, and is the only way an operator version is applied by Jaeger. It executes each statement in order with `mutations_sync = 2` and `alter_sync = 2`. In a `Replicated` database a statement can still return when the node that received it has finished and the other shards have not, so after each statement the command reads `system.mutations` on every node and waits until no mutation of that table is unfinished. A node that is down fails the run. The command is a job for a time when every node is up. It verifies the added objects on every node (§5.6), and records each file. If a statement fails, the command stops, and the files recorded so far stay recorded; the next run resumes with the first file that is not, from that file's first statement (§5.2). It needs the `plan` grants, `INSERT` on the ledger, `ALTER` on the database's tables and `ALTER VIEW MODIFY QUERY` on its views, and `CREATE TABLE` and `CREATE VIEW` plus `SELECT` and `INSERT` on the database for a version that creates a table or view. An operator version can need more, such as `DROP` or `TRUNCATE`, and its procedure document lists what it needs. A cluster needs `REMOTE ON *.*`. The `--reapply-from <version>` flag executes that version onward again regardless of the ledger, for the cases in §5.5. The procedure documents of the operator versions in that range apply to the rerun as they do to an interrupted run.
 
 The `apply` command is also the form for fleets that want the schema settled before pods roll, whatever the versions' modes: one job that runs before the rollout, such as a Helm pre-upgrade hook, with `create_schema: false` in the pods. This is the least-privilege configuration, because the pods then need only `INSERT` and `SELECT`. A per-pod init container is not a substitute, because a rolling deployment runs it once per pod and therefore concurrently across two releases.
 
@@ -469,7 +469,7 @@ The `render` command prints the current templates, the ledger's `CREATE TABLE`, 
 
 ### 5.9 Tests
 
-Groups 1 through 5 run against the live ClickHouse already started by the integration suite. Group 6 needs no server, and group 7 runs in a two-replica Compose job.
+Groups 1 through 5 run against the live ClickHouse already started by the integration suite. Group 6 needs no server, and group 7 runs in multi-node Compose jobs.
 
 1. **Fresh install.** The test starts the backend on an empty database and checks that `plan` is empty afterwards and that the ledger holds every version, operator versions included. It also checks that the `create_table_query` of every object equals that of a database created by the templates alone. A start interrupted after the marker row, after the templates, and before the version rows must each be completed as a fresh install by the next start. A legacy database with an empty ledger table must be treated as version 1.
 2. **Equality from every snapshot.** The test of §5.7.
@@ -477,7 +477,7 @@ Groups 1 through 5 run against the live ClickHouse already started by the integr
 4. **Legacy and operator-managed databases.** The test creates a database from `snapshots/001/` with no ledger, starts the backend, and checks that the pending automatic versions are applied and recorded. A database created from the v2.18 templates must end with the view queries of version 1. A database created from the v2.16 or the v2.17 templates must be refused by the baseline check. It runs `plan` against the same kind of database, applies the printed statements and inserts by hand through `clickhouse-client`, and checks that the next `plan` is empty and that the binary starts with `create_schema: false`. Every assertion uses a user with exactly the grants listed in §5.8, never `default`. A grant omitted from that list therefore fails the test rather than the operator's deployment.
 5. **Concurrency, rollback and customizations.** The test starts the backend twice and also concurrently from two connections; the plan must be empty after each case. With two versions that assign different codecs to one column, the newer codec must stand after two concurrent starts, with the statements of the two instances interleaved by the test. A binary built with one version fewer must start against a database that the newer binary upgraded and must leave the schema unchanged. An operator-added index and a customized codec on a column that no delta names must survive `apply`. A failed statement in `apply` must leave the earlier files recorded and the next run must resume. A failed verification must leave the file unrecorded.
 6. **Runner unit tests** use synthetic ledger rows and delta files. They cover statement splitting, the automatic-form check on every form of §5.2 and on forms outside it, the pending-set rule, checksum-driven re-pending of the highest version only, version and file ordering, rendering for every configuration of §5.7, and extraction of the table and column or index name for verification.
-7. **Clusters.** A two-replica Compose job covers setup 2 on a `Replicated` database. A two-shard job with two replicas per shard covers setup 3a, and with one node per shard setup 3b: placement by the sharding key, an acknowledged insert being stored on its shard, and each startup check of §6 under both values of `setup_validation`. Two concurrent starts through different replicas must both succeed through the retry on error 517. A replica down during startup must leave startup successful and receive the column when it returns. A binary connected to one replica must see a ledger row inserted through the other before replication delivers it. A `MODIFY QUERY` that one replica lacks must fail verification. Verification must fail startup when a replica that answers still lacks a column. The `Distributed` layout joins this job with the harness of #9887.
+7. **Clusters.** A two-replica Compose job covers setup 2 on a `Replicated` database. A two-shard job with two replicas per shard covers setup 3a, and with one node per shard setup 3b: placement by the sharding key, an acknowledged insert being stored on its shard, and each startup check of §6 under both values of `setup_validation`. Two concurrent starts through different replicas must both succeed through the retry on error 517. A replica down during startup must leave startup successful and receive the column when it returns. A binary connected to one replica must see a ledger row inserted through the other before replication delivers it. A `MODIFY QUERY` that one replica lacks must fail verification. Verification must fail startup when a replica that answers still lacks a column.
 
 The tests run against both ClickHouse 26.3, the earliest release that Jaeger supports, and the latest release. The Compose job runs in the storage integration workflow with the other backends.
 
@@ -497,8 +497,9 @@ This section defines the ClickHouse deployments that Jaeger supports, how each i
 | Keeper | The coordination service of a ClickHouse cluster, either ClickHouse Keeper or ZooKeeper. Replicated tables and `Replicated` databases register in it and use it to agree on the order of changes. The rows themselves are copied directly between nodes. |
 | Cluster | A named grouping of shards and their replicas, which ClickHouse can address as a whole. An administrator defines a cluster in the server configuration (`remote_servers`). |
 | Storage table | A table that owns stored rows, such as a `MergeTree` or `ReplicatedMergeTree` table. |
-| `Distributed` table | A table that owns no stored rows. It forwards an insert to the storage table on the shard that the sharding key selects. It runs a query on the storage tables of every shard and merges the results. |
+| `Distributed` table | A table that owns no stored rows. It forwards an insert to the storage table on one shard, which it selects by the value of an expression called the sharding key. It runs a query on the storage tables of every shard and merges the results. |
 | Public name | The table name that the reader and the writer use, such as `spans`. |
+| Macro | A named value that the ClickHouse administrator defines in the server configuration of a node, such as `shard` and `replica`. Where the Keeper path or replica name of a table contains `{shard}` or `{replica}`, ClickHouse puts that node's value in its place. |
 | `Atomic` database | A database with the default engine, `Atomic`. The database delivers no statement to other nodes. A `Replicated*` table in it still passes column, index and codec changes to its replicas (§2.3). ClickHouse runs a statement on every node of a cluster only when the statement carries `ON CLUSTER <name>`. |
 | `Replicated` database | A database created with the `Replicated` engine on several nodes. Each node creates it with the same Keeper path and with its own `shard_name` and `replica_name` arguments, which say which shard the node belongs to and which replica of that shard it is. ClickHouse runs every statement that creates or alters a table in it on all of those nodes. ClickHouse also lets those nodes be addressed as a cluster that has the database's name, without an entry in `remote_servers`. This RFC calls it the database's own cluster. |
 | `SharedMergeTree` | The storage engine of ClickHouse Cloud. Its rows are kept once in object storage, and every node reads and writes that one copy. The service substitutes it for `MergeTree` in a `CREATE TABLE` statement, and likewise `SharedAggregatingMergeTree` for `AggregatingMergeTree`. |
@@ -526,15 +527,17 @@ Setups 2, 3a and 3b have several nodes, and every node needs the same tables. Ja
 
 Jaeger does not add `ON CLUSTER` to its statements. The proposal on #9886 used it to reach the nodes of an `Atomic` database, and it is dropped here. It would give every setup a second configuration, add a parameter to every template and delta, and need a `CLUSTER` grant, in order to do what a `Replicated` database does without any of them. No Jaeger release has emitted `ON CLUSTER`, so no deployment depends on it.
 
-A multi-node deployment on an `Atomic` database remains possible with `create_schema: false`. The operator runs the output of `clickhouse-schema render` and `plan` on every node, or adds `ON CLUSTER` to it.
+A multi-node deployment on an `Atomic` database remains possible with `create_schema: false`. The operator runs the output of `clickhouse-schema render` and `plan` on every node. ClickHouse refuses a `Replicated*` engine without arguments in an `Atomic` database (test A.9), so this deployment sets `keeper_path` and `replica_name` in Jaeger's `replicated` block, with a path that does not contain `{uuid}`, such as `/clickhouse/tables/{shard}/{database}/{table}`. Tables created node by node have different UUIDs and would not find each other under a path that contains one.
 
 Jaeger issues schema statements with `distributed_ddl_output_mode = 'throw_only_active'`, which waits for the nodes that are up and reports a failure on any of them. In contrast, `throw` waits the full `distributed_ddl_task_timeout` for a node that is down.
 
 ### 6.4 Startup checks
 
-Jaeger checks the configuration against the deployment at every start, before it creates or alters anything. The checks only read. They take the database engine from `system.databases`, and the shards and replicas of the named cluster and of the database's own cluster from `system.clusters`, which for the database's own cluster also holds each node's `shard_name` and `replica_name`. To compare two clusters they read `serverUUID()` from every node through both, and they read `system.macros` and the replica-path settings of every node. Reading other nodes needs the `REMOTE` grant (§5.6). A node that does not answer is left out of a check and does not fail it. A failed check stops startup with an error that names the setting, what Jaeger found in the deployment, and the setup that the deployment appears to be. Each subsection lists them under "Jaeger validation", with the outcome of each check and what Jaeger cannot detect.
+Jaeger checks the configuration against the deployment at every start, before it creates or alters anything. The checks only read. They take the database engine from `system.databases`, and the shards and replicas of the named cluster and of the database's own cluster from `system.clusters`. They read `system.macros`, `system.clusters` and `serverUUID()` from every node, through `clusterAllReplicas` over the named cluster or the database's own cluster, which needs the `REMOTE` grant (§5.6). A node that does not answer is left out of a check and does not fail it. A failed check stops startup with an error that names the setting, what Jaeger found in the deployment, and the setup that the deployment appears to be. Each subsection lists the checks under "Jaeger validation", with the outcome of each check and what Jaeger cannot detect.
 
-Two checks apply wherever a `cluster` block is present: `cluster.name` must not contain a single quote or a backslash, and the named cluster must exist in `system.clusters`. The checks that concern the kind of database apply with `create_schema: true`, and to the `clickhouse-schema apply` command. With `create_schema: false` the operator owns the statements and their delivery.
+Two checks apply wherever a `cluster` block is present: `cluster.name` must not contain a single quote or a backslash, and the named cluster must exist in `system.clusters`.
+
+The checks that name an `Atomic` database, a `Replicated` database or the database's own cluster apply with `create_schema: true` and to the `clickhouse-schema apply` command. With `create_schema: false` on an `Atomic` database the operator owns the statements and their delivery, and Jaeger runs only the checks of the named cluster and of the macros.
 
 The checks infer the setup from system tables, and an inference can be wrong for a deployment that this RFC did not foresee. A setting therefore lets an operator overrule them:
 
@@ -548,7 +551,7 @@ extensions:
           setup_validation: warn    # default: enforce
 ```
 
-With `enforce`, a failed check stops startup. With `warn`, Jaeger logs every failed check at every start and continues. The setting covers the checks listed as "Refuses to start" in this section and the existence of the named cluster. It does not cover the check of `cluster.name` for quotes, which protects the statements that Jaeger renders, or the refusals of §5.3 about pending schema versions.
+With `enforce`, a failed check stops startup. With `warn`, Jaeger logs every failed check at every start and continues. The setting covers the checks listed as "Refuses to start" in this section. It does not cover three checks whose failure ClickHouse would repeat on the first statement: the check of `cluster.name` for quotes, the existence of the named cluster, and `keeper_path` on a `Replicated` database. It does not cover the refusals of §5.3 about pending schema versions either.
 
 ### 6.5 Setup 1: single node
 
@@ -578,20 +581,30 @@ Several nodes each hold a full copy of all data in tables of the `ReplicatedMerg
 Jaeger's configuration is not enough for this setup. The ClickHouse administrator sets up the following on the ClickHouse servers before Jaeger starts:
 
 - Keeper.
-- A `Replicated` database on every node, created with the same Keeper path, the same `shard_name` and a different `replica_name` on each.
+- A `Replicated` database on every node, created under the same database name, with the same Keeper path, the same `shard_name` and a different `replica_name` on each.
+- The `shard` and `replica` macros on every node, defined before Jaeger creates its tables. The `shard` value is the same on all nodes, and the `replica` value is different on each. Using the database's `shard_name` and `replica_name` as the values keeps the two in step:
 
-The replicas of one table find each other in Keeper through a path that they share, and each registers there under its own replica name. In a `Replicated` database ClickHouse chooses both for every table: the path `/clickhouse/tables/{uuid}/{shard}` and the replica name `{replica}`. Here `{uuid}` is the table's identifier, which the database makes the same on every node, and `{shard}` and `{replica}` are the node's `shard_name` and `replica_name` in the database. No further server configuration is needed. This was measured on ClickHouse 26.3; the ClickHouse documentation says that the values come from macros instead, which are named values in a node's server configuration. A node that does define a `shard` or a `replica` macro uses it in place of the database's value.
+  ```yaml
+  macros:
+    shard: shard1
+    replica: replica1
+  ```
 
-Jaeger's `replicated` block is empty in this setup. A `Replicated` database rejects a table whose engine names its own path, so the `keeper_path` and `replica_name` fields of the block apply to an `Atomic` database only.
+The replicas of one table find each other in Keeper through a path that they share, and each registers there under its own replica name. In a `Replicated` database ClickHouse chooses both for every table: the path `/clickhouse/tables/{uuid}/{shard}` and the replica name `{replica}`, where `{uuid}` is the table's identifier, which the database makes the same on every node. ClickHouse stores the path with `{shard}` and `{replica}` unexpanded and fills them in each time it loads the table.
+
+The macros are required although a deployment without them appears to work. When a table is created, ClickHouse fills `{shard}` and `{replica}` from the database's `shard_name` and `replica_name` if the node has no macros, and the tables replicate (test A.2). When the node restarts, ClickHouse fills them from the macros only, and without macros every replicated table fails to load with `No macro 'shard' in config` (test A.8). With the macros defined, the tables load after a restart and replicate (test A.8).
+
+Jaeger's `replicated` block is empty in this setup. A `Replicated` database rejects a table whose engine names its own path (test A.2), so the `keeper_path` and `replica_name` fields of the block apply to an `Atomic` database only.
 
 Jaeger validation:
 
 - **Refuses to start:** the database is an `Atomic` database and `create_schema` is true. Jaeger's statements would reach one node only.
 - **Refuses to start:** the database's own cluster has more than one shard. The shards would have no `Distributed` table over them. The deployment is setup 3a.
-- **Refuses to start:** two nodes have the same `replica_name`.
+- **Refuses to start:** a node lacks the `shard` or the `replica` macro. Its tables would fail to load after its next restart.
+- **Refuses to start:** two nodes have different `shard` macros, or two nodes have the same `replica` macro. The first leaves them with separate copies, and the second makes them claim one replica.
 - **Refuses to start:** a `cluster` block is present. It would create `Distributed` tables, which one shard does not need.
 - **Refuses to start:** `keeper_path` or `replica_name` is set in Jaeger's `replicated` block. The database would reject every `CREATE TABLE`.
-- **Refuses to start:** the server settings `default_replica_path` or `default_replica_name` differ from the ClickHouse defaults, or a node defines a `shard` or `replica` macro. Jaeger cannot then tell which nodes share a Keeper path.
+- **Refuses to start:** the server settings `default_replica_path` or `default_replica_name` differ from the ClickHouse defaults. Jaeger cannot then work out which nodes share a Keeper path.
 
 ### 6.7 Setup 3a: shards with replicas
 
@@ -604,7 +617,7 @@ table_engine:
 
 The database is a `Replicated` database, which delivers every statement to all nodes. The `cluster` block is what makes Jaeger create the storage tables and `Distributed` tables described below, and `name` is the cluster that the `Distributed` tables forward to. The block has no other effect, so it has no further fields.
 
-Each of the six tables exists twice on every node. The storage table is a table of the `ReplicatedMergeTree` family named `<table>_local`, and a `Distributed` table carries the public name, so the reader and the writer use the same names in every setup. The materialized views read `spans_local` and write `<table>_local`, because a view fires on the node that stores the inserted rows.
+Each of the six tables exists twice on every node. The storage table is a table of the `ReplicatedMergeTree` family named `<table>_local`, and a `Distributed` table carries the public name, so the reader and the writer use the same names in every setup. The materialized views read `spans_local` and write `<table>_local`. ClickHouse runs a materialized view when rows are inserted into its source table, on the node that stores them, and not when a replica later copies those rows.
 
 The sharding key of a `Distributed` table decides which shard receives a row:
 
@@ -629,16 +642,21 @@ A `Distributed` table by default queues an insert on the node that receives it a
 Jaeger's configuration is not enough for this setup. The ClickHouse administrator sets up the following on the ClickHouse servers before Jaeger starts:
 
 - Keeper.
-- A `Replicated` database on every node, created with the same Keeper path, the same `shard_name` on the replicas of one shard and a different one on each shard, and a `replica_name` that is different on each replica of a shard. The replicas of a shard then share a Keeper path for each table, and the shards do not (§6.6).
-- A cluster in `remote_servers` that groups the same nodes into the same shards as the database and sets `internal_replication` to true. Without that setting the `Distributed` table writes every insert to every replica of the shard, in addition to the copy that replication makes. The database's own cluster leaves the setting off by default, which is why `cluster.name` names a cluster in `remote_servers`.
+- A `Replicated` database on every node, created under the same database name, with the same Keeper path, the same `shard_name` on the replicas of one shard and a different one on each shard, and a `replica_name` that is different on each replica of a shard.
+- The `shard` and `replica` macros on every node, as in setup 2. Here the `shard` value is the same on the replicas of one shard and different between shards, so that the replicas of a shard share a Keeper path for each table and the shards do not. The `replica` value is different on each replica of a shard.
+- A cluster in `remote_servers`, defined identically on every node, that groups the nodes into the same shards as the macros and sets `internal_replication` to true. Without that setting the `Distributed` table writes every insert to every replica of the shard, in addition to the copy that replication makes, and every row is stored twice (test A.5). The definition has to be identical because a `Distributed` table selects the shard by position and weight in the node's own copy of it.
+
+`cluster.name` names this cluster and not the database's own cluster, because the database's own cluster leaves `internal_replication` off by default (test A.5). A `Replicated` database has a setting of its own that turns it on, which would make the separate cluster unnecessary. That variant has not been run (§10).
 
 Jaeger validation:
 
 - **Refuses to start:** the database is an `Atomic` database and `create_schema` is true.
 - **Refuses to start:** the named cluster does not set `internal_replication`.
-- **Refuses to start:** the named cluster does not group the nodes into the same shards as the database. All nodes with one `shard_name` would share a Keeper path, so a different grouping in the named cluster stores every row more than once or leaves a node without its tables.
-- **Refuses to start:** two replicas of one shard have the same `replica_name`.
-- **Refuses to start:** `keeper_path` or `replica_name` is set in Jaeger's `replicated` block, the server settings `default_replica_path` or `default_replica_name` differ from the ClickHouse defaults, or a node defines a `shard` or `replica` macro, as in setup 2.
+- **Refuses to start:** a node lacks the `shard` or the `replica` macro.
+- **Refuses to start:** the named cluster does not group the nodes into the same shards as their `shard` macros, or two replicas of one shard have the same `replica` macro. All nodes with one `shard` value copy each other's rows, so a named cluster that divides them into two shards stores every row twice (test A.6).
+- **Refuses to start:** the nodes do not hold the same definition of the named cluster. Two nodes would send the same trace to different shards.
+- **Refuses to start:** the named cluster does not list the same nodes as the database's own cluster, or a node lacks the database under Jaeger's name. A node outside the database would receive rows and have no tables.
+- **Refuses to start:** `keeper_path` or `replica_name` is set in Jaeger's `replicated` block, or the server settings `default_replica_path` or `default_replica_name` differ from the ClickHouse defaults, as in setup 2.
 - **Refuses to start:** the database is a `Shared` database. The engines that ClickHouse Cloud lists as supported do not include `Distributed`.
 
 ### 6.8 Setup 3b: shards without replicas
@@ -650,13 +668,14 @@ table_engine:
     name: my_cluster
 ```
 
-This setup has the tables, sharding keys and insert setting of setup 3a, with storage tables of the `MergeTree` family. The ClickHouse administrator sets up Keeper, which the database needs although the tables do not, a `Replicated` database on every node with the same Keeper path and a different `shard_name` on each, and a cluster in `remote_servers` that lists each node as one shard.
+This setup has the tables, sharding keys and insert setting of setup 3a, with storage tables of the `MergeTree` family. The ClickHouse administrator sets up Keeper, which the database needs although the tables do not, a `Replicated` database on every node with the same Keeper path and a different `shard_name` on each, and a cluster in `remote_servers`, defined identically on every node, that lists each node as one shard. The tables need no macros, and they load after a restart without them (test A.7).
 
 Jaeger validation:
 
 - **Warns:** at every start, that the data has no second copy.
 - **Refuses to start:** the database is an `Atomic` database and `create_schema` is true.
-- **Refuses to start:** a shard of the named cluster has more than one replica. The replicas would hold different rows. The deployment is setup 3a.
+- **Refuses to start:** a shard of the named cluster has more than one replica. Nothing copies rows between the replicas, so one that misses an insert is never repaired. The deployment is setup 3a.
+- **Refuses to start:** the nodes do not hold the same definition of the named cluster.
 - **Refuses to start:** the named cluster does not list the same nodes as the database. A node outside the database would receive rows and have no tables.
 
 ### 6.9 Setup 4: shared storage
@@ -691,9 +710,9 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 
 ## 8. Implementation Plan
 
-1. **M1 — Runner, ledger and commands.** This milestone adds the `schemaRunner` type, the ledger table, the `version.yaml` modes with the automatic-form check, the pending-set rule, the startup refusal and the baseline check of §5.3, the `migrations/` and `snapshots/` layout with `snapshots/001/`, the `make clickhouse-schema-snapshot` target, and the `clickhouse-schema plan`, `apply` and `render` commands. It includes `alter_sync = 1`, the replica verification of §5.6, and detection of `Replicated` and `Shared` databases with `throw_only_active`, which M2 needs to be safe on ClickHouse Cloud, where every database is a multi-replica `Shared` database. Tests 1, 3, 4, 5 and 6, the `Replicated` database part of test 7 and the harness of §5.7 cover it. M1 supersedes #9796.
+1. **M1 — Runner, ledger and commands.** This milestone adds the `schemaRunner` type, the ledger table, the `version.yaml` modes with the automatic-form check, the pending-set rule, the startup refusal and the baseline check of §5.3, the `migrations/` and `snapshots/` layout with `snapshots/001/`, the `make clickhouse-schema-snapshot` target, and the `clickhouse-schema plan`, `apply` and `render` commands. It includes `alter_sync = 1`, the replica verification of §5.6, detection of `Replicated` and `Shared` databases with `throw_only_active`, the refusal of `replicated` on an `Atomic` database with `create_schema: true`, and the `setup_validation` setting, which M2 needs to be safe on ClickHouse Cloud, where every database is a multi-replica `Shared` database. Tests 1, 3, 4, 5 and 6, the `Replicated` database part of test 7 and the harness of §5.7 cover it. M1 supersedes #9796.
 2. **M2 — Version 2: OTLP span columns.** This milestone adds the ten columns to `create_spans_table.sql` and `migrations/002/spans.sql` as an automatic version, together with the `MODIFY QUERY` statements that bring a v2.18 database to version 1 (§5.1), extends `SpanRow` and the conversion wiring, and adds the corpus fixture. It is the first run of the equality test against a real delta. Milestone 2 reduces #9799 to that scope.
-3. **M3 — Cluster setups (§6).** The `table_engine.cluster` block and the `Distributed` layout arrive first, in #10089, where the block also has a `distributed_tables` field. This milestone removes that field, because a `cluster` block without `Distributed` tables is no longer a supported configuration. This milestone adds the startup checks with the `setup_validation` setting, including the requirement of a `Replicated` database, foreground inserts, the cluster parameters in the deltas of closed versions under the rule of §5.1, the ledger read and verification over the named cluster, the two-statement column delta for the `Distributed` layout, and the two-shard part of test 7.
+3. **M3 — Cluster setups (§6).** The `table_engine.cluster` block and the `Distributed` layout arrive first, in #10089, where the block also has a `distributed_tables` field. That field is removed, because a `cluster` block without `Distributed` tables is no longer a supported configuration. It is removed in #10089 if that PR has not been released, and otherwise this milestone accepts `distributed_tables: true` as a deprecated setting without effect, so that a released configuration still starts. This milestone adds the remaining startup checks of §6, foreground inserts, the cluster parameters in the deltas of closed versions under the rule of §5.1, the ledger read and verification over the cluster that §5.6 chooses, the two-statement column delta for the `Distributed` layout, and the two-shard part of test 7.
 4. **M4 — RFC 0017 storage tuning.** If the benchmark that RFC 0017 lists as B1 lets the tuning ship, it arrives as versions, as RFC 0017 §5.1 says. The codecs, table settings and the added index definitions form an automatic version. The `LowCardinality` type changes and the replacement of the trace-ID Bloom filter form an operator version in a later release, so that the tuning reaches `create_schema: true` deployments without an operator step. The PR that delivers each version updates RFC 0017. An operator who declines part of an operator version, such as the type change, records the version by hand and owns the difference.
 
 ---
@@ -707,8 +726,8 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 - **A node that holds the only copy of a ledger row and is down.** Another binary sees the file as pending and executes it again. For an automatic file this is harmless. An `apply` job runs when every node is up (§5.3).
 - **Detection of ClickHouse Cloud.** Jaeger recognizes a `Shared` database by the `engine` column of `system.databases`. This follows the ClickHouse documentation and has not been run against a ClickHouse Cloud service. A service created before the `Shared` engine may report `Replicated` there. Jaeger then treats it as a self-hosted `Replicated` database and accepts a `cluster` block. That ClickHouse Cloud rejects a `Distributed` table is also taken from its list of supported engines and has not been run.
 - **Wrong detection in general.** A startup check of §6 can refuse a deployment that works. `setup_validation: warn` overrules the checks (§6.4).
-- **Setups that have not been run.** A review run on ClickHouse 26.3 created setup 3a with two shards of two replicas and confirmed the Keeper paths, the delivery of statements by the database and the duplicate rows of a wrong shard grouping. Setups 2 and 3b, and Jaeger itself on any multi-node setup, have not been run. Test 7 is their first run.
-- **Customized replica paths.** Jaeger refuses a deployment whose `default_replica_path` or `default_replica_name` is changed or whose nodes define `shard` or `replica` macros, although such a deployment can be correct. `setup_validation: warn` admits it (§6.4).
+- **What has not been run.** Appendix A records the ClickHouse statements that were run for setups 2, 3a and 3b on a four-node cluster. Jaeger itself has not been run on a multi-node setup, and ClickHouse Cloud has not been tested. Test 7 is the first run of Jaeger on these setups.
+- **Customized replica paths.** Jaeger refuses a deployment whose `default_replica_path` or `default_replica_name` is changed, although such a deployment can be correct. `setup_validation: warn` admits it (§6.4).
 - **ClickHouse Private.** Its documentation confirms `SharedMergeTree` and does not say whether its databases use the `Shared` engine, so setup 4 is confirmed for ClickHouse Cloud only.
 - **Databases created by v2.17 or earlier.** They are not version 1 and no delta converts them. The backend refuses to start, and the tables have to be created again (§5.1).
 - **Patch releases.** Versions are issued on `main`, so a schema fix cannot ship in a patch release without taking a version number that `main` has already given to other content. A fix that needs a schema change waits for the next minor release (§5.1).
@@ -725,6 +744,7 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 - **A softer rule for optional operator versions.** The binary fails to start on any pending operator version (§5.3), including one whose change the binary does not need, such as a type change for compression. A version could declare itself optional, in which case the binary would start and warn. This reintroduces a database that is behind the binary's versions, so it is deferred until the strict rule proves too costly in practice.
 - **A lock for `clickhouse-schema apply`.** A `KeeperMap` table with `keeper_map_strict_mode = 1` can serialize two simultaneous `apply` runs on servers that offer it (§2.4). It cannot revoke distributed DDL that a previous holder queued, so it would be a guard rail and not a guarantee. It is deferred until two operators running the command at once is an observed problem.
 - **How old a database an upgrade supports.** Every closed version stays in the equality test and in the binary. A stated limit, such as the versions of the last year of releases, would let older deltas and snapshots be deleted.
+- **The database's own cluster for `Distributed` tables.** A `Replicated` database has an `internal_replication` setting. With it, `cluster.name` could be the database's own cluster, and setups 3a and 3b would need no cluster in `remote_servers` and no check that two clusters agree. This has not been run.
 - **Drift diagnostics.** The ledger does not reveal a difference made outside Jaeger, such as a `ttl` changed in the configuration after the tables were created. A `clickhouse-schema diff` command that compares the live `create_table_query` of each object with the rendered templates would report such differences without acting on them. It is deferred until there is demand, and nothing in this design prevents adding it.
 
 ---
@@ -746,3 +766,174 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 13. [ClickHouse temporary tables](https://clickhouse.com/docs/sql-reference/statements/create/table#temporary-tables): the session-scoped tables that §4.5 rules out for scratch use.
 14. [ClickHouse `alter_sync`](https://clickhouse.com/docs/operations/settings/settings#alter_sync): the wait modes of a replicated `ALTER`, and why §5.6 sets it to `1` explicitly.
 15. [Issue #9886](https://github.com/jaegertracing/jaeger/issues/9886): the issue that first recorded the `table_engine.cluster` block and the `Distributed` layout, which §6 defines.
+
+---
+
+## Appendix A: Cluster tests
+
+The statements of §6 were run by hand against ClickHouse. The tests exercise ClickHouse only. Jaeger was not part of them, and its startup checks and runner do not exist yet (§9).
+
+### A.1 Environment
+
+- Image `clickhouse/clickhouse-server:26.3.57`, the image that the repository pins in `docker-compose/clickhouse/docker-compose-lts-march.yml`. `SELECT version()` returned `26.3.57.12`.
+- Four containers, `ch1` to `ch4`, in one Docker Compose project, each with `CLICKHOUSE_SKIP_USER_SETUP=1` so that the `default` user has no password. ClickHouse Keeper ran inside `ch1` on port 9181, and every node pointed its `zookeeper` setting at it.
+- No macros at the start: `SELECT count() FROM system.macros` returned 0 on every node.
+- Three clusters in `remote_servers`, identical on every node:
+
+  | Cluster | Shards | `internal_replication` |
+  | --- | --- | --- |
+  | `two_by_two` | (`ch1`, `ch2`) and (`ch3`, `ch4`) | true |
+  | `two_by_two_no_ir` | the same | false |
+  | `four_shards` | `ch1`, `ch2`, `ch3`, `ch4`, one node each | false |
+
+- Statements were sent with `clickhouse-client` inside the container of the node named in each test. Before a count was read, `SYSTEM SYNC REPLICA` was run on the replicated table of every node.
+
+### A.2 Setup 2: one shard, four replicas
+
+On each node `N`: `CREATE DATABASE s2 ENGINE = Replicated('/clickhouse/databases/s2', 'shard1', 'replicaN')`.
+
+| Step | Result |
+| --- | --- |
+| `system.clusters` for cluster `s2`, read on `ch3` | four rows in shard 1, with `internal_replication = 0`, `database_shard_name = shard1` and `database_replica_name = replica1` to `replica4` |
+| On `ch1` only: `CREATE TABLE s2.spans (...) ENGINE = ReplicatedMergeTree ORDER BY trace_id` | the table exists on all four nodes. `system.replicas` on every node shows the path `/clickhouse/tables/<one uuid>/shard1`, the replica names `replica1` to `replica4`, and `total_replicas = 4` |
+| Insert 1000 rows on `ch1`, count on `ch4` | 1000 |
+| `CREATE TABLE ... ENGINE = ReplicatedMergeTree('/clickhouse/tables/x/t', '{replica}')` | rejected with code 80, "Explicit zookeeper_path and replica_name are specified in ReplicatedMergeTree arguments" |
+| `system.server_settings` | `default_replica_path = /clickhouse/tables/{uuid}/{shard}`, `default_replica_name = {replica}`, both unchanged |
+
+### A.3 Statements that the database delivers
+
+All on database `s2`, each issued on one node with `distributed_ddl_output_mode = 'throw_only_active'`, then checked on every node through `clusterAllReplicas('s2', ...)`.
+
+| Statement, and the node it was sent to | Result on all four nodes |
+| --- | --- |
+| `ALTER TABLE s2.spans MODIFY SETTING ttl_only_drop_parts = 1`, `ch2` | `create_table_query` contains the setting |
+| `CREATE MATERIALIZED VIEW s2.services_mv TO s2.services AS ...`, then `ALTER TABLE s2.services_mv MODIFY QUERY ...`, `ch3` | `create_table_query` contains the new query |
+| `ALTER TABLE s2.spans ADD COLUMN IF NOT EXISTS schema_url String`, `ch4` | `system.columns` has the column |
+| `CREATE TABLE s2.t ON CLUSTER two_by_two ...`, `ch2` | rejected with code 80, "ON CLUSTER is not allowed for Replicated database" |
+
+### A.4 Setup 3a: two shards of two replicas
+
+On `ch1` and `ch2`: `CREATE DATABASE s3a ENGINE = Replicated('/clickhouse/databases/s3a', 'shard1', 'replicaN')`. On `ch3` and `ch4` the same with `'shard2'`. Then, on `ch1` only:
+
+```sql
+CREATE TABLE s3a.spans_local (trace_id String, service String, ts DateTime) ENGINE = ReplicatedMergeTree ORDER BY trace_id;
+CREATE TABLE s3a.services_local (service String) ENGINE = ReplicatedAggregatingMergeTree ORDER BY service;
+CREATE TABLE s3a.spans AS s3a.spans_local ENGINE = Distributed('two_by_two', currentDatabase(), 'spans_local', cityHash64(trace_id));
+CREATE TABLE s3a.services AS s3a.services_local ENGINE = Distributed('two_by_two', currentDatabase(), 'services_local');
+CREATE MATERIALIZED VIEW s3a.services_mv TO s3a.services_local AS SELECT service FROM s3a.spans_local GROUP BY service;
+```
+
+| Step | Result |
+| --- | --- |
+| Tables on every node | five on each of the four nodes |
+| `system.replicas` for `spans_local` | `ch1` and `ch2` share the path `.../<uuid>/shard1`, `ch3` and `ch4` share `.../<uuid>/shard2`, and each path has `total_replicas = 2` |
+| `engine_full` of `s3a.spans`, read on `ch4` | `Distributed('two_by_two', 's3a', 'spans_local', cityHash64(trace_id))`: the function was stored as the database name |
+| Insert through `s3a.spans` on `ch2`, with `distributed_foreground_insert = 1`, of 1000 rows in 100 traces of 10 spans; count through `s3a.spans` on `ch3` | 1000 |
+| Rows in `spans_local` on each node | 500 on each, so each shard holds 500 rows on both of its replicas |
+| Traces whose spans are on more than one shard | 0 |
+| Distinct services through `s3a.services` (7 inserted) | 7, so the view ran on the shard that stored the rows |
+| `ALTER TABLE s3a.spans_local ADD COLUMN schema_url String`, then `SELECT schema_url FROM s3a.spans` | the storage table has the column and the `Distributed` table does not; the query fails with code 47. After the same `ALTER` on `s3a.spans` the query returns 1000 rows |
+| The same insert with the default `distributed_foreground_insert = 0`, counted in the same session right after the `INSERT` returned | 500 of 1000; three seconds later 1000 |
+
+### A.5 `internal_replication`
+
+Two more `Distributed` tables over `s3a.spans_local`, each receiving 1000 new rows with a foreground insert, counted through `s3a.spans`.
+
+| Cluster argument | Rows read back |
+| --- | --- |
+| `two_by_two_no_ir`, with `internal_replication` false | 2000 |
+| `s3a`, the database's own cluster, where `system.clusters` shows `internal_replication = 0` | 2000 |
+
+### A.6 A named cluster that groups the nodes differently
+
+Database `bad`, created with `shard_name = 'shard1'` on all four nodes, with `bad.spans_local` as `ReplicatedMergeTree` and `bad.spans` as `Distributed('two_by_two', ...)`. The four nodes then share one Keeper path, and the named cluster treats them as two shards.
+
+| Step | Result |
+| --- | --- |
+| Insert 1000 rows through `bad.spans`, count through `bad.spans` | 2000 |
+| Each node reporting its own shard in the named cluster and in the database (the query of A.12) | `ch1` and `ch2`: named shard 1, database shard `shard1`. `ch3` and `ch4`: named shard 2, database shard `shard1`. The mismatch is visible |
+
+### A.7 Setup 3b: four shards of one node
+
+On each node `N`: `CREATE DATABASE s3b ENGINE = Replicated('/clickhouse/databases/s3b', 'shardN', 'replica1')`. On `ch1` only: `s3b.spans_local` as `MergeTree` and `s3b.spans` as `Distributed('four_shards', currentDatabase(), 'spans_local', cityHash64(trace_id))`.
+
+| Step | Result |
+| --- | --- |
+| Tables on every node | two on each |
+| Insert 1000 rows in 100 traces through `s3b.spans` on `ch3`, count on `ch2` | 1000 |
+| Rows in `spans_local` on each node | 250 on each |
+| Traces on more than one shard | 0 |
+| Restart of all four nodes, with no macros needed for these tables | `spans_local` still holds 250 rows on each node |
+
+### A.8 Restart, without and with macros
+
+| Step | Result |
+| --- | --- |
+| `ch4` stopped and started, with no macros on any node | every replicated table of `s2`, `s3a` and `bad` failed to load on `ch4`: "No macro 'shard' in config while processing substitutions in '/clickhouse/tables/{uuid}/{shard}' ... Cannot attach table". Queries of those databases on `ch4` failed with code 722 |
+| Macros written to every node, equal to the names in database `s3a` (`shard1` or `shard2`, `replica1` or `replica2`), and all four nodes restarted | `s3a.spans_local` loaded on all four nodes, with the same Keeper paths as before the restart |
+| Insert of 1000 new rows through `s3a.spans` on `ch2`, count on `ch4` | 1000, with 500 on each node |
+| A new replicated table created after the macros were set | the same paths and replica names as tables created before |
+| A node with macros `shard = macro_shard` and `replica = macro_replica`, read through the database's own cluster | `system.macros` returns the two rows for that node, so the macros of every node can be read from one connection |
+
+### A.9 An `Atomic` database
+
+| Step | Result |
+| --- | --- |
+| `CREATE TABLE default.rt (a Int32) ENGINE = ReplicatedMergeTree ORDER BY a` on `ch1`, with the default `default_replica_path` | rejected with code 36, "Macro 'uuid' in engine arguments is only supported when the UUID is explicitly specified, used within an ON CLUSTER query, or when using the Replicated database engine" |
+| `CREATE TABLE default.rt2 (...) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{database}/{table}', '{replica}')`, run separately on `ch1` and `ch2`; one row inserted on `ch1`, counted on `ch2` | 1, with `total_replicas = 2` |
+
+### A.10 Order of the `SETTINGS` clause
+
+`create_table_query` of four `MergeTree` tables:
+
+| How the table got its settings | `SETTINGS` clause printed |
+| --- | --- |
+| Created with `index_granularity = 8192`, then `MODIFY SETTING ttl_only_drop_parts = 1` | `index_granularity = 8192, ttl_only_drop_parts = 1` |
+| Created with `ttl_only_drop_parts = 1, index_granularity = 8192` | `ttl_only_drop_parts = 1, index_granularity = 8192` |
+| The second table, then `MODIFY SETTING min_bytes_for_wide_part = 0` | `ttl_only_drop_parts = 1, index_granularity = 8192, min_bytes_for_wide_part = 0` |
+| Created with `min_bytes_for_wide_part = 0, ttl_only_drop_parts = 1, index_granularity = 8192` | `min_bytes_for_wide_part = 0, ttl_only_drop_parts = 1, index_granularity = 8192` |
+
+The clause keeps the order in which the settings were written or assigned, so two tables with the same settings can print different text.
+
+### A.11 A node that is down
+
+`ch4` stopped.
+
+| Step | Result |
+| --- | --- |
+| `SELECT count() FROM s3b.spans` on `ch2` | fails with code 279, "All connection tries failed" |
+| `ALTER TABLE s3b.spans_local ADD COLUMN ...` on `ch1` with `throw_only_active` | returned after 23 seconds with `OK` for three nodes and `QUEUED` for `ch4` |
+| `ALTER TABLE s2.spans ADD COLUMN ...` on `ch1` with `throw_only_active` | `OK` for three nodes and `QUEUED` for `ch4` |
+| `system.clusters` on `ch1` | `is_active = 0` for `ch4` |
+| `clusterAllReplicas('s2', system.one)` with `skip_unavailable_shards = 1` | three rows, without `ch4` |
+
+Whether `ch4` applied the queued statements on its return was not observed, because its replicated tables failed to load for the reason of A.8.
+
+### A.12 What the startup checks read
+
+All run on `ch1`, after the macros of A.8 were set.
+
+| Query | Result |
+| --- | --- |
+| `SELECT hostName(), maxIf(shard_num, cluster = 'two_by_two'), anyIf(database_shard_name, cluster = 's3a'), anyIf(database_replica_name, cluster = 's3a') FROM clusterAllReplicas('two_by_two', system.clusters) WHERE is_local AND cluster IN ('two_by_two', 's3a') GROUP BY 1` | one row per node with its own shard in both clusters: `ch1` and `ch2` in shard 1 and `shard1`, `ch3` and `ch4` in shard 2 and `shard2` |
+| The sorted `serverUUID()` values through `clusterAllReplicas('two_by_two', system.one)` and through `clusterAllReplicas('s3a', system.one)` | equal |
+| `SELECT hostName(), macro, substitution FROM clusterAllReplicas('two_by_two', system.macros)` | the `shard` and `replica` macros of all four nodes |
+| Each node's own rows for cluster `two_by_two` in `system.clusters`, read through `clusterAllReplicas` | the same four rows of shard number, weight and host on every node |
+| `SELECT hostName(), name, engine FROM clusterAllReplicas('two_by_two', system.databases) WHERE name = 's3a'` | `s3a` with engine `Replicated` on every node |
+
+### A.13 Other statements of the design
+
+| Step | Result |
+| --- | --- |
+| A `MergeTree` table `s3a.ledger` created through the database; one row inserted on `ch3`; read on `ch1` | the local read returns 0 rows, and `SELECT DISTINCT ... FROM clusterAllReplicas('s3a', s3a.ledger)` returns the row |
+| `s3a.spans_nodb` as `Distributed('two_by_two', '', 'spans_local', ...)`; `SELECT count()` | fails with code 279 while the `default` database of the remote nodes has no `spans_local`. After an empty `default.spans_local` was created on every node, it returns 0, although `s3a.spans_local` holds rows |
+
+### A.14 Not tested
+
+- ClickHouse Cloud, the `Shared` database and `SharedMergeTree`.
+- A database whose `default` user has a password, and the credentials of `collection_name` and of a cluster `secret`.
+- A changed `default_replica_path` or `default_replica_name`.
+- The `internal_replication` setting of a `Replicated` database.
+- Mutations: `mutations_sync`, `alter_sync = 2` and the wait on `system.mutations` in `clickhouse-schema apply`.
+- Two instances issuing the same statement at once, and error 517.
+- Different definitions of one cluster on different nodes, and the same database under different names.
