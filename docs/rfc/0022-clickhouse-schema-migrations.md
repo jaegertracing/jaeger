@@ -49,7 +49,7 @@ The schema has twelve files under [`internal/storage/v2/clickhouse/sql/`](../../
 | `table_engine` (#9813) | the `ENGINE` clause of every table: `MergeTree` and `AggregatingMergeTree`, or their `Replicated*` counterparts |
 | `attribute_layout` | the type of every attribute group on `spans`, `Nested(key, value)` or `Map(String, T)`, and the key expressions of the three attribute-metadata views. The two layouts are not convertible |
 | `hoisted_attributes` (RFC 0017 §5.2) | one `MATERIALIZED` column on `spans` per configured entry |
-| `table_engine.cluster` (§6; the layout is in review as #10089) | with `distributed_tables: true`, six `<table>_local` storage tables, six `Distributed` tables under the public names, and views that read `spans_local` and write `<table>_local` |
+| `table_engine.cluster` (§6; the layout is in review as #10089) | six `<table>_local` storage tables, six `Distributed` tables under the public names, and views that read `spans_local` and write `<table>_local` |
 
 One release therefore renders several schemas. A migration mechanism has to change all of them from one description. The cluster terms used from here on, such as node, shard, replica, storage table and `Distributed` table, are defined in §6.1.
 
@@ -434,7 +434,7 @@ One release renders several schemas (§2.1), so the snapshot of a version is a d
 | `map` | `merge_tree`, `attribute_layout: map`, `ttl: 0` |
 | `nested-ttl-hoisted` | `nested` with `ttl` set and two hoisted attributes |
 | `nested-replicated` | `replicated` in a `Replicated` database on a single node with the embedded Keeper of #9813, `attribute_layout: nested` |
-| `nested-distributed` | `replicated` in a `Replicated` database, `table_engine.cluster` with `distributed_tables: true` |
+| `nested-distributed` | `replicated` in a `Replicated` database, `table_engine.cluster` |
 
 The package already keeps rendered schemas as golden files under `snapshots/TestSchemaBuilder_AttributeLayout/`; the version snapshots use the same rendering. The binary never reads a snapshot. Operators obtain executable statements from `clickhouse-schema plan`.
 
@@ -589,7 +589,7 @@ Jaeger validation:
 - **Refuses to start:** the database is an `Atomic` database and `create_schema` is true. Jaeger's statements would reach one node only.
 - **Refuses to start:** the database's own cluster has more than one shard. The shards would have no `Distributed` table over them. The deployment is setup 3a.
 - **Refuses to start:** two nodes have the same `replica_name`.
-- **Refuses to start:** a `cluster` block is present without `distributed_tables`. The name would have no use.
+- **Refuses to start:** a `cluster` block is present. It would create `Distributed` tables, which one shard does not need.
 - **Refuses to start:** `keeper_path` or `replica_name` is set in Jaeger's `replicated` block. The database would reject every `CREATE TABLE`.
 - **Refuses to start:** the server settings `default_replica_path` or `default_replica_name` differ from the ClickHouse defaults, or a node defines a `shard` or `replica` macro. Jaeger cannot then tell which nodes share a Keeper path.
 
@@ -600,10 +600,9 @@ table_engine:
   replicated: {}
   cluster:
     name: my_cluster
-    distributed_tables: true
 ```
 
-The database is a `Replicated` database, which delivers every statement to all nodes. `name` serves only as the cluster argument of the `Distributed` tables.
+The database is a `Replicated` database, which delivers every statement to all nodes. The `cluster` block is what makes Jaeger create the storage tables and `Distributed` tables described below, and `name` is the cluster that the `Distributed` tables forward to. The block has no other effect, so it has no further fields.
 
 Each of the six tables exists twice on every node. The storage table is a table of the `ReplicatedMergeTree` family named `<table>_local`, and a `Distributed` table carries the public name, so the reader and the writer use the same names in every setup. The materialized views read `spans_local` and write `<table>_local`, because a view fires on the node that stores the inserted rows.
 
@@ -649,7 +648,6 @@ table_engine:
   merge_tree: {}
   cluster:
     name: my_cluster
-    distributed_tables: true
 ```
 
 This setup has the tables, sharding keys and insert setting of setup 3a, with storage tables of the `MergeTree` family. The ClickHouse administrator sets up Keeper, which the database needs although the tables do not, a `Replicated` database on every node with the same Keeper path and a different `shard_name` on each, and a cluster in `remote_servers` that lists each node as one shard.
@@ -695,7 +693,7 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 
 1. **M1 — Runner, ledger and commands.** This milestone adds the `schemaRunner` type, the ledger table, the `version.yaml` modes with the automatic-form check, the pending-set rule, the startup refusal and the baseline check of §5.3, the `migrations/` and `snapshots/` layout with `snapshots/001/`, the `make clickhouse-schema-snapshot` target, and the `clickhouse-schema plan`, `apply` and `render` commands. It includes `alter_sync = 1`, the replica verification of §5.6, and detection of `Replicated` and `Shared` databases with `throw_only_active`, which M2 needs to be safe on ClickHouse Cloud, where every database is a multi-replica `Shared` database. Tests 1, 3, 4, 5 and 6, the `Replicated` database part of test 7 and the harness of §5.7 cover it. M1 supersedes #9796.
 2. **M2 — Version 2: OTLP span columns.** This milestone adds the ten columns to `create_spans_table.sql` and `migrations/002/spans.sql` as an automatic version, together with the `MODIFY QUERY` statements that bring a v2.18 database to version 1 (§5.1), extends `SpanRow` and the conversion wiring, and adds the corpus fixture. It is the first run of the equality test against a real delta. Milestone 2 reduces #9799 to that scope.
-3. **M3 — Cluster setups (§6).** The `table_engine.cluster` block and the `Distributed` layout arrive first, in #10089. This milestone adds the startup checks with the `setup_validation` setting, including the requirement of a `Replicated` database, foreground inserts, the cluster parameters in the deltas of closed versions under the rule of §5.1, the ledger read and verification over the named cluster, the two-statement column delta for the `Distributed` layout, and the two-shard part of test 7.
+3. **M3 — Cluster setups (§6).** The `table_engine.cluster` block and the `Distributed` layout arrive first, in #10089, where the block also has a `distributed_tables` field. This milestone removes that field, because a `cluster` block without `Distributed` tables is no longer a supported configuration. This milestone adds the startup checks with the `setup_validation` setting, including the requirement of a `Replicated` database, foreground inserts, the cluster parameters in the deltas of closed versions under the rule of §5.1, the ledger read and verification over the named cluster, the two-statement column delta for the `Distributed` layout, and the two-shard part of test 7.
 4. **M4 — RFC 0017 storage tuning.** If the benchmark that RFC 0017 lists as B1 lets the tuning ship, it arrives as versions, as RFC 0017 §5.1 says. The codecs, table settings and the added index definitions form an automatic version. The `LowCardinality` type changes and the replacement of the trace-ID Bloom filter form an operator version in a later release, so that the tuning reaches `create_schema: true` deployments without an operator step. The PR that delivers each version updates RFC 0017. An operator who declines part of an operator version, such as the type change, records the version by hand and owns the difference.
 
 ---
