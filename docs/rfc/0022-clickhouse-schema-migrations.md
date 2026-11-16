@@ -476,15 +476,18 @@ table_engine:
 - `name` identifies the cluster. On an ordinary database it makes Jaeger add `ON CLUSTER` to every statement.
 - `distributed_tables: true` creates the `<table>_local` storage tables, the `Distributed` tables and the views described above. The `Distributed` tables take `name` as their cluster argument.
 
-| Setup | Ordinary database | `Replicated` database | `Shared` database |
-| --- | --- | --- | --- |
-| 1. Single node | `merge_tree: {}`, or `replicated: {}` for a node that will gain replicas | the same | not offered |
-| 2. Replicas only | `replicated: {}` and `cluster.name` | `replicated: {}` and no `cluster` block | not offered |
-| 3a. Shards with replicas | `replicated: {}`, `cluster.name` and `distributed_tables: true` | the same three settings | not offered |
-| 3b. Shards without replicas | `merge_tree: {}`, `cluster.name` and `distributed_tables: true` | the same three settings | not offered |
-| 4. Shared storage | not possible | not possible | `merge_tree: {}` and no `cluster` block |
+Setups 1 through 3b exist on self-hosted ClickHouse, where the database is ordinary or `Replicated`:
 
-The middle cells of rows 3a and 3b are the one place where `cluster.name` does not produce `ON CLUSTER`. The database delivers the statements, and the name serves only as the cluster argument of the `Distributed` tables. Several nodes with `replicated: {}`, an ordinary database and no `cluster` block are not a supported setup, because Jaeger's statements reach one node (§8).
+| Setup | Ordinary database | `Replicated` database |
+| --- | --- | --- |
+| 1. Single node | `merge_tree: {}`, or `replicated: {}` for a node that will gain replicas | the same |
+| 2. Replicas only | `replicated: {}` and `cluster.name` | `replicated: {}` and no `cluster` block |
+| 3a. Shards with replicas | `replicated: {}`, `cluster.name` and `distributed_tables: true` | the same three settings |
+| 3b. Shards without replicas | `merge_tree: {}`, `cluster.name` and `distributed_tables: true` | the same three settings |
+
+Setup 4 is ClickHouse Cloud, where every database is a `Shared` database and every table is stored once, whatever the number of nodes. Its configuration is `merge_tree: {}` with no `cluster` block. Setups 1 through 3b do not occur there.
+
+The `Replicated` cells of rows 3a and 3b are the one place where `cluster.name` does not produce `ON CLUSTER`. The database delivers the statements, and the name serves only as the cluster argument of the `Distributed` tables. Several nodes with `replicated: {}`, an ordinary database and no `cluster` block are not a supported setup, because Jaeger's statements reach one node (§8).
 
 #### What the ClickHouse deployment has to provide
 
