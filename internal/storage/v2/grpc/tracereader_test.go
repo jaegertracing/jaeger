@@ -1203,32 +1203,6 @@ func TestSpanQueryConversion(t *testing.T) {
 	}
 }
 
-func TestSpanRemoteEarlyExit(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
-	canceled := make(chan struct{})
-	var rpcCtx context.Context
-	reader.On("FindSpans", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
-		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
-			<-rpcCtx.Done()
-			close(canceled)
-		})).Once()
-	count := 0
-	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}) {
-		require.NoError(t, err)
-		count++
-		break
-	}
-	assert.Equal(t, 1, count)
-	select {
-	case <-canceled:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the remote reader did not receive cancellation")
-	}
-	reader.AssertExpectations(t)
-}
-
 type failingSpanClient struct{ storage.TraceReaderClient }
 
 func (failingSpanClient) FindSpans(context.Context, *storage.FindSpansRequest, ...grpc.CallOption) (storage.TraceReader_FindSpansClient, error) {
@@ -1312,54 +1286,24 @@ func TestReaderErrorDetails(t *testing.T) {
 	}
 }
 
-// cancelObservingServer sends one response on each stream and then waits until the
-// client cancels the stream, signalling that on cancelled.
-type cancelObservingServer struct {
-	storage.UnimplementedTraceReaderServer
-	cancelled chan struct{}
-}
-
-func (s *cancelObservingServer) waitForCancel(ctx context.Context) error {
-	<-ctx.Done()
-	close(s.cancelled)
-	return ctx.Err()
-}
-
-func (s *cancelObservingServer) GetTraces(_ *storage.GetTracesRequest, stream storage.TraceReader_GetTracesServer) error {
-	trace := makeTestTrace()
-	if err := stream.Send((*jptrace.TracesData)(&trace)); err != nil {
-		return err
-	}
-	return s.waitForCancel(stream.Context())
-}
-
-func (s *cancelObservingServer) FindTraces(_ *storage.FindTracesRequest, stream storage.TraceReader_FindTracesServer) error {
-	trace := makeTestTrace()
-	if err := stream.Send((*jptrace.TracesData)(&trace)); err != nil {
-		return err
-	}
-	return s.waitForCancel(stream.Context())
-}
-
-func (s *cancelObservingServer) FindTraceSummaries(
-	_ *storage.FindTraceSummariesRequest,
-	stream storage.TraceReader_FindTraceSummariesServer,
-) error {
-	resp := &storage.FindTraceSummariesResponse{Summaries: []*storage.TraceSummary{{TraceId: []byte{1}}}}
-	if err := stream.Send(resp); err != nil {
-		return err
-	}
-	return s.waitForCancel(stream.Context())
-}
-
 func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
 	queryParams := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
 	tests := []struct {
-		name         string
+		name   string
+		method string
+		// results returns the reader's sequence: it yields one item and then calls waitForCancel.
+		results      func(waitForCancel func()) any
 		readAndBreak func(ctx context.Context, reader *TraceReader)
 	}{
 		{
-			name: "GetTraces",
+			name:   "GetTraces",
+			method: "GetTraces",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+					waitForCancel()
+				})
+			},
 			readAndBreak: func(ctx context.Context, reader *TraceReader) {
 				for _, err := range reader.GetTraces(ctx, tracestore.GetTraceParams{}) {
 					require.NoError(t, err)
@@ -1368,7 +1312,14 @@ func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
 			},
 		},
 		{
-			name: "FindTraces",
+			name:   "FindTraces",
+			method: "FindTraces",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+					waitForCancel()
+				})
+			},
 			readAndBreak: func(ctx context.Context, reader *TraceReader) {
 				for _, err := range reader.FindTraces(ctx, queryParams) {
 					require.NoError(t, err)
@@ -1377,9 +1328,34 @@ func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
 			},
 		},
 		{
-			name: "FindTraceSummaries",
+			name:   "FindTraceSummaries",
+			method: "FindTraceSummaries",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](
+					func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+						yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{}}}, nil)
+						waitForCancel()
+					})
+			},
 			readAndBreak: func(ctx context.Context, reader *TraceReader) {
 				for _, err := range reader.FindTraceSummaries(ctx, queryParams) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name:   "FindSpans",
+			method: "FindSpans",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](
+					func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+						yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+						waitForCancel()
+					})
+			},
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindSpans(ctx, tracestore.SpanQueryParams{}) {
 					require.NoError(t, err)
 					break
 				}
@@ -1388,21 +1364,26 @@ func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			listener, err := net.Listen("tcp", ":0")
-			require.NoError(t, err)
-			server := grpc.NewServer()
-			cancelServer := &cancelObservingServer{cancelled: make(chan struct{})}
-			storage.RegisterTraceReaderServer(server, cancelServer)
-			conn := startServer(t, server, listener)
+			reader := new(tracestoremocks.Reader)
+			canceled := make(chan struct{})
+			var rpcCtx context.Context
+			waitForCancel := func() {
+				<-rpcCtx.Done()
+				close(canceled)
+			}
+			reader.On(test.method, mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+				Return(test.results(waitForCancel)).Once()
 
-			// The caller's context stays active, so only the reader can cancel the stream.
-			test.readAndBreak(context.Background(), NewTraceReader(conn))
+			// The caller's context stays active, so only the remote reader can cancel the stream.
+			test.readAndBreak(t.Context(), spanRemote(t, reader))
 
 			select {
-			case <-cancelServer.cancelled:
+			case <-canceled:
 			case <-time.After(5 * time.Second):
-				t.Fatal("the server did not observe the stream cancellation")
+				t.Fatal("the backend reader did not receive cancellation")
 			}
+			reader.AssertExpectations(t)
 		})
 	}
 }

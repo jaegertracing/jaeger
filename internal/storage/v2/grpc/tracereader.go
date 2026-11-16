@@ -81,9 +81,6 @@ func (tr *TraceReader) GetTraces(
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		// Cancel the stream when the consumer stops iterating early.
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
 		query := []*storage.GetTraceParams{}
 		for _, traceID := range traceIDs {
 			query = append(query, &storage.GetTraceParams{
@@ -92,7 +89,9 @@ func (tr *TraceReader) GetTraces(
 				EndTime:   traceID.End,
 			})
 		}
-		stream, err := tr.client.GetTraces(ctx, &storage.GetTracesRequest{
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.GetTraces(rpcCtx, &storage.GetTracesRequest{
 			Query: query,
 		})
 		if err != nil {
@@ -145,15 +144,14 @@ func (tr *TraceReader) FindTraces(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		// Cancel the stream when the consumer stops iterating early.
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{Query: query})
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.FindTraces(rpcCtx, &storage.FindTracesRequest{Query: query})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", readerError(err)))
 			return
@@ -266,15 +264,14 @@ func (tr *TraceReader) FindTraceSummaries(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error] {
 	return func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
-		// Cancel the stream when the consumer stops iterating early.
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
 		query, err := toProtoQueryParameters(params)
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return
 		}
-		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
+		rpcCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := tr.client.FindTraceSummaries(rpcCtx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("failed to execute FindTraceSummaries: %w", readerError(err)))
 			return
