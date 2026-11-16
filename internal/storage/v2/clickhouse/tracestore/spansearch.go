@@ -16,6 +16,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+// unixNanoPlaceholderSQL is the placeholder of a timestamp, which binds as Unix nanoseconds
+// because clickhouse-go truncates a time.Time argument to seconds.
+const unixNanoPlaceholderSQL = "fromUnixTimestamp64Nano(?)"
+
 // spanSortColumn is a column of the spans table that a span search can order by.
 type spanSortColumn string
 
@@ -40,11 +44,10 @@ type sortTerm struct {
 	descending bool
 }
 
-// placeholder is the bound parameter the term's column compares against. A start time binds
-// as Unix nanoseconds, because clickhouse-go truncates a time.Time argument to seconds.
+// placeholder is the bound parameter the term's column compares against.
 func (c sortTerm) placeholder() string {
 	if c.column == columnStartTime {
-		return "fromUnixTimestamp64Nano(?)"
+		return unixNanoPlaceholderSQL
 	}
 	return "?"
 }

@@ -6,8 +6,10 @@ package tracestore
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -15,14 +17,23 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// minUnixNanoTime and maxUnixNanoTime are the earliest and the latest instant that a signed
+// 64-bit count of Unix nanoseconds holds. The lowering passes a timestamp constant to
+// ClickHouse as such a count.
+var (
+	minUnixNanoTime = time.Unix(0, math.MinInt64)
+	maxUnixNanoTime = time.Unix(0, math.MaxInt64)
+)
+
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
 // natively: the boolean combinators; eq, ne, exists, in and not_in over every level's attributes
-// and over a handful of built-in fields whose columns already exist (span.name, span.kind,
-// span.status, span.duration, resource.service); and the four ordered comparisons on
-// span.duration. The declaration is coarser than the lowering, as the elasticsearch backend's
-// is: an ordered comparison on an attribute or on another built-in field is refused in the
-// lowering, not here. regex, some, the text-search operators and the remaining built-in fields
-// are follow-up work; a filter naming any of them is refused rather than approximated.
+// and over every built-in field that the spans table stores; and the four ordered comparisons
+// on those fields, except span.kind and span.status. The declaration is coarser than the
+// lowering, as the elasticsearch backend's is: an ordered comparison on an attribute, on
+// span.kind or on span.status, and a predicate on resource.schemaURL or scope.schemaURL, which
+// have no column, are refused in the lowering, not here. regex, some and
+// the text-search operators are follow-up work; a filter naming any of them is refused rather
+// than approximated.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -50,11 +61,10 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 }
 
 // sqlComparisonOperators maps each comparison operator this lowering evaluates to its SQL
-// spelling. Only span.duration takes the four ordered ones, and only a built-in field takes
-// "!=": an attribute can be absent, so its ne is lowered by appendNegatedAttributeCandidates.
+// spelling. Only a built-in field takes the four ordered ones. The ne operator has no entry,
+// because its condition negates an equality.
 var sqlComparisonOperators = map[expression.Operator]string{
 	expression.OpEq:  "=",
-	expression.OpNe:  "!=",
 	expression.OpGt:  ">",
 	expression.OpLt:  "<",
 	expression.OpGte: ">=",
@@ -63,40 +73,114 @@ var sqlComparisonOperators = map[expression.Operator]string{
 
 // builtinFieldColumn is one built-in field's SQL column and the type its constant is read as.
 type builtinFieldColumn struct {
+	// column is the SQL expression of the value. For a field of an event or a link it is the
+	// value of the one event or link that a lambda binds to x.
 	column    string
 	fieldType expression.FieldType
-	// emptyMeansAbsent is set for a field that a span can lack, which the column stores as an
-	// empty string. The exists, ne, in and not_in operators do not match such a span
-	// (RFC 0005 §5.3).
+	// emptyMeansAbsent is set for a field that can be absent, which the column stores as an
+	// empty string. No operator matches an absent value (RFC 0005 §5.3).
 	emptyMeansAbsent bool
+	// arrayColumn is the column that lookupBuiltinField fills in for a field of an event or a
+	// link, which has one value per event or link of the span. It is empty for a field with
+	// one value per span.
+	arrayColumn string
 }
 
-// presenceSQL returns the condition that the span has the field.
+// lookupBuiltinField returns the column of a built-in field. Every level is indexed, so a
+// field with no entry is refused as an unsupported field, whichever level it belongs to.
+func lookupBuiltinField(ref expression.FieldRef) (builtinFieldColumn, error) {
+	mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
+	if !ok {
+		return builtinFieldColumn{}, errUnsupportedField(ref)
+	}
+	mapping.arrayColumn = AttributeGroup{Level: ref.Level}.arrayColumn()
+	return mapping, nil
+}
+
+// valueConditionSQL returns the condition that one value of the field is present and passes
+// comparisonSQL, the SQL that follows the column, such as " = ?".
+func (c builtinFieldColumn) valueConditionSQL(comparisonSQL string) string {
+	if c.emptyMeansAbsent {
+		return c.column + " != '' AND " + c.column + comparisonSQL
+	}
+	return c.column + comparisonSQL
+}
+
+// spanConditionSQL returns valueSQL, a condition on one value of the field, as a condition on
+// the span: a span with events or links passes when one of them does.
+func (c builtinFieldColumn) spanConditionSQL(valueSQL string) string {
+	if c.arrayColumn == "" {
+		return valueSQL
+	}
+	return "arrayExists(x -> " + valueSQL + ", s." + c.arrayColumn + ")"
+}
+
+// presenceSQL returns the condition that the span has a value of the field.
 func (c builtinFieldColumn) presenceSQL() string {
 	if c.emptyMeansAbsent {
-		return c.column + " != ''"
+		return c.spanConditionSQL(c.column + " != ''")
 	}
-	return "true"
+	return c.spanConditionSQL("true")
 }
 
-// appendConditionOnPresentField writes cond on its own line, and requires the field to be
-// present when a span can lack it.
-func (c builtinFieldColumn) appendConditionOnPresentField(q *sqlBuilder, indent int, cond string) {
+// placeholderSQL returns the placeholder of a constant that the field is compared with.
+func (c builtinFieldColumn) placeholderSQL() string {
+	if c.fieldType == expression.FieldTypeTimestamp {
+		return unixNanoPlaceholderSQL
+	}
+	return "?"
+}
+
+// appendCondition writes on its own line the condition that a value of the field passes
+// comparisonSQL.
+func (c builtinFieldColumn) appendCondition(q *sqlBuilder, indent int, comparisonSQL string) {
+	valueSQL := c.valueConditionSQL(comparisonSQL)
+	if c.emptyMeansAbsent && c.arrayColumn == "" {
+		valueSQL = "(" + valueSQL + ")"
+	}
 	q.appendNewlineAndIndent(indent)
-	if c.emptyMeansAbsent {
-		q.WriteString("(" + c.presenceSQL() + " AND " + cond + ")")
+	q.WriteString(c.spanConditionSQL(valueSQL))
+}
+
+// appendNegatedCondition writes on its own line the condition of the ne and not_in
+// operators: the span has a value of the field and none of its values passes comparisonSQL,
+// which is the comparison of the operator that is negated.
+func (c builtinFieldColumn) appendNegatedCondition(q *sqlBuilder, indent int, comparisonSQL string) {
+	q.appendNewlineAndIndent(indent)
+	if c.arrayColumn != "" {
+		q.WriteString("(" + c.presenceSQL() + " AND NOT " + c.spanConditionSQL(c.valueConditionSQL(comparisonSQL)) + ")")
 		return
 	}
-	q.WriteString(cond)
+	noMatchSQL := "NOT (" + c.column + comparisonSQL + ")"
+	if c.emptyMeansAbsent {
+		noMatchSQL = "(" + c.presenceSQL() + " AND " + noMatchSQL + ")"
+	}
+	q.WriteString(noMatchSQL)
 }
 
 // builtinFieldColumns is the built-in fields this lowering compares, keyed by level and name.
-// The spans table stores most of the others (trace_state, parent_span_id, status_message,
-// scope_name, scope_version, events.name, links.trace_id and so on), but this first increment
-// maps only these five; a field not listed here is refused (errUnsupportedField) rather than
-// approximated. resource.schemaURL and scope.schemaURL have no column at all.
+// resource.schemaURL and scope.schemaURL have no column in the spans table, so they are
+// refused (errUnsupportedField) rather than approximated.
 var builtinFieldColumns = map[expression.Level]map[string]builtinFieldColumn{
 	expression.LevelSpan: {
+		expression.SpanFieldTraceID: {
+			column:    "s.trace_id",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.SpanFieldSpanID: {
+			column:    "s.id",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.SpanFieldParentSpanID: {
+			column:           "s.parent_span_id",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
+		expression.SpanFieldTraceState: {
+			column:           "s.trace_state",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
 		expression.SpanFieldName: {
 			column:    "s.name",
 			fieldType: expression.FieldTypeString,
@@ -105,18 +189,72 @@ var builtinFieldColumns = map[expression.Level]map[string]builtinFieldColumn{
 			column:    "s.kind",
 			fieldType: expression.FieldTypeSpanKind,
 		},
-		expression.SpanFieldStatus: {
-			column:    "s.status_code",
-			fieldType: expression.FieldTypeSpanStatus,
+		expression.SpanFieldStartTime: {
+			column:    "s.start_time",
+			fieldType: expression.FieldTypeTimestamp,
+		},
+		expression.SpanFieldEndTime: {
+			column:    "addNanoseconds(s.start_time, s.duration)",
+			fieldType: expression.FieldTypeTimestamp,
 		},
 		expression.SpanFieldDuration: {
 			column:    "s.duration",
 			fieldType: expression.FieldTypeDuration,
 		},
+		expression.SpanFieldStatus: {
+			column:    "s.status_code",
+			fieldType: expression.FieldTypeSpanStatus,
+		},
+		expression.SpanFieldStatusMessage: {
+			column:           "s.status_message",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
 	},
 	expression.LevelResource: {
 		expression.ResourceFieldService: {
 			column:           "s.service_name",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
+	},
+	expression.LevelScope: {
+		expression.ScopeFieldName: {
+			column:           "s.scope_name",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
+		expression.ScopeFieldVersion: {
+			column:           "s.scope_version",
+			fieldType:        expression.FieldTypeString,
+			emptyMeansAbsent: true,
+		},
+	},
+	expression.LevelEvent: {
+		expression.EventFieldName: {
+			column:    "x.name",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.EventFieldTime: {
+			column:    "x.timestamp",
+			fieldType: expression.FieldTypeTimestamp,
+		},
+		expression.EventFieldTimeSinceStart: {
+			column:    "(toUnixTimestamp64Nano(x.timestamp) - toUnixTimestamp64Nano(s.start_time))",
+			fieldType: expression.FieldTypeDuration,
+		},
+	},
+	expression.LevelLink: {
+		expression.LinkFieldTraceID: {
+			column:    "x.trace_id",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.LinkFieldSpanID: {
+			column:    "x.span_id",
+			fieldType: expression.FieldTypeString,
+		},
+		expression.LinkFieldTraceState: {
+			column:           "x.trace_state",
 			fieldType:        expression.FieldTypeString,
 			emptyMeansAbsent: true,
 		},
@@ -256,9 +394,9 @@ func (q *sqlBuilder) buildComparisonCondition(
 }
 
 // buildFieldComparison lowers a comparison of a built-in field onto its column. Equality and
-// inequality reach every mapped field; the ordered comparisons reach span.duration only, since the other
-// mapped fields hold words (span.kind, span.status, which RFC 0005 §5.4 says have no order) or
-// names, whose lexicographic ordering this increment does not lower.
+// inequality reach every mapped field. The ordered comparisons reach every field but span.kind
+// and span.status, which hold words that have no order (RFC 0005 §5.4); a text field is ordered
+// lexicographically.
 func (q *sqlBuilder) buildFieldComparison(
 	indent int,
 	args []any,
@@ -266,13 +404,13 @@ func (q *sqlBuilder) buildFieldComparison(
 	ref expression.FieldRef,
 	valueExpr expression.Expression,
 ) ([]any, error) {
-	// Every level is indexed, so a built-in field with no entry is unsupported as a field,
-	// whichever level it belongs to.
-	mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
-	if !ok {
-		return nil, errUnsupportedField(ref)
+	mapping, err := lookupBuiltinField(ref)
+	if err != nil {
+		return nil, err
 	}
-	if op != expression.OpEq && op != expression.OpNe && mapping.fieldType != expression.FieldTypeDuration {
+	isOrderedComparison := op != expression.OpEq && op != expression.OpNe
+	holdsWord := mapping.fieldType == expression.FieldTypeSpanKind || mapping.fieldType == expression.FieldTypeSpanStatus
+	if isOrderedComparison && holdsWord {
 		return nil, fmt.Errorf("%w: it does not order the built-in field %q of the %q level, so it cannot evaluate %q on it",
 			tracestore.ErrFilterUnsupported, ref.Name, ref.Level, op)
 	}
@@ -280,12 +418,10 @@ func (q *sqlBuilder) buildFieldComparison(
 	if err != nil {
 		return nil, err
 	}
-	cond := mapping.column + " " + sqlComparisonOperators[op] + " ?"
 	if op == expression.OpNe {
-		mapping.appendConditionOnPresentField(q, indent, cond)
+		mapping.appendNegatedCondition(q, indent, " = "+mapping.placeholderSQL())
 	} else {
-		q.appendNewlineAndIndent(indent)
-		q.WriteString(cond)
+		mapping.appendCondition(q, indent, " "+sqlComparisonOperators[op]+" "+mapping.placeholderSQL())
 	}
 	return append(args, value), nil
 }
@@ -320,6 +456,17 @@ func builtinFieldValue(fieldType expression.FieldType, valueExpr expression.Expr
 			return nil, errTypedConstant(valueExpr)
 		}
 		return v.Value.Nanoseconds(), nil
+	case expression.FieldTypeTimestamp:
+		v, ok := valueExpr.(*expression.TimestampValue)
+		if !ok {
+			return nil, errTypedConstant(valueExpr)
+		}
+		// The result of UnixNano is undefined for a time outside this range.
+		if v.Value.Before(minUnixNanoTime) || v.Value.After(maxUnixNanoTime) {
+			return nil, fmt.Errorf("%w: the timestamp %s is outside the range of signed 64-bit Unix nanoseconds",
+				tracestore.ErrFilterUnsupported, v.Value.Format(time.RFC3339Nano))
+		}
+		return v.Value.UnixNano(), nil
 	default:
 		return nil, fmt.Errorf("%w: it does not support the built-in field type %q",
 			tracestore.ErrFilterUnsupported, fieldType)
@@ -594,8 +741,9 @@ func (q *sqlBuilder) appendNegatedAttributeCandidates(
 }
 
 // buildExistsCondition lowers exists. An attribute exists when a typed group of its level
-// holds the key. A mapped built-in field is a column that each span row fills, so exists on
-// one is true unless the span can lack the field.
+// holds the key. A built-in field exists when the span has a value of it. That is always so
+// for a field of the span, the resource or the scope that cannot be absent; a field of an
+// event or a link needs the span to have one.
 func (q *sqlBuilder) buildExistsCondition(
 	indent int,
 	args []any,
@@ -607,9 +755,9 @@ func (q *sqlBuilder) buildExistsCondition(
 	}
 	switch ref := predicate.Args[0].(type) {
 	case *expression.FieldRef:
-		mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
-		if !ok {
-			return nil, errUnsupportedField(*ref)
+		mapping, err := lookupBuiltinField(*ref)
+		if err != nil {
+			return nil, err
 		}
 		q.appendNewlineAndIndent(indent)
 		q.WriteString(mapping.presenceSQL())
@@ -697,9 +845,9 @@ func (q *sqlBuilder) buildFieldMembership(
 	ref expression.FieldRef,
 	list *expression.List,
 ) ([]any, error) {
-	mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
-	if !ok {
-		return nil, errUnsupportedField(ref)
+	mapping, err := lookupBuiltinField(ref)
+	if err != nil {
+		return nil, err
 	}
 	for _, element := range list.Values {
 		constant, err := tracestore.ReadFilterElement(list, mapping.fieldType, element)
@@ -712,12 +860,13 @@ func (q *sqlBuilder) buildFieldMembership(
 		}
 		args = append(args, value)
 	}
-	keyword := " IN ("
+	placeholderSQL := mapping.placeholderSQL()
+	elementsSQL := "(" + placeholderSQL + strings.Repeat(", "+placeholderSQL, len(list.Values)-1) + ")"
 	if op == expression.OpNotIn {
-		keyword = " NOT IN ("
+		mapping.appendNegatedCondition(q, indent, " IN "+elementsSQL)
+	} else {
+		mapping.appendCondition(q, indent, " IN "+elementsSQL)
 	}
-	cond := mapping.column + keyword + "?" + strings.Repeat(", ?", len(list.Values)-1) + ")"
-	mapping.appendConditionOnPresentField(q, indent, cond)
 	return args, nil
 }
 

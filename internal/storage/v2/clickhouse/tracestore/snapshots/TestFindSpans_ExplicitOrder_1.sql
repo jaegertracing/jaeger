@@ -73,7 +73,7 @@ WHERE 1=1
 	AND s.start_time >= fromUnixTimestamp64Nano(?)
 	AND s.start_time <= fromUnixTimestamp64Nano(?)
 	AND (
-		s.service_name = ?
+		(s.service_name != '' AND s.service_name = ?)
 	)
 ORDER BY s.duration DESC, s.start_time ASC, s.trace_id ASC, s.id ASC
 LIMIT ?
