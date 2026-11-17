@@ -1,0 +1,254 @@
+# Environment
+    image: clickhouse/clickhouse-server:26.9
+    version: 26.9.30.7
+    insert_deduplicate, replicated_deduplication_window: 1 10000
+    distributed_ddl_task_timeout default: 180
+
+# Part N: no macros on any node
+    macros on all nodes: 0; 0; 0; 0
+
+[N1] Setup 2 without macros: the database fills the path from its own names
+    system.replicas on every node: ch1 /clickhouse/tables/<uuid>/shard1 replica1 4; ch2 /clickhouse/tables/<uuid>/shard1 replica2 4; ch3 /clickhouse/tables/<uuid>/shard1 replica3 4; ch4 /clickhouse/tables/<uuid>/shard1 replica4 4
+    stored engine: ENGINE = ReplicatedMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}')
+    1000 rows inserted on ch1, count on ch4: 1000
+
+[N2] Setup 3b without macros
+    rows in spans_local on every node: ch1 260; ch2 230; ch3 280; ch4 230
+    count through spans on ch2: 1000
+    traces on more than one node: 0
+
+[N3] An Atomic database refuses a Replicated engine without arguments
+    CREATE TABLE default.argless (value Int32) ENGINE = ReplicatedMergeTree ORDER BY value: Code: 36. DB::Exception: Macro 'uuid' in engine arguments is only supported when the UUID is explicitly specified, used within an ON CLUSTER query, or when using the Replicated database engine. (BAD_ARGUMENTS)
+
+[N4] Restart of every node without macros
+    s2.spans on every node: Code: 722. DB::Exception: Waited job failed: Code: 696. DB::Exception: Load job 'startup table s2.spans' -> Code: 695. DB::Exception: Load job 'load table s2.spans' failed: Code: 139. DB::Exception: No macro 'shard' in config whi; Code: 722. DB::Exception: Waited job failed: Code: 696. DB::Exception: Load job 'startup table s2.spans' -> Code: 695. DB::Exception: Load job 'load table s2.spans' failed: Code: 139. DB::Exception: No macro 'shard' in config whi; Code: 722. DB::Exception: Waited job failed: Code: 696. DB::Exception: Load job 'startup table s2.spans' -> Code: 695. DB::Exception: Load job 'load table s2.spans' failed: Code: 139. DB::Exception: No macro 'shard' in config whi; Code: 722. DB::Exception: Waited job failed: Code: 696. DB::Exception: Load job 'startup table s2.spans' -> Code: 695. DB::Exception: Load job 'load table s2.spans' failed: Code: 139. DB::Exception: No macro 'shard' in config whi
+    the cause in that message, on ch1: No macro 'shard' in config
+    s3b.spans_local on every node: 260; 230; 280; 230
+
+# Part R: setup 2, one shard of four replicas, macros equal to the database's names
+    macros: ch1 ['replica1','shard1']; ch2 ['replica2','shard1']; ch3 ['replica3','shard1']; ch4 ['replica4','shard1']
+
+[R1] The database and its own cluster
+    system.clusters for cluster s2, read on ch3 (shard_num, internal_replication, database_shard_name, database_replica_name): 1 0 shard1 replica1; 1 0 shard1 replica2; 1 0 shard1 replica3; 1 0 shard1 replica4
+
+[R2] A table created on one node
+    system.replicas for spans on every node: ch1 /clickhouse/tables/<uuid>/shard1 replica1 4; ch2 /clickhouse/tables/<uuid>/shard1 replica2 4; ch3 /clickhouse/tables/<uuid>/shard1 replica3 4; ch4 /clickhouse/tables/<uuid>/shard1 replica4 4
+    distinct table UUIDs across nodes: 1
+    1000 rows inserted on ch1, count on ch4: 1000
+
+[R3] Statements that the database refuses
+    explicit path and replica name: Code: 80. DB::Exception: Explicit zookeeper_path and replica_name are specified in ReplicatedMergeTree arguments. If you really want to specify it explicitly, then you should use some macros to distinguish different shards and r
+    ON CLUSTER: Code: 80. DB::Exception: There was an error on [ch2:9000]: Code: 80. DB::Exception: It's not initial query. ON CLUSTER is not allowed for Replicated database. (INCORRECT_QUERY) (version 26.9.30.7 (official build)). (INCORRECT_QU
+
+[R4] Statements that the database delivers, each sent to one node
+    MODIFY SETTING in create_table_query: ch1 1; ch2 1; ch3 1; ch4 1
+    MODIFY QUERY in create_table_query: ch1 1; ch2 1; ch3 1; ch4 1
+    ADD COLUMN in system.columns: ch1 1; ch2 1; ch3 1; ch4 1
+    ADD INDEX in system.data_skipping_indices: ch1 1; ch2 1; ch3 1; ch4 1
+    CODEC and TTL in create_table_query: ch1 1 1; ch2 1 1; ch3 1 1; ch4 1 1
+    rows in system.mutations for spans, all nodes: 0
+    distinct create_table_query texts across the four nodes (spans, services_mv): 1 1
+
+[R5] What the startup checks read through the database's own cluster
+    system.macros: ch1 [('replica','replica1'),('shard','shard1')]; ch2 [('replica','replica2'),('shard','shard1')]; ch3 [('replica','replica3'),('shard','shard1')]; ch4 [('replica','replica4'),('shard','shard1')]
+    each node's own row of system.clusters: ch1 shard1 replica1; ch2 shard1 replica2; ch3 shard1 replica3; ch4 shard1 replica4
+    system.databases: ch1 Replicated; ch2 Replicated; ch3 Replicated; ch4 Replicated
+    system.server_settings: ch1 [('default_replica_path','/clickhouse/tables/{uuid}/{shard}',0),('default_replica_name','{replica}',0)]; ch2 [('default_replica_path','/clickhouse/tables/{uuid}/{shard}',0),('default_replica_name','{replica}',0)]; ch3 [('default_replica_path','/clickhouse/tables/{uuid}/{shard}',0),('default_replica_name','{replica}',0)]; ch4 [('default_replica_path','/clickhouse/tables/{uuid}/{shard}',0),('default_replica_name','{replica}',0)]
+    distinct serverUUID(): 4
+
+[R6] A materialized view and rows that a replica copies
+    rows with service 'view' in spans on every node: ch1 100; ch2 100; ch3 100; ch4 100
+    rows in view_target, a table that is not replicated, on every node: 100; 0; 0; 0
+
+[R7] alter_sync with a replica that does not apply its queue
+    ALTER on ch1 with alter_sync = 1:  returned after 1s
+    the column on every node at once: 1; 1; 1; 0
+    ALTER on ch1 with alter_sync = 2, client stopped after 200 seconds: no answer, client stopped after 200s
+    both columns on ch4 after the queue restarted: 2
+
+[R8] A mutation with mutations_sync = 2 and alter_sync = 2
+    MODIFY COLUMN service LowCardinality(String) on ch1: shard1 replica4 OK 3 0; shard1 replica1 OK 2 0; shard1 replica3 OK 1 0; shard1 replica2 OK 0 0
+    mutations of spans on all nodes right after the statement returned (0s): total, unfinished: 4 0
+    type on every node: ch1 LowCardinality(String); ch2 LowCardinality(String); ch3 LowCardinality(String); ch4 LowCardinality(String)
+
+[R9] Two connections issuing the same statements at once
+    seconds from the start of the first loop: start and end of the loop on ch1, start and end of the loop on ch2: 0; 9; 0; 9
+    error codes seen by the two loops over 50 statements each:
+    race columns on every node: ch1 50; ch2 50; ch3 50; ch4 50
+
+[R10] A user without the REMOTE grant
+    clusterAllReplicas as that user: Code: 497. DB::Exception: limited: Not enough privileges. To execute this query, it's necessary to have the grant READ ON REMOTE. (ACCESS_DENIED)
+    after GRANT REMOTE ON *.*: 4
+
+[R11] One shard of four replicas under a Distributed table without internal_replication
+    rows in four_local on every node, 1000 inserted: ch1 4000; ch2 4000; ch3 4000; ch4 4000
+    the same with insert_deduplicate = 0: ch1 4000; ch2 4000; ch3 4000; ch4 4000
+
+[R12] Restart of every node with the macros defined
+    is_readonly of spans on every node, five seconds after every node has a Keeper session: ch1 0; ch2 1; ch3 1; ch4 1
+    wait until spans is writable on every node: 53s
+    path, is_readonly and total_replicas of spans on every node: ch1 /clickhouse/tables/<uuid>/shard1 0 4; ch2 /clickhouse/tables/<uuid>/shard1 0 4; ch3 /clickhouse/tables/<uuid>/shard1 0 4; ch4 /clickhouse/tables/<uuid>/shard1 0 4
+    a row inserted on ch3, read on ch2: 1
+
+[R13] A node that is paused, which ClickHouse still lists as active for a while
+    statement 1 with throw_only_active: shard1 replica1 OK 3 2; shard1 replica2 OK 2 0; shard1 replica3 OK 1 0; shard1 replica4 QUEUED 1 0 after 30s
+    statement 2 with throw_only_active: shard1 replica1 OK 3 2; shard1 replica2 OK 2 0; shard1 replica3 OK 1 0; shard1 replica4 QUEUED 1 0 after 1s
+    clusterAllReplicas with skip_unavailable_shards = 1: 3 rows after 25s
+
+# Part S: two shards of two replicas, macros equal to the database's names
+    macros: ch1 ['replica1','shard1']; ch2 ['replica2','shard1']; ch3 ['replica1','shard2']; ch4 ['replica2','shard2']
+
+[S1] Setup 3a
+    tables on every node: ch1 6; ch2 6; ch3 6; ch4 6
+    system.replicas for spans_local: ch1 /clickhouse/tables/<uuid>/shard1 replica1 2; ch2 /clickhouse/tables/<uuid>/shard1 replica2 2; ch3 /clickhouse/tables/<uuid>/shard2 replica1 2; ch4 /clickhouse/tables/<uuid>/shard2 replica2 2
+    engine_full of spans, created with unqualified names on a connection to database s3a, read on ch4: Distributed(\'two_by_two\', \'s3a\', \'spans_local\', cityHash64(trace_id))
+    engine_full of spans_from_default, created with qualified names on a connection to database default: Distributed(\'two_by_two\', \'s3a\', \'spans_local\', cityHash64(trace_id))
+
+[S2] A foreground insert through the Distributed table
+    rows in spans_local on every node, read at once without SYSTEM SYNC REPLICA: ch1 540; ch2 540; ch3 460; ch4 460
+    count through spans on ch3, after SYSTEM SYNC REPLICA on every node: 1000
+    traces on more than one shard: 0
+    distinct services through the Distributed table, 7 inserted: 7
+
+[S3] A background insert, the ClickHouse default
+    count through spans in the same connection right after the INSERT returned, 2000 expected: 1540
+    four seconds later, after SYSTEM SYNC REPLICA on every node: 2000
+
+[S4] A column added to the storage table and then to the Distributed table
+    SELECT schema_url FROM s3a.spans: Code: 47. DB::Exception: Unknown expression or function identifier `schema_url`. In scope SELECT count(schema_url) FROM s3a.spans. (UNKNOWN_IDENTIFIER)
+    the column of the Distributed table on every node: ch1 1; ch2 1; ch3 1; ch4 1
+    the same SELECT, on ch3: 2000
+
+[S5] internal_replication off: 1000 rows through each Distributed table, storage table emptied first
+    cluster two_by_two_no_internal_replication, internal_replication 0: rows in spans_local on every node: ch1 1080; ch2 1080; ch3 920; ch4 920
+    cluster two_by_two_no_internal_replication: count through spans: 2000
+    cluster s3a, internal_replication 0: rows in spans_local on every node: ch1 1080; ch2 1080; ch3 920; ch4 920
+    cluster s3a: count through spans: 2000
+    cluster two_by_two, internal_replication 1, for comparison: ch1 540; ch2 540; ch3 460; ch4 460
+
+[S6] The internal_replication setting of a Replicated database
+    system.clusters for cluster s3own (shard_num, internal_replication): 1 1; 1 1; 2 1; 2 1
+    rows in spans_local on every node, 1000 inserted through the database's own cluster: ch1 540; ch2 540; ch3 460; ch4 460
+    count through spans: 1000
+    traces on more than one shard: 0
+
+[S7] A named cluster that divides the replicas of a shard
+    rows in divided_local on every node, 1000 inserted: ch1 499; ch2 499; ch3 501; ch4 501
+    count through divided: 2000
+    each node's shard in four_by_one: ch1 1; ch2 2; ch3 3; ch4 4
+
+[S8] A database whose shard names differ from the macros
+    database_shard_name of every node: ch1 shard1; ch2 shard1; ch3 shard1; ch4 shard1
+    Keeper path and replica name of the table on every node: ch1 /clickhouse/tables/<uuid>/shard1 replica1; ch2 /clickhouse/tables/<uuid>/shard1 replica2; ch3 /clickhouse/tables/<uuid>/shard2 replica1; ch4 /clickhouse/tables/<uuid>/shard2 replica2
+    a column added on ch1 through that database, on every node: 1; 1; 0; 0
+
+[S9] What the startup checks read through the named cluster
+    each node's shard in the named cluster and in the database: ch1 1 1 shard1 replica1; ch2 1 1 shard1 replica2; ch3 2 1 shard2 replica1; ch4 2 1 shard2 replica2
+    system.macros: ch1 [('replica','replica1'),('shard','shard1')]; ch2 [('replica','replica2'),('shard','shard1')]; ch3 [('replica','replica1'),('shard','shard2')]; ch4 [('replica','replica2'),('shard','shard2')]
+    distinct definitions of two_by_two held by the four nodes: 1
+    serverUUID() sets through the named cluster and the database's own cluster are equal: 1
+    system.databases: ch1 Replicated; ch2 Replicated; ch3 Replicated; ch4 Replicated
+    system.server_settings: ch1 [('default_replica_path',0),('default_replica_name',0)]; ch2 [('default_replica_path',0),('default_replica_name',0)]; ch3 [('default_replica_path',0),('default_replica_name',0)]; ch4 [('default_replica_path',0),('default_replica_name',0)]
+    a cluster that does not exist, in system.clusters: 0
+    a Distributed table over it: Code: 701. DB::Exception: Requested cluster 'no_such_cluster' not found. (CLUSTER_DOESNT_EXIST)
+    a cluster name with a quote: Code: 62. DB::Exception: Single quoted string is not closed: Syntax error: failed at position 111 (')): '). . (SYNTAX_ERROR)
+    a cluster name that ends with a backslash: Code: 62. DB::Exception: Single quoted string is not closed: Syntax error: failed at position 111 (')): '). . (SYNTAX_ERROR)
+
+[S10] The ledger as a MergeTree table, and a Distributed table with an empty database argument
+    rows read on ch1 locally, and through clusterAllReplicas('s3a', ...): 0 1
+    count through it while default.spans_local does not exist: Code: 279. DB::Exception: All connection tries failed. Log:
+    count through it after an empty default.spans_local exists on every node; s3a.spans_local holds 1000: 0
+
+[S11] An Atomic database: statements on ch1, read on ch2
+    a row inserted on ch1 into the replicated table, count on ch2, total_replicas: 1 2
+    distinct UUIDs of the replicated table on ch1 and ch2: 2
+    CREATE TABLE only_on_ch1, tables of that name on ch2: 0
+    MergeTree table: ADD COLUMN on ch2: 0
+    replicated table: ADD COLUMN on ch2: 1
+    replicated table: ADD INDEX on ch2: 1
+    replicated table: CODEC on ch2: 1
+    replicated table: MODIFY SETTING on ch2: 0
+    view: MODIFY QUERY on ch2: 0
+
+[S12] The order of the SETTINGS clause in create_table_query
+    order1: SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+    order2: SETTINGS ttl_only_drop_parts = 1, index_granularity = 8192
+
+[S13] A node that is stopped
+    statement 1 on s3a with throw_only_active: shard1 replica1 OK 3 2; shard1 replica2 OK 2 0; shard2 replica1 OK 1 0; shard2 replica2 QUEUED 1 0 after 30s
+    statement 2 on s3a with throw_only_active: shard1 replica1 OK 3 2; shard1 replica2 OK 2 0; shard2 replica1 OK 1 0; shard2 replica2 QUEUED 1 0 after 0s
+    statement 3 on s3a with throw_only_active: shard1 replica1 OK 3 2; shard1 replica2 OK 2 0; shard2 replica1 OK 1 0; shard2 replica2 QUEUED 1 0 after 1s
+    a statement with alter_sync = 2 and throw_only_active, client stopped after 60 seconds: returned after 0s
+    a statement with distributed_ddl_output_mode = none: Code: 159. DB::Exception: ReplicatedDatabase DDL task /clickhouse/databases/s3a/log/query-0000000027 is not finished on 1 of 4 hosts (0 of them are currently executing the task, 0 are inactive). They are going to execute the quer after 181s
+    statements 5 to 150 queued for ch4: columns named down* on ch1: 149
+    a statement with throw and distributed_ddl_task_timeout = 20: Code: 159. DB::Exception: ReplicatedDatabase DDL task /clickhouse/databases/s3a/log/query-0000000173 is not finished on 1 of 4 hosts (0 of them are currently executing the task, 0 are inactive). They are going to execute the quer after 22s
+    is_active of ch4 in system.clusters on ch1: 0
+    clusterAllReplicas('s3a', system.one) with skip_unavailable_shards = 1: 3 rows
+    setup 3a: foreground insert of 1000 rows, count through spans before and after: 1000; 2000
+
+[S14] The stopped node returns
+    ch4 answers after 1s; queued columns present at its first answer, of 150: 0
+    an insert on ch4 that names the last queued column, right after that answer: Code: 16. DB::Exception: Received from localhost:9000. DB::Exception: No such column down150 in table s3a.spans_local (d50f5854-9f11-4fd3-a685-367cf4b; (end)
+    queued columns present 3s after the start: 102
+    queued columns present 5s after the start: 150
+    queued columns present 9s after the start: 150
+    queued columns present 17s after the start: 150
+    the same insert, 17s after the start: (end)
+    rows in spans_local on ch3 and ch4: 921; 921
+
+[S15] Macros that differ from the database's names
+    wait for spans_local, created earlier, to become writable, limit 180s: 180s
+    spans_local created earlier, on every node: path, replica name, is_readonly, total_replicas: /clickhouse/tables/<uuid>/other_shard1 other_replica1 1 0; /clickhouse/tables/<uuid>/other_shard1 other_replica2 1 0; /clickhouse/tables/<uuid>/other_shard2 other_replica3 1 0; /clickhouse/tables/<uuid>/other_shard2 other_replica4 1 0
+    a table created now: path, replica name, is_readonly on ch1: /clickhouse/tables/<uuid>/other_shard1 other_replica1 0
+    macros restored: wait until spans_local is writable on every node: 53s
+    macros restored: is_readonly of spans_local and of created_under_other on every node: [('created_under_other',1),('spans_local',0)]; [('created_under_other',1),('spans_local',0)]; [('created_under_other',1),('spans_local',0)]; [('created_under_other',1),('spans_local',0)]
+
+[S16] Statements on the storage table that are not schema changes, sent to ch1
+    rows on every node, 1000 inserted through the Distributed table: ch1 504; ch2 504; ch3 496; ch4 496
+    ADD COLUMN on ch1 right after a mutation that sleeps about 2.7 seconds on its shard was started: shard1 replica1 OK 3 3; shard1 replica2 OK 2 0; shard2 replica2 OK 1 0; shard2 replica1 OK 0 0 after 1s
+    unfinished mutations on ch1 when it returned: 1
+    ALTER TABLE events_local UPDATE value = 1 WHERE 1, with mutations_sync = 2: shard1 replica2 OK 3 0; shard1 replica1 OK 2 0; shard2 replica1 OK 1 0; shard2 replica2 OK 0 0
+    rows with value = 1 on every node: ch1 504; ch2 504; ch3 496; ch4 496
+    INSERT INTO events_local SELECT ... FROM events_local: rows with value = 2 on every node: ch1 504; ch2 504; ch3 0; ch4 0
+    ALTER TABLE events_local DROP PARTITION '2026-01-01':
+    rows on every node after it: ch3 496; ch4 496
+
+# Part U: setup 3b, four shards of one node, no macros
+
+[U1] A node that is stopped
+    a query through the Distributed table: Code: 279. DB::Exception: All connection tries failed. Log:
+    foreground insert of rows that all belong to the three live nodes: ok
+    its rows on the live nodes: 253; 246; 251
+    foreground insert of 1000 rows for all four nodes: Code: 209. DB::Exception: Received from localhost:9000. DB::NetException. DB::NetException: Timeout: connect timed out: 172.25.0.2:9000 (ch4:9000, connection timeout 1000 ms): Insertion status:
+    its rows on the live nodes: 0; 0; 0
+    ALTER through the database with throw_only_active: shard1 replica1 OK 3 0; shard2 replica1 OK 2 0; shard3 replica1 OK 1 0; shard4 replica1 QUEUED 1 0 after 0s
+    the queued column on ch4 at its first answer: 1
+
+[U2] A node that is killed during an insert
+    foreground insert of 200 million rows, with ch4 killed three seconds after its start: Code: 32. DB::Exception: Attempt to read after eof: Insertion status:
+(end after 3s)
+    its rows on the live nodes: 14879025; 14881247; 14882791
+
+# Part C: credentials, a changed replica path, clusters that differ between nodes
+
+[C1] A password on the default user
+    the own cluster of a database without collection_name: Code: 516. DB::Exception: Received from ch2:9000. DB::Exception: default: Authentication failed: password is incorrect, or there is no user with such name
+    the own cluster of a database with collection_name: 4
+    a named cluster without credentials or a secret: Code: 516. DB::Exception: Received from ch2:9000. DB::Exception: default: Authentication failed: password is incorrect, or there is no user with such name
+    a named cluster with a secret: 4
+    currentUser() on every node for user reader, through the named cluster with a secret: reader
+    a statement through the database without collection_name still reaches every node: shard1 replica1 OK 3 0; shard1 replica2 OK 2 0; shard2 replica1 OK 1 0; shard2 replica2 OK 0 0
+
+[C2] A changed default_replica_path and default_replica_name
+    system.server_settings on ch1: default_replica_path /custom/{uuid}/{shard} 1; default_replica_name custom-{replica} 1
+    Keeper path, replica name and total_replicas of the table on every node: ch1 /custom/<uuid>/shard1 custom-replica1 2; ch2 /custom/<uuid>/shard1 custom-replica2 2; ch3 /custom/<uuid>/shard2 custom-replica1 2; ch4 /custom/<uuid>/shard2 custom-replica2 2
+
+[C3] A cluster that ch4 defines with its shards in the other order
+    distinct definitions of 'skewed' held by ch1, ch2 and ch4: [(1,'ch1'),(2,'ch2')]; [(1,'ch2'),(2,'ch1')]
+    500 traces of two spans, one span inserted through ch1 and the other through ch4: traces with spans on both ch1 and ch2: 500
+
+[C4] A database that one node holds under another name
+    databases that hold spans_local on ch4: other_name
+    databases named named_db on ch1 to ch4: 1; 1; 1; 0
+
+# Done
