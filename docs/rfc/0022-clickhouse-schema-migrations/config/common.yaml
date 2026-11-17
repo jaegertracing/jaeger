@@ -1,0 +1,57 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file is the server configuration that the four nodes share.
+listen_host: 0.0.0.0
+zookeeper:
+  node:
+    - host: ch1
+      port: 9181
+remote_servers:
+  # This cluster has two shards of two replicas.
+  two_by_two:
+    shard:
+      - internal_replication: true
+        replica:
+          - {host: ch1, port: 9000}
+          - {host: ch2, port: 9000}
+      - internal_replication: true
+        replica:
+          - {host: ch3, port: 9000}
+          - {host: ch4, port: 9000}
+  # This cluster has the same shards and leaves internal_replication off.
+  two_by_two_no_internal_replication:
+    shard:
+      - replica:
+          - {host: ch1, port: 9000}
+          - {host: ch2, port: 9000}
+      - replica:
+          - {host: ch3, port: 9000}
+          - {host: ch4, port: 9000}
+  # This cluster has the same shards and a shared secret.
+  two_by_two_secret:
+    secret: test_secret
+    shard:
+      - internal_replication: true
+        replica:
+          - {host: ch1, port: 9000}
+          - {host: ch2, port: 9000}
+      - internal_replication: true
+        replica:
+          - {host: ch3, port: 9000}
+          - {host: ch4, port: 9000}
+  # This cluster makes every node a shard.
+  four_by_one:
+    shard:
+      - replica: [{host: ch1, port: 9000}]
+      - replica: [{host: ch2, port: 9000}]
+      - replica: [{host: ch3, port: 9000}]
+      - replica: [{host: ch4, port: 9000}]
+  # This cluster has one shard of four replicas and leaves internal_replication off.
+  one_by_four_no_internal_replication:
+    shard:
+      - replica:
+          - {host: ch1, port: 9000}
+          - {host: ch2, port: 9000}
+          - {host: ch3, port: 9000}
+          - {host: ch4, port: 9000}
