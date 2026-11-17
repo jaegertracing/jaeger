@@ -730,6 +730,20 @@ Missing grants are the most likely reason for an upgrade with `create_schema: tr
 3. **M3 — Cluster setups (§6).** The `table_engine.cluster` block and the `Distributed` layout arrive first, in #10089, where the block also has a `distributed_tables` field. That field is removed, because a `cluster` block without `Distributed` tables is no longer a supported configuration. It is removed in #10089 if that PR has not been released, and otherwise this milestone accepts `distributed_tables: true` as a deprecated setting without effect, so that a released configuration still starts. This milestone adds the remaining startup checks of §6, foreground inserts, the cluster parameters in the deltas of closed versions under the rule of §5.1, the ledger read and verification over the cluster that §5.6 chooses, the two-statement column delta for the `Distributed` layout, and the two-shard part of test 7.
 4. **M4 — RFC 0017 storage tuning.** If the benchmark that RFC 0017 lists as B1 lets the tuning ship, it arrives as versions, as RFC 0017 §5.1 says. The codecs, table settings and the added index definitions form an automatic version. The `LowCardinality` type changes and the replacement of the trace-ID Bloom filter form an operator version in a later release, so that the tuning reaches `create_schema: true` deployments without an operator step. The PR that delivers each version updates RFC 0017. An operator who declines part of an operator version, such as the type change, records the version by hand and owns the difference.
 
+Appendix A.8 lists the ClickHouse behavior that the cluster tests did not cover, with the reason why each item can wait for the implementation. The milestones run them as follows:
+
+| Milestone | Item of A.8 |
+| --- | --- |
+| M1 | The grants of §5.8 on a single node (test 4 of §5.9) |
+| M1 | `alter_sync = 2` in `apply` when a replica of the receiving shard stops during a run |
+| M3 | `Distributed` tables created by Jaeger's templates (test 7 of §5.9) |
+| M3 | `create_table_query` compared between two shards |
+| M3 | The grants on a `Replicated` database, if test 7 runs as the restricted user |
+| M4 | The mutation kinds of its operator versions on two shards |
+| None | ClickHouse Cloud |
+| None | A mutation that is unfinished on another shard when its statement returns |
+| None | A statement that fails on one live node |
+
 ---
 
 ## 9. Limitations
@@ -913,11 +927,13 @@ Every test gave the same result on 26.9.30.7. The two outputs differ in the orde
 
 ### A.8 Not tested
 
-- **ClickHouse Cloud, the `Shared` database and `SharedMergeTree`.** They need a ClickHouse Cloud service, and the open-source image does not contain them.
-- **`Distributed` tables created by Jaeger's templates.** The templates do not have them yet (§8, M3). Item 7 of §5.9 covers them when they exist.
-- **`alter_sync = 2` with a stopped replica in the shard of the node that receives the statement.** S13 stops a replica of the other shard. The runner uses `alter_sync = 1` and does not depend on the result.
-- **Mutations other than `ALTER ... UPDATE` on two shards**, such as `MATERIALIZE INDEX` and `ALTER ... DELETE`. S16 runs one kind. The procedure document of an operator version states how to observe completion on every shard (§5.2).
-- **`create_table_query` compared between the two shards of setup 3a.** R4 compares it on the four replicas of one shard.
-- **Grants other than `REMOTE`.** Every other test runs as a user with all grants. The grant lists of §5.8 come from the ClickHouse documentation.
-- **A mutation that is unfinished on another shard when its statement returns (§5.8).** The test tables are too small for a mutation to last longer than the statement, and `apply` waits on `system.mutations` in either case.
-- **A statement that fails on one live node under `throw_only_active`.** The tests found no statement that a `Replicated` database accepts on the node that receives it and that then fails on another live node. That such a failure is reported comes from the ClickHouse documentation (reference 5).
+Except for ClickHouse Cloud, no result below can change which setups §6 supports or which configuration fields it defines. The items are therefore left to the implementation. Each entry names the first milestone of §8 whose tests can run it, or says that no milestone does, and that milestone's PR corrects this RFC where a result contradicts it.
+
+- **ClickHouse Cloud, the `Shared` database and `SharedMergeTree`.** They need a ClickHouse Cloud service, and the open-source image does not contain them. Setup 4 and the `Shared` rows of §6.4 rest on the ClickHouse documentation. No milestone runs this item, and it stays a limitation (§9).
+- **`Distributed` tables created by Jaeger's templates.** The templates do not have them yet. Test 7 of §5.9 covers them in M3.
+- **`alter_sync = 2` with a stopped replica in the shard of the node that receives the statement.** S13 stops a replica of the other shard. The runner uses `alter_sync = 1`. The `apply` command sets `alter_sync = 2` and refuses to start while a node is inactive (§5.8), so the case arises there only when a replica stops during a run. M1 can run that case with `apply`.
+- **Mutations other than `ALTER ... UPDATE` on two shards**, such as `MATERIALIZE INDEX` and `ALTER ... DELETE`. S16 runs one kind. The procedure document of an operator version states how to observe completion on every shard (§5.2). If M4 ships, it runs the kinds that its operator versions hold.
+- **`create_table_query` compared between the two shards of setup 3a.** R4 compares it on the four replicas of one shard. The two-shard job of M3 is the first that can run the comparison: the verification of §5.6 fails a start there if the text differs.
+- **Grants other than `REMOTE`.** Every other test runs as a user with all grants. The grant lists of §5.8 come from the ClickHouse documentation. Test 4 of §5.9 runs as a user with exactly those grants on a single node, in M1. The grants on a `Replicated` database are run in M3 if test 7 uses that user.
+- **A mutation that is unfinished on another shard when its statement returns (§5.8).** The test tables are too small for a mutation to last longer than the statement. No milestone runs this item, because `apply` waits on `system.mutations` in either case.
+- **A statement that fails on one live node under `throw_only_active`.** The tests found no statement that a `Replicated` database accepts on the node that receives it and that then fails on another live node. That such a failure is reported comes from the ClickHouse documentation (reference 5). The verification of §5.6 finds a table, column or index that a statement adds and that is missing on a node, whether or not the failure is reported. It does not check a codec or a TTL change, so for those the design depends on the report. No milestone runs this item until a statement that reproduces it is known.
