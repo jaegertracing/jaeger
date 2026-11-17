@@ -39,6 +39,13 @@ func NewFactory(cfg Configuration, telset telemetry.Settings, tenancyOpts tenanc
 	}, nil
 }
 
+// ApplyTenancy hands the store a tenant list that became known after the
+// factory was built. Rings of tenants outside the new list are dropped. opts
+// must already have passed ValidateTenancy.
+func (f *Factory) ApplyTenancy(opts tenancy.Options) {
+	f.store.applyTenancy(opts)
+}
+
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return tracestoremetrics.NewReaderDecorator(f.store, f.metricsFactory), nil
 }

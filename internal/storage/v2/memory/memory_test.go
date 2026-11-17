@@ -220,6 +220,30 @@ func TestStoreRejectsUnlistedTenantsWithoutAllocatingRings(t *testing.T) {
 	})
 }
 
+func TestStoreApplyTenancyDropsUnlistedRings(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
+	require.NoError(t, err)
+	for _, tenant := range []string{"", "allowed", "outside"} {
+		_, err := store.GetServices(tenancy.WithTenant(context.Background(), tenant))
+		require.NoError(t, err)
+	}
+	require.Len(t, store.perTenant, 3)
+
+	store.applyTenancy(tenancy.Options{Enabled: true, Tenants: []string{"allowed"}})
+	require.Len(t, store.perTenant, 2)
+	require.Contains(t, store.perTenant, "")
+	require.Contains(t, store.perTenant, "allowed")
+
+	_, err = store.GetServices(tenancy.WithTenant(context.Background(), "outside"))
+	require.ErrorIs(t, err, errUnknownTenant)
+	require.NotContains(t, store.perTenant, "outside")
+
+	store.applyTenancy(tenancy.Options{})
+	_, err = store.GetServices(tenancy.WithTenant(context.Background(), "outside"))
+	require.NoError(t, err)
+	require.Contains(t, store.perTenant, "outside")
+}
+
 func TestStoreWithoutTenancyAcceptsAnyTenant(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10}, tenancy.Options{})
 	require.NoError(t, err)

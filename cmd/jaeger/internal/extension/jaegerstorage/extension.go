@@ -88,6 +88,12 @@ func (s *storageExt) SetTenancyOptions(options tenancy.Options, storageNames ...
 	}
 	for _, name := range toStore {
 		s.tenancyOptions[name] = options
+		// A memory factory built before this call (for example by remote_sampling
+		// starting before jaeger_query) has to learn the list now, or it keeps
+		// accepting every tenant.
+		if f, ok := s.factories[name].(*memory.Factory); ok {
+			f.ApplyTenancy(options)
+		}
 	}
 	return nil
 }

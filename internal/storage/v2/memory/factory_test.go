@@ -41,3 +41,14 @@ func TestNewFactoryRejectsUnrestrictedTenancy(t *testing.T) {
 	require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
 	require.Nil(t, f)
 }
+
+func TestFactoryApplyTenancyAfterConstruction(t *testing.T) {
+	f, err := NewFactory(Configuration{MaxTraces: 10}, telemetry.NoopSettings(), tenancy.Options{})
+	require.NoError(t, err)
+	f.ApplyTenancy(tenancy.Options{Enabled: true, Tenants: []string{"allowed"}})
+
+	_, err = f.store.GetServices(tenancy.WithTenant(context.Background(), "outside"))
+	require.ErrorIs(t, err, errUnknownTenant)
+	_, err = f.store.GetServices(tenancy.WithTenant(context.Background(), "allowed"))
+	require.NoError(t, err)
+}

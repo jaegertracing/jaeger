@@ -57,17 +57,10 @@ func NewStore(cfg Configuration, tenancyOpts tenancy.Options) (*Store, error) {
 	if err := ValidateTenancy(tenancyOpts); err != nil {
 		return nil, err
 	}
-	var allowedTenants map[string]struct{}
-	if tenancyOpts.Enabled {
-		allowedTenants = make(map[string]struct{}, len(tenancyOpts.Tenants))
-		for _, tenant := range tenancyOpts.Tenants {
-			allowedTenants[tenant] = struct{}{}
-		}
-	}
 	return &Store{
 		cfg:            cfg,
 		perTenant:      make(map[string]*Tenant),
-		allowedTenants: allowedTenants,
+		allowedTenants: allowList(tenancyOpts),
 	}, nil
 }
 
@@ -79,32 +72,74 @@ func ValidateTenancy(opts tenancy.Options) error {
 	return nil
 }
 
-// tenantFor returns the storage of the tenant in ctx, refusing a tenant that
-// is not in the configured tenant list before any ring is allocated for it.
-func (st *Store) tenantFor(ctx context.Context) (*Tenant, error) {
-	tenantID := tenancy.GetTenant(ctx)
-	if st.allowedTenants != nil && tenantID != "" {
-		if _, ok := st.allowedTenants[tenantID]; !ok {
-			return nil, fmt.Errorf("%w: %q", errUnknownTenant, tenantID)
-		}
+func allowList(opts tenancy.Options) map[string]struct{} {
+	if !opts.Enabled {
+		return nil
 	}
-	return st.getTenant(tenantID), nil
+	allowed := make(map[string]struct{}, len(opts.Tenants))
+	for _, tenant := range opts.Tenants {
+		allowed[tenant] = struct{}{}
+	}
+	return allowed
 }
 
-// getTenant returns the per-tenant storage, creating it if needed. Callers
-// outside tests go through tenantFor, which enforces the tenant list.
-func (st *Store) getTenant(tenantID string) *Tenant {
+// applyTenancy replaces the tenant list of a store that is already built and
+// drops the rings of tenants outside the new list. opts must already have
+// passed ValidateTenancy.
+func (st *Store) applyTenancy(opts tenancy.Options) {
+	allowed := allowList(opts)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.allowedTenants = allowed
+	for tenantID := range st.perTenant {
+		if !st.isAllowedLocked(tenantID) {
+			delete(st.perTenant, tenantID)
+		}
+	}
+}
+
+// isAllowedLocked reports whether tenantID may have a ring. st.mu must be held.
+func (st *Store) isAllowedLocked(tenantID string) bool {
+	if st.allowedTenants == nil || tenantID == "" {
+		return true
+	}
+	_, ok := st.allowedTenants[tenantID]
+	return ok
+}
+
+// tenantFor returns the storage of the tenant in ctx, refusing a tenant that
+// is not in the configured tenant list before any ring is allocated for it.
+// perTenant only ever holds allowed tenants (rings are created under the check
+// and applyTenancy prunes the rest), so an existing ring needs no check.
+func (st *Store) tenantFor(ctx context.Context) (*Tenant, error) {
+	tenantID := tenancy.GetTenant(ctx)
 	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
 	st.mu.RUnlock()
+	if ok {
+		return tenant, nil
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.isAllowedLocked(tenantID) {
+		return nil, fmt.Errorf("%w: %q", errUnknownTenant, tenantID)
+	}
+	return st.getOrCreateLocked(tenantID), nil
+}
+
+// getTenant returns the per-tenant storage, creating it if needed, without
+// checking the tenant list. Only tests call it; the store goes through tenantFor.
+func (st *Store) getTenant(tenantID string) *Tenant {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.getOrCreateLocked(tenantID)
+}
+
+func (st *Store) getOrCreateLocked(tenantID string) *Tenant {
+	tenant, ok := st.perTenant[tenantID]
 	if !ok {
-		st.mu.Lock()
-		defer st.mu.Unlock()
-		tenant, ok = st.perTenant[tenantID]
-		if !ok {
-			tenant = newTenant(&st.cfg)
-			st.perTenant[tenantID] = tenant
-		}
+		tenant = newTenant(&st.cfg)
+		st.perTenant[tenantID] = tenant
 	}
 	return tenant
 }

@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -148,6 +149,23 @@ func TestStorageTenancyOptions(t *testing.T) {
 		_, err := GetTraceStoreFactory("memory", host)
 		require.NoError(t, err)
 		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"), "multi-tenancy is enabled with an empty tenant list")
+	})
+
+	t.Run("list set after initialization is enforced", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		factory, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"allowed"}}, "memory"))
+
+		writer, err := factory.CreateTraceWriter()
+		require.NoError(t, err)
+		traces := ptrace.NewTraces()
+		traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		require.ErrorContains(t,
+			writer.WriteTraces(tenancy.WithTenant(t.Context(), "outside"), traces),
+			"tenant is not in the configured tenant list")
+		require.NoError(t, writer.WriteTraces(tenancy.WithTenant(t.Context(), "allowed"), traces))
 	})
 
 	t.Run("unknown storage extension", func(t *testing.T) {
