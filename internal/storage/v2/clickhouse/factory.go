@@ -215,8 +215,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			return nil, err
 		}
 		if cluster != nil && cfg.TableEngine.MergeTree.HasValue() {
-			telset.Logger.Warn("table_engine.cluster.distributed_tables is set with merge_tree: " +
-				"each shard holds its data without a replica, and losing a node loses that shard's data")
+			telset.Logger.Warn("table_engine.cluster is set with merge_tree: the data has no second copy, " +
+				"and a node that is down affects every shard, not only its own (RFC 0022 §6.8)")
 		}
 		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
 		if err != nil {
@@ -235,6 +235,11 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			Database: f.config.Database,
 		},
 		DialTimeout: f.config.DialTimeout,
+		// distributed_foreground_insert makes an insert into a Distributed table wait
+		// for its rows to reach their shard before acknowledging; the ClickHouse default
+		// queues them for background delivery instead. It has no effect on a non-Distributed
+		// table, so it is set unconditionally rather than only under table_engine.cluster.
+		Settings: clickhouse.Settings{"distributed_foreground_insert": 1},
 	}
 	basicAuth := f.config.Auth.Basic.Get()
 	if basicAuth != nil {

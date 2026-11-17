@@ -438,7 +438,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 				Database:     "jaeger",
 				TableEngine: TableEngine{
 					Replicated: configoptional.Some(ReplicatedEngine{}),
-					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
 				},
 			},
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
@@ -740,11 +740,11 @@ func TestNewFactory_InvalidCluster(t *testing.T) {
 		CreateSchema: true,
 		TableEngine: TableEngine{
 			MergeTree: configoptional.Some(MergeTreeEngine{}),
-			Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster"}),
+			Cluster:   configoptional.Some(ClusterConfig{Name: "it's"}),
 		},
 	}
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "`table_engine.cluster.distributed_tables` must be true")
+	require.ErrorContains(t, err, "`table_engine.cluster.name` must not contain a single quote or a backslash")
 }
 
 // TestNewFactory_MergeTreeClusterWarns checks that NewFactory logs a warning, rather than
@@ -762,7 +762,7 @@ func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
 	cfg.CreateSchema = true
 	cfg.TableEngine = TableEngine{
 		MergeTree: configoptional.Some(MergeTreeEngine{}),
-		Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+		Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster"}),
 	}
 	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{
 		Logger:  zap.New(core),
@@ -772,7 +772,7 @@ func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	require.Equal(t, 1, observed.Len())
-	assert.Contains(t, observed.All()[0].Message, "each shard holds its data without a replica")
+	assert.Contains(t, observed.All()[0].Message, "the data has no second copy")
 }
 
 // TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check
@@ -912,7 +912,7 @@ func TestSchemaBuilder_Distributed(t *testing.T) {
 		Database:     "jaeger",
 		TableEngine: TableEngine{
 			Replicated: configoptional.Some(ReplicatedEngine{}),
-			Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true}),
+			Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
 		},
 	}
 	builder, err := buildSchema(cfg)
@@ -933,6 +933,32 @@ func TestSchemaBuilder_Distributed(t *testing.T) {
 			assert.NotContains(t, stmt.query, "Distributed", stmt.name)
 		}
 	})
+}
+
+// TestNewFactory_SetsDistributedForegroundInsert checks that the connection carries
+// distributed_foreground_insert=1 on every request, which is what makes an insert into a
+// Distributed table wait for its rows to reach their shard rather than queuing them for
+// background delivery (RFC 0022 §6.7). Over HTTP, clickhouse-go bakes connection-level
+// Settings into the URL query string of every request, so the ping request shows it.
+func TestNewFactory_SetsDistributedForegroundInsert(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+		defer fakeServer.Close()
+		fakeServer.Config.Handler.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, f.Close()) }()
+
+	assert.Contains(t, gotQuery, "distributed_foreground_insert=1")
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {

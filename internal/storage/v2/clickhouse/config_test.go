@@ -205,7 +205,7 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
 			},
 		},
 		{
@@ -213,7 +213,7 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
 			},
 		},
 		{
@@ -221,7 +221,7 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{})
 			},
 			wantErr: "`table_engine.cluster.name` is required when `table_engine.cluster` is set",
 		},
@@ -230,7 +230,7 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "it's", DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "it's"})
 			},
 			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
 		},
@@ -239,18 +239,9 @@ func TestValidate(t *testing.T) {
 			mutate: func(cfg *Configuration) {
 				cfg.CreateSchema = true
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: `my\cluster`, DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: `my\cluster`})
 			},
 			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
-		},
-		{
-			name: "cluster without distributed_tables",
-			mutate: func(cfg *Configuration) {
-				cfg.CreateSchema = true
-				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
-			},
-			wantErr: "`table_engine.cluster.distributed_tables` must be true",
 		},
 		{
 			name: "database with a quote is fine without cluster",
@@ -268,7 +259,7 @@ func TestValidate(t *testing.T) {
 				cfg.CreateSchema = true
 				cfg.Database = "it's"
 				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
-				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster", DistributedTables: true})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
 			},
 		},
 	}

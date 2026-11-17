@@ -149,15 +149,13 @@ type ReplicatedEngine struct {
 
 // ClusterConfig names the ClickHouse cluster a schema is additionally distributed across.
 // Whether tables keep copies (merge_tree or replicated) and whether there is a sharded
-// cluster are independent questions, so each is asked once, here.
+// cluster are independent questions, so each is asked once, here. Setting it always
+// creates the `_local`/`Distributed` layout; see docs/rfc/0022-clickhouse-schema-migrations.md
+// §6 for the cluster setups it selects.
 type ClusterConfig struct {
 	// Name is the cluster, the first argument of every `Distributed(...)` table created
 	// under it. Required when `cluster` is set.
 	Name string `mapstructure:"name"`
-	// DistributedTables creates `<table>_local` tables and `Distributed` wrappers over them
-	// under the plain name. Must be true for now: Jaeger issues no `ON CLUSTER` DDL, so
-	// `name` alone has nothing to create against.
-	DistributedTables bool `mapstructure:"distributed_tables"`
 }
 
 // engineFamily is the local engine of a table in the schema, which a TableEngine
@@ -215,10 +213,6 @@ func (e TableEngine) clusterConfig() (*ClusterConfig, error) {
 	// and a backslash escapes the character after it.
 	if strings.ContainsAny(c.Name, `'\`) {
 		return nil, errors.New("`table_engine.cluster.name` must not contain a single quote or a backslash")
-	}
-	if !c.DistributedTables {
-		return nil, errors.New("`table_engine.cluster.distributed_tables` must be true: Jaeger does not yet create " +
-			"objects on every node of the cluster, so `name` alone has nothing to create this schema against")
 	}
 	return c, nil
 }

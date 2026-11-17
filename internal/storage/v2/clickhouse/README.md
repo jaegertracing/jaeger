@@ -39,31 +39,42 @@ For write operations, `ch-go`'s `chpool` is used in batch mode. For read operati
 ### Distributed layout
 
 A `table_engine.cluster` block, beside `merge_tree` or `replicated`, additionally shards the
-schema across a named ClickHouse cluster:
+schema across a named ClickHouse cluster. See
+[RFC 0022 §6](../../../../docs/rfc/0022-clickhouse-schema-migrations.md#6-cluster-setups) for
+the full set of cluster setups this selects and the ClickHouse administrator steps each
+requires; this is a summary.
 
 ```yaml
 table_engine:
   replicated: {}
   cluster:
     name: my_cluster
-    distributed_tables: true
 ```
 
-`distributed_tables: true` creates every table twice: once under its name with a `_local`
-suffix, using the engine `table_engine` otherwise selects, and once under its plain name as a
+Setting `cluster` creates every table twice: once under its name with a `_local` suffix,
+using the engine `table_engine` otherwise selects, and once under its plain name as a
 `Distributed` table over `_local`, with a sharding key for each table whose rows belong to
 one trace or one point in time. Application reads and writes against the plain name are then
 routed and fanned out across the cluster's shards without a code change. Materialized views
-attach to the `_local` tables, never to a `Distributed` wrapper.
+attach to the `_local` tables, never to a `Distributed` wrapper. The backend's connection sets
+`distributed_foreground_insert = 1`, so an acknowledged insert into a `Distributed` table is
+stored on its shard rather than queued for background delivery.
 
-`distributed_tables` must be `true`: Jaeger issues no `ON CLUSTER` DDL and does not detect a
-cluster's own registration, so `name` alone has nothing to create this schema against.
-`create_schema: true` must be run against every replica directly, or the layout created by
-another means first. `merge_tree` with `distributed_tables: true` is accepted, with a startup
-warning, since a shard without replicas loses its data with its node.
+A multi-node deployment needs a `Replicated` database: with `create_schema: true`, Jaeger
+issues its schema statements once, and the database itself delivers them to every node. An
+`Atomic` database delivers nothing to other nodes, so `cluster` with an `Atomic` database and
+`create_schema: true` is only correct on a single node; a genuine multi-node `Atomic`
+deployment needs `create_schema: false`, with the operator running the rendered statements on
+every node directly. The named cluster in `remote_servers` must also set
+`internal_replication: true` when `replicated` is used with `cluster`; without it, each
+replica of a shard keeps a copy of every insert in addition to the one replication makes, so
+rows are stored once per replica rather than once per shard.
 
-`Purge` truncates the `Distributed` tables and leaves the `_local` tables as they are; a
-correct purge needs `ON CLUSTER` and is not implemented yet.
+`merge_tree` with `cluster` is accepted, with a startup warning: this shards without
+replicas, so the data has no second copy, and a node that is down affects every shard, not
+only its own.
+
+`Purge` truncates the `Distributed` tables and leaves the `_local` tables as they are.
 
 ### Attribute layout
 
