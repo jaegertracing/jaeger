@@ -5,6 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UI_CONFIG_FILE="$SCRIPT_DIR/../oci/ui-config.json"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 OPENSEARCH_DASHBOARDS_HELM_TIMEOUT="${OPENSEARCH_DASHBOARDS_HELM_TIMEOUT:-60m}"
 
@@ -13,11 +14,12 @@ IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-latest}}"
 JAEGER_IMAGE_REPOSITORY="${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY:-jaegertracing/jaeger}"
 HOTROD_IMAGE_REPOSITORY="${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY:-jaegertracing/example-hotrod}"
 JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
+# renovate: datasource=docker depName=jaegertracing/example-hotrod
 HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
-DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}"
+DEPLOY_SCOPE="${JAEGER_DEMO_DEPLOY_SCOPE:-${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}}"
 OPENSEARCH_RECOVERY="${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY:-required}"
 # renovate: datasource=helm depName=opentelemetry-demo registryUrl=https://open-telemetry.github.io/opentelemetry-helm-charts
 OTEL_DEMO_CHART_VERSION="0.40.9"
@@ -102,6 +104,7 @@ check_required_files() {
     "$SCRIPT_DIR/opensearch-dashboard-values.yaml"
     "$SCRIPT_DIR/jaeger-values.yaml"
     "$SCRIPT_DIR/jaeger-config.yaml"
+    "$UI_CONFIG_FILE"
     "$SCRIPT_DIR/otel-demo-values.yaml"
     "$SCRIPT_DIR/jaeger-query-service.yaml"
   )
@@ -537,29 +540,9 @@ deploy_ingress() {
 
 # Clone Jaeger Helm chart and prepare dependencies
 clone_jaeger_v2() {
-  local dest="$SCRIPT_DIR/helm-charts"
-  if [[ ! -d "$dest" ]]; then
-    log "Cloning Jaeger Helm Charts..."
-    git clone https://github.com/jaegertracing/helm-charts.git "$dest"
-    (
-      cd "$dest"
-      log "Using v2 branch for Jaeger v2..."
-      git checkout v2
-      log "Adding required Helm repositories..."
-      helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-      helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-      helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-      helm repo update >/dev/null
-      helm dependency build ./charts/jaeger
-    )
-  else
-    log "Jaeger Helm Charts already exist. Skipping clone."
-    # Ensure required repos exist even if charts folder already exists
-    helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-    helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-    helm repo update >/dev/null
-  fi
+  # shellcheck source=scripts/demo/jaeger-chart.sh
+  source "$SCRIPT_DIR/../../scripts/demo/jaeger-chart.sh"
+  prepare_jaeger_chart "$SCRIPT_DIR/helm-charts"
 }
 
 
@@ -623,6 +606,7 @@ main() {
       --set hotrod.image.tag="${HOTROD_IMAGE_TAG}" \
       --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
       --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
+      --set-file uiconfig="$UI_CONFIG_FILE" \
       -f "$SCRIPT_DIR/jaeger-values.yaml" \
       --timeout 10m; then
       diagnose_deployment_failure jaeger jaeger
@@ -641,8 +625,9 @@ main() {
     wait_for_service_endpoints jaeger jaeger-hotrod 180
 
     log "Deploying HotROD trace generator"
-    kubectl -n jaeger create configmap trace-script --from-file="$SCRIPT_DIR/generate_traces.py" --dry-run=client -o yaml | kubectl apply -f -
+    kubectl -n jaeger create configmap trace-script --from-file="$SCRIPT_DIR/generate_traces.py" --from-file="$SCRIPT_DIR/load-generator/requirements.txt" --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -n jaeger -f "$SCRIPT_DIR/load-generator.yaml"
+    kubectl rollout restart deployment/trace-generator -n jaeger
     wait_for_deployment jaeger trace-generator "${ROLLOUT_TIMEOUT}s"
   else
     log "Skipping Jaeger, HotROD, and trace generator refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"

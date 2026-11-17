@@ -33,6 +33,7 @@ var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
 		"es.config.rejectLegacyRotationFlags",
 		featuregate.StageBeta,
 		featuregate.WithRegisterFromVersion("v2.9.0"),
+		featuregate.WithRegisterToVersion("v2.24.0"),
 		featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.config.rejectLegacyRotationFlags."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),

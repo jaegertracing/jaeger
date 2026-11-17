@@ -16,4 +16,5 @@ type DependencyLink struct {
 	Parent    string `json:"parent"`
 	Child     string `json:"child"`
 	CallCount uint64 `json:"callCount"`
+	Source    string `json:"source,omitempty"`
 }

@@ -150,9 +150,82 @@ testMainIsGuardedWhenSourced() {
   assertEquals "sourced-only" "$output"
 }
 
+testSharedUIConfigPassesPreflight() {
+  output=$(bash -c 'source "$1"; check_required_files' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertEquals "shared UI config should pass preflight" 0 "$rc"
+  assertEquals "" "$output"
+}
+
+testMissingUIConfigStopsBeforeClusterAccess() {
+  output=$(bash -c '
+    source "$1"
+    UI_CONFIG_FILE="$2/missing-ui-config.json"
+    MODE=upgrade
+    DEPLOY_SCOPE=jaeger
+    log() { :; }
+    need() { :; }
+    check_cluster() { printf "unsafe cluster access\n"; exit 1; }
+    main
+  ' _ "$SCRIPT" "$SHUNIT_TMPDIR" 2>&1)
+  rc=$?
+
+  assertNotEquals "missing UI config must stop deployment" 0 "$rc"
+  assertContains "$output" "Missing required file: $SHUNIT_TMPDIR/missing-ui-config.json"
+  assertNotContains "$output" "unsafe cluster access"
+}
+
+run_jaeger_deploy() {
+  bash -c '
+    source "$1"
+    MODE="$2"
+    DEPLOY_SCOPE=jaeger
+    RUN_PUBLIC_SMOKE_TESTS=false
+    log() { :; }
+    need() { :; }
+    check_cluster() { :; }
+    cleanup() { :; }
+    clone_jaeger_v2() { :; }
+    deploy_opensearch_releases() { :; }
+    adopt_resource_for_helm_release() { :; }
+    delete_deployment_before_helm_upgrade() { :; }
+    wait_for_deployment() { :; }
+    wait_for_service_endpoints() { :; }
+    wait_for_daemonset() { :; }
+    deploy_ingress() { :; }
+    kubectl() { :; }
+    helm() {
+      if [[ "$1" != repo ]]; then
+        printf "helm"; printf " %s" "$@"; printf "\n"
+      fi
+    }
+    main
+  ' _ "$SCRIPT" "$1"
+}
+
+testJaegerUpgradeIncludesSharedUIConfig() {
+  output=$(run_jaeger_deploy upgrade)
+  rc=$?
+
+  assertEquals "Jaeger upgrade should succeed" 0 "$rc"
+  assertContains "$output" "helm upgrade --install --wait --atomic jaeger"
+  assertContains "$output" "--set-file uiconfig=$(dirname "$SCRIPT")/../oci/ui-config.json"
+  assertContains "$output" "--set-file userconfig=$(dirname "$SCRIPT")/jaeger-config.yaml"
+}
+
+testJaegerCleanInstallIncludesSharedUIConfig() {
+  output=$(run_jaeger_deploy clean)
+  rc=$?
+
+  assertEquals "Jaeger install should succeed" 0 "$rc"
+  assertContains "$output" "helm install --wait jaeger"
+  assertContains "$output" "--set-file uiconfig=$(dirname "$SCRIPT")/../oci/ui-config.json"
+}
+
 testPinsCompatibleOtelDemoChart() {
   output=$(bash -c 'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' _ "$SCRIPT")
-  assertEquals "0.40.9" "$output"
+  assertTrue "OTel demo should pin an explicit chart release" "[[ '$output' =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]"
 }
 
 testPinnedChartRendersCollectorStartupProbe() {
@@ -256,7 +329,32 @@ testPinnedChartRendersCheckoutMemoryHeadroom() {
 
 testPinsCompatibleOpenSearchCharts() {
   output=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
-  assertEquals "3.7.0|3.7.0" "$output"
+  local opensearch=${output%%|*}
+  local dashboards=${output##*|}
+  assertTrue "OpenSearch should pin a 3.x chart" "[[ '$opensearch' =~ ^3\.[0-9]+\.[0-9]+$ ]]"
+  assertEquals "OpenSearch and Dashboards charts must match" "$opensearch" "$dashboards"
+}
+
+testPinnedOpenSearchChartsRenderMatchingImagesAndStorageIdentity() {
+  local chart_version
+  local rendered
+  chart_version=$(bash -c 'source "$1"; printf "%s" "$OPENSEARCH_CHART_VERSION"' _ "$SCRIPT")
+  rendered=$(helm template opensearch opensearch --repo https://opensearch-project.github.io/helm-charts \
+    --version "$chart_version" --namespace opensearch --values "$(dirname "$SCRIPT")/opensearch-values.yaml")
+  assertEquals "OpenSearch chart should render" 0 $?
+  assertContains "$rendered" "opensearchproject/opensearch:$chart_version"
+  assertContains "$rendered" "name: opensearch-cluster-single"
+  assertContains "$rendered" "replicas: 1"
+  assertContains "$rendered" 'storageClassName: "oci-bv"'
+  assertContains "$rendered" 'storage: "10Gi"'
+  assertContains "$rendered" "-Xms3g -Xmx3g"
+  assertContains "$rendered" "memory: 6Gi"
+  assertContains "$rendered" "cpu: 1000m"
+  rendered=$(helm template opensearch-dashboards opensearch-dashboards \
+    --repo https://opensearch-project.github.io/helm-charts --version "$chart_version" \
+    --namespace opensearch --values "$(dirname "$SCRIPT")/opensearch-dashboard-values.yaml")
+  assertEquals "Dashboards chart should render" 0 $?
+  assertContains "$rendered" "opensearchproject/opensearch-dashboards:$chart_version"
 }
 
 testDeploysPinnedOpenSearchChartsInOrder() {
@@ -271,10 +369,16 @@ testDeploysPinnedOpenSearchChartsInOrder() {
     deploy_opensearch_releases
   ' _ "$SCRIPT")
 
+  local chart_versions
+  local opensearch_version
+  local dashboards_version
+  chart_versions=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
+  opensearch_version=${chart_versions%%|*}
+  dashboards_version=${chart_versions##*|}
   expected="bash $(dirname "$SCRIPT")/opensearch-recovery.sh verify
-helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version $opensearch_version -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
 wait-for-statefulset opensearch opensearch-cluster-single 600s
-helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 3.7.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
+helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version $dashboards_version -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 60m"
   expected="$expected
 wait-for-dashboards 600s"
   assertEquals "$expected" "$output"

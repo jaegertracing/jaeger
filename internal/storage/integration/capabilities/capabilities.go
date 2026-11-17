@@ -79,8 +79,6 @@ const (
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
-	// TODO: remove this after all storage backends return Source column from GetDependencies
-	getDependenciesMissingSource bool
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
 	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
@@ -127,11 +125,6 @@ func (c Capabilities) SearchRequiresServiceName() bool {
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
 func (c Capabilities) GetOperationsMissingSpanKind() bool {
 	return c.getOperationsMissingSpanKind
-}
-
-// GetDependenciesMissingSource returns true if the storage backend does not return the Source column from GetDependencies.
-func (c Capabilities) GetDependenciesMissingSource() bool {
-	return c.getDependenciesMissingSource
 }
 
 // SkipList returns a list of tests that should be skipped for this storage backend.
@@ -217,18 +210,19 @@ func GRPC() Capabilities {
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName:    true,
-		getDependenciesMissingSource: true,
+		searchRequiresServiceName: true,
 		skipList: []string{
 			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
-			// A search with a duration bound reads the duration_index table alone, which ignores
-			// the tag and operation predicates sent with it (ADR-001).
+			// A search with a duration bound reads the duration_index table alone, so the reader
+			// refuses one that also has tags (ADR-001).
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
+			// The reader does not refuse this search, which has no tags; why it is skipped is not
+			// recorded.
 			"Operation_name_+_max_Duration",
 			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
@@ -365,8 +359,7 @@ func OpenSearch() Capabilities {
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName:    true,
-		getDependenciesMissingSource: true,
+		searchRequiresServiceName: true,
 		skipList: []string{
 			spanAttributeOrderingTest,
 			// The jaeger_proto and jaeger_json encodings go through the v1 span model, which keeps

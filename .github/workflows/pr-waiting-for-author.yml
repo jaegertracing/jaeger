@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-name: "Waiting for Author"
+name: Waiting-for-Author Label
 
 on:
   pull_request_target:
@@ -16,14 +16,14 @@ permissions:
   issues: write
 
 jobs:
-  triage:
+  update-waiting-for-author-label:
     if: ${{ github.event.issue.pull_request || github.event.pull_request }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Manage Waiting for Author Label
+      - name: Update the waiting-for-author label
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |

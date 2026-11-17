@@ -14,6 +14,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
@@ -43,6 +44,30 @@ type schemaTemplateParams struct {
 	// AggregatingMergeTree is the ENGINE clause body of the derived tables, whose rows
 	// collapse on their sort key.
 	AggregatingMergeTree string
+	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
+	HoistedColumns []string
+	// layout is the layout of the typed attribute groups of the spans table. The templates
+	// reach it through the methods below.
+	layout chtracestore.AttributeLayout
+}
+
+// ColumnTypeFn is the template function that renders the type of the column of an attribute
+// group of the given type, such as bool.
+func (p schemaTemplateParams) ColumnTypeFn(attributeType chtracestore.AttributeType) (string, error) {
+	if !attributeType.Valid() {
+		return "", fmt.Errorf("%q is not a type of attribute group", attributeType)
+	}
+	return p.layout.ColumnTypeSQL(attributeType), nil
+}
+
+// KeysFn is the template function that renders the keys of the attribute group of the given
+// level and type, such as resource and bool.
+func (p schemaTemplateParams) KeysFn(level expression.Level, attributeType chtracestore.AttributeType) (string, error) {
+	group, err := chtracestore.NewAttributeGroup(level, attributeType)
+	if err != nil {
+		return "", err
+	}
+	return p.layout.KeysSQL(group), nil
 }
 
 type schemaStatement struct {
@@ -54,7 +79,13 @@ type schemaBuilder struct {
 	statements []schemaStatement
 }
 
-func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+// newSchemaBuilder renders the statements that create the schema, for the attribute layout
+// and the hoisted columns that the factory resolved from cfg.
+func newSchemaBuilder(
+	cfg Configuration,
+	layout chtracestore.AttributeLayout,
+	hoistedColumns []chtracestore.HoistedColumn,
+) (*schemaBuilder, error) {
 	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
@@ -64,38 +95,39 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 		return nil, err
 	}
 	params := schemaTemplateParams{
+		layout:               layout,
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
 	}
-	// The materialized views carry no engine of their own, because each writes TO its
-	// target table, so only the tables are templates.
+	for _, column := range hoistedColumns {
+		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
+	}
+	// Every statement is rendered as a template, and one without template actions renders
+	// to itself. The materialized views carry no engine of their own, because each writes
+	// TO its target table.
 	schema := []struct {
-		name     string
-		query    string
-		template bool
+		name  string
+		query string
 	}{
-		{"spans table", sql.CreateSpansTable, true},
-		{"services table", sql.CreateServicesTable, true},
-		{"services materialized view", sql.CreateServicesMaterializedView, false},
-		{"operations table", sql.CreateOperationsTable, true},
-		{"operations materialized view", sql.CreateOperationsMaterializedView, false},
-		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, true},
-		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, false},
-		{"attribute metadata table", sql.CreateAttributeMetadataTable, true},
-		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, false},
-		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, false},
-		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, false},
-		{"dependencies table", sql.CreateDependenciesTable, true},
+		{"spans table", sql.CreateSpansTable},
+		{"services table", sql.CreateServicesTable},
+		{"services materialized view", sql.CreateServicesMaterializedView},
+		{"operations table", sql.CreateOperationsTable},
+		{"operations materialized view", sql.CreateOperationsMaterializedView},
+		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
+		{"attribute metadata table", sql.CreateAttributeMetadataTable},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+		{"dependencies table", sql.CreateDependenciesTable},
 	}
 	builder := &schemaBuilder{}
 	for _, s := range schema {
-		query := s.query
-		if s.template {
-			query, err = loadTemplate(s.name, s.query, params)
-			if err != nil {
-				return nil, err
-			}
+		query, err := loadTemplate(s.name, s.query, params)
+		if err != nil {
+			return nil, err
 		}
 		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
 	}
@@ -115,13 +147,26 @@ type Factory struct {
 	config Configuration
 	telset telemetry.Settings
 	conn   driver.Conn
+	// hoistedColumns holds the configured hoisted columns. It is set only after the startup
+	// check passes, which is what lets the reader search them.
+	hoistedColumns []chtracestore.HoistedColumn
+	// attributeLayout is the configured layout of the typed attribute groups, set with
+	// hoistedColumns.
+	attributeLayout chtracestore.AttributeLayout
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return nil, err
+	}
+	hoistedColumns, err := newHoistedColumns(cfg.HoistedAttributes, layout)
+	if err != nil {
+		return nil, err
+	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		var err error
-		builder, err = newSchemaBuilder(cfg)
+		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
 		if err != nil {
 			return nil, err
 		}
@@ -167,19 +212,35 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
+	// The layout is checked before the schema is created, because CREATE TABLE IF NOT EXISTS
+	// leaves a table of the other layout as it is, and a view that is created over that table
+	// fails with an error that does not name the layout. A table that does not exist passes.
+	if err := checkAttributeLayout(ctx, conn, layout); err != nil {
+		return nil, err
+	}
+
 	if builder != nil {
 		if err := builder.build(ctx, conn); err != nil {
 			return nil, err
 		}
 	}
 
+	// The hoisted columns are checked whether or not the schema was just built, because
+	// CREATE TABLE IF NOT EXISTS leaves an existing table as it is.
+	if err := checkHoistedColumns(ctx, conn, hoistedColumns); err != nil {
+		return nil, err
+	}
+
 	success = true
 	f.conn = conn
+	f.hoistedColumns = hoistedColumns
+	f.attributeLayout = layout
 	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+	return chtracestore.NewReader(f.conn, f.attributeLayout, chtracestore.ReaderConfig{
+		HoistedColumns:                f.hoistedColumns,
 		DefaultSearchDepth:            f.config.DefaultSearchDepth,
 		MaxSearchDepth:                f.config.MaxSearchDepth,
 		AttributeMetadataCacheTTL:     f.config.AttributeMetadataCacheTTL,
@@ -188,7 +249,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return chtracestore.NewWriter(f.conn), nil
+	return chtracestore.NewWriter(f.conn, f.attributeLayout), nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {

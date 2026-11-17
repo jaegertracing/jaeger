@@ -25,10 +25,11 @@ func NewDependencyReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
 }
 
-// dependencyKey groups dependency links by (parent, child) for merging.
+// dependencyKey groups dependency links by (parent, child, source) for merging.
 type dependencyKey struct {
 	parent string
 	child  string
+	source string
 }
 
 func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
@@ -51,7 +52,13 @@ func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParame
 			return nil, fmt.Errorf("failed to unmarshal dependencies JSON: %w", err)
 		}
 		for _, link := range links {
-			merged[dependencyKey{link.Parent, link.Child}] += link.CallCount
+			modelLink := link.toModel()
+			key := dependencyKey{
+				parent: modelLink.Parent,
+				child:  modelLink.Child,
+				source: modelLink.Source,
+			}
+			merged[key] += modelLink.CallCount
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -68,6 +75,7 @@ func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParame
 			Parent:    k.parent,
 			Child:     k.child,
 			CallCount: callCount,
+			Source:    k.source,
 		})
 	}
 	return dependencies, nil

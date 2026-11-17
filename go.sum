@@ -850,6 +850,8 @@ go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.164.
 go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.164.0/go.mod h1:Alm2hMP8DY0M3a74WJCtRD7iCe89CtH8feOdN5gxbaw=
 go.opentelemetry.io/collector/processor/processortest v0.164.0 h1:SEpnypNoE4R2O04UWvXyw7Ns4ZxB3JtfaiL4IaNAidk=
 go.opentelemetry.io/collector/processor/processortest v0.164.0/go.mod h1:8A0mp345mTfGCIuWd/HlxUKk2Erp1vK7wgfPuhwrr/Y=
+go.opentelemetry.io/collector/processor/queuebatchprocessor v0.164.0 h1:ZvqaSqXxiALDe1qPhuFGpphyBeaDJUiXR6N6BlHUx88=
+go.opentelemetry.io/collector/processor/queuebatchprocessor v0.164.0/go.mod h1:21IYE8V6A/jQgZ43NlzwLSJ9ZZM/r0WXVUGCRAavEFQ=
 go.opentelemetry.io/collector/processor/xprocessor v0.164.0 h1:gIrsLcvrEzIKRgOnWNGXJdw+pRdlxSkNWMYHMNoDvos=
 go.opentelemetry.io/collector/processor/xprocessor v0.164.0/go.mod h1:0FOqi2jzQAv2BKfs+MaFoGvMG/338T2h4nfA2XwLddQ=
 go.opentelemetry.io/collector/receiver v1.70.0 h1:5wKP1TNKr+5mj8xp9wDMq0OI5YLnWYb1E4Sky63rd/A=

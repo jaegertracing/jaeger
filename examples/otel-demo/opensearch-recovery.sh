@@ -121,23 +121,129 @@ ensure_snapshot_class() {
   kubectl create -f "$SNAPSHOT_CLASS_FILE"
 }
 
+# Seconds the restore pod may stay Unschedulable before a wait gives up. It is
+# long enough to outlast a transient scheduling failure, such as a node that is
+# briefly not ready, and far shorter than TIMEOUT_SECONDS.
+RESTORE_POD_UNSCHEDULABLE_GRACE_SECONDS=300
+REQUEST_OUTPUT=""
+REQUEST_ERROR=""
+
+# Runs a request for a wait loop, leaving its stdout in REQUEST_OUTPUT and its
+# stderr in REQUEST_ERROR instead of discarding it, so that a failed wait can
+# say why its last attempt failed. The exit status is ignored because the
+# loops poll until the output is the expected one.
+try_request() {
+  local separator=$'\x1e'
+  local output
+  local combined
+
+  combined=$({ output=$("$@" 2>&3 3>&-) || true; printf '%s%s' "$separator" "$output"; } 3>&1)
+  REQUEST_OUTPUT=${combined##*"$separator"}
+  REQUEST_ERROR=${combined%"$separator"*}
+  REQUEST_ERROR=${REQUEST_ERROR%$'\n'}
+}
+
+# Prints the restore pod, or nothing when the read fails, so that a failed read
+# neither aborts a wait loop nor looks like a blocked pod.
+restore_pod_json() {
+  local pod=$1
+  kubectl -n "$NAMESPACE" get pod "$pod" -o json 2>/dev/null || true
+}
+
+# Prints why the restore pod cannot recover by waiting, or nothing. The pod
+# phase cannot tell, because restartPolicy is OnFailure. jaeger-query exits
+# until OpenSearch answers, so its crash loop only counts for a container that
+# was started after jaeger_ready_since, the time OpenSearch was known healthy.
+# Both times are whole seconds, so a start in the same second may have preceded
+# health and is not counted; if that run fails anyway, the next one is.
+restore_pod_blocker() {
+  local pod_json=$1
+  local jaeger_ready_since=${2:-null}
+
+  jq -r \
+    --argjson now "$(date -u +%s)" \
+    --argjson grace "$RESTORE_POD_UNSCHEDULABLE_GRACE_SECONDS" \
+    --argjson jaeger_ready_since "$jaeger_ready_since" '
+    [
+      (.status.conditions[]?
+        | select(.type == "PodScheduled" and .status == "False" and .reason == "Unschedulable")
+        | select($now - (.lastTransitionTime // empty | fromdateiso8601) >= $grace)
+        | "it has been Unschedulable for over \($grace)s (\(.message // "no scheduler message"))"),
+      (.status.containerStatuses[]?
+        | .state.waiting.reason as $reason
+        | select(
+            ($reason | IN("ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError"))
+            or ($reason == "CrashLoopBackOff" and (
+              .name != "jaeger-query"
+              or ($jaeger_ready_since != null
+                and (.lastState.terminated.startedAt // empty | fromdateiso8601) > $jaeger_ready_since))))
+        | "container \(.name) is waiting in \($reason) (\(.state.waiting.message // "no message"))")
+    ]
+    | join("; ")
+  ' 2>/dev/null <<<"$pod_json" || true
+}
+
+# Prints the last request error and each container's last termination. A failed
+# wait must call this before it exits, because the EXIT trap deletes the pod.
+# The termination message carries the container's final log lines, because
+# render_restore_pod sets terminationMessagePolicy: FallbackToLogsOnError.
+# A terminated current state is the newest exit; lastState is the run before it.
+report_restore_pod_failure() {
+  local last_error=$1
+  local pod_json=$2
+  local terminations
+  local line
+
+  [[ -z "$last_error" ]] || log "Last request error: $last_error" >&2
+  terminations=$(jq -r '
+    .status.containerStatuses[]?
+    | (.state.terminated // .lastState.terminated) as $terminated
+    | select($terminated != null)
+    | "Container \(.name) last terminated: reason=\($terminated.reason // "unknown"), exit code=\($terminated.exitCode), message=\($terminated.message // "none")"
+  ' 2>/dev/null <<<"$pod_json" || true)
+  [[ -n "$terminations" ]] || return 0
+  while IFS= read -r line; do
+    log "$line" >&2
+  done <<<"$terminations"
+}
+
+fail_if_restore_pod_blocked() {
+  local pod=$1
+  local last_error=$2
+  local jaeger_ready_since=${3:-null}
+  local pod_json
+  local blocker
+
+  pod_json=$(restore_pod_json "$pod")
+  blocker=$(restore_pod_blocker "$pod_json" "$jaeger_ready_since")
+  [[ -n "$blocker" ]] || return 0
+  report_restore_pod_failure "$last_error" "$pod_json"
+  err "Restore pod $pod cannot recover by waiting: $blocker"
+}
+
+# Waits for a resource field. When the wait depends on the restore pod, pass the
+# pod as the fifth argument so that a blocked pod ends the wait early.
 wait_for_jsonpath() {
   local namespace=$1
   local resource=$2
   local jsonpath=$3
   local expected=$4
+  local pod=${5:-}
   local elapsed=0
   local value
 
   while ((elapsed < TIMEOUT_SECONDS)); do
-    value=$(kubectl -n "$namespace" get "$resource" -o "jsonpath=$jsonpath" 2>/dev/null || true)
+    try_request kubectl -n "$namespace" get "$resource" -o "jsonpath=$jsonpath"
+    value=$REQUEST_OUTPUT
     if [[ "$value" == "$expected" ]]; then
       return 0
     fi
+    [[ -z "$pod" ]] || fail_if_restore_pod_blocked "$pod" "$REQUEST_ERROR"
     sleep 10
     elapsed=$((elapsed + 10))
   done
 
+  [[ -z "$pod" ]] || report_restore_pod_failure "$REQUEST_ERROR" "$(restore_pod_json "$pod")"
   err "$resource did not reach $jsonpath=$expected within ${TIMEOUT_SECONDS}s"
 }
 
@@ -159,6 +265,13 @@ live_representative_field() {
 
   opensearch_api GET "${pattern}/_search?size=1&_source=${field}&sort=${sort}" |
     jq -r --arg field "$field" '.hits.hits[0]._source | getpath($field | split(".")) // empty'
+}
+
+# The service indexes keep every retained day, while the isolated Jaeger lists
+# only services seen within max_span_age, so the representative service is the
+# one on the newest span and not the first hit of an arbitrary daily index.
+live_recent_service() {
+  live_representative_field 'jaeger-main-jaeger-span-*' 'process.serviceName' 'startTime:desc'
 }
 
 render_snapshot() {
@@ -216,6 +329,10 @@ spec:
 EOF
 }
 
+# max_span_age mirrors examples/otel-demo/jaeger-config.yaml, and
+# opensearch-recovery.test.sh fails when the two disagree. It bounds trace reads
+# and the /api/v3/services lookback, so the 72h default would hide restored data
+# that the live demo still serves.
 render_restore_configmap() {
   local configmap=$1
 
@@ -250,6 +367,7 @@ data:
             opensearch:
               server_urls:
                 - http://127.0.0.1:9200
+              max_span_age: 720h
               indices:
                 index_prefix: "jaeger-main"
                 spans:
@@ -313,6 +431,7 @@ spec:
     - name: opensearch
       image: $opensearch_image
       imagePullPolicy: IfNotPresent
+      terminationMessagePolicy: FallbackToLogsOnError
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -345,6 +464,7 @@ spec:
     - name: jaeger-query
       image: $jaeger_image
       imagePullPolicy: IfNotPresent
+      terminationMessagePolicy: FallbackToLogsOnError
       command: ["/cmd/jaeger/jaeger-linux"]
       args: ["--config", "/etc/jaeger/jaeger.yaml"]
       securityContext:
@@ -403,12 +523,15 @@ wait_for_restored_opensearch() {
   local health
 
   while ((SECONDS < deadline)); do
-    health=$(restored_api "$pod" '_cluster/health?wait_for_status=yellow&timeout=20s&filter_path=status' 2>/dev/null || true)
+    try_request restored_api "$pod" '_cluster/health?wait_for_status=yellow&timeout=20s&filter_path=status'
+    health=$REQUEST_OUTPUT
     if jq -e '.status == "yellow" or .status == "green"' >/dev/null 2>&1 <<<"$health"; then
       return 0
     fi
+    fail_if_restore_pod_blocked "$pod" "$REQUEST_ERROR"
     sleep 10
   done
+  report_restore_pod_failure "$REQUEST_ERROR" "$(restore_pod_json "$pod")"
   err "Restored OpenSearch did not recover its primary shards within ${TIMEOUT_SECONDS}s"
 }
 
@@ -424,15 +547,20 @@ wait_for_jaeger_service() {
   local expected_service=$2
   local elapsed=0
   local response
+  local ready_since
 
+  ready_since=$(date -u +%s)
   while ((elapsed < TIMEOUT_SECONDS)); do
-    response=$(jaeger_api "$pod" 'api/v3/services' 2>/dev/null || true)
+    try_request jaeger_api "$pod" 'api/v3/services'
+    response=$REQUEST_OUTPUT
     if jq -e --arg expected "$expected_service" '.. | strings | select(. == $expected)' >/dev/null 2>&1 <<<"$response"; then
       return 0
     fi
+    fail_if_restore_pod_blocked "$pod" "$REQUEST_ERROR" "$ready_since"
     sleep 10
     elapsed=$((elapsed + 10))
   done
+  report_restore_pod_failure "$REQUEST_ERROR" "$(restore_pod_json "$pod")"
   err "Isolated Jaeger could not query the representative restored service within ${TIMEOUT_SECONDS}s"
 }
 
@@ -583,7 +711,7 @@ create_and_test_recovery() {
   expected_template_inventory=$(live_inventory_exact '_cat/templates/jaeger*?h=name')
   expected_documents=$(live_document_count 'jaeger-*')
   expected_services=$(live_document_count 'jaeger-main-jaeger-service-*')
-  expected_service=$(live_representative_field 'jaeger-main-jaeger-service-*' 'serviceName')
+  expected_service=$(live_recent_service)
   expected_trace_id=$(live_representative_field 'jaeger-main-jaeger-span-*' 'traceID' 'startTime:desc')
   [[ -n "$expected_index_inventory" ]] || err "No Jaeger indexes found in the live cluster"
   ((expected_documents > 0)) || err "No Jaeger documents found in the live cluster"
@@ -611,7 +739,7 @@ create_and_test_recovery() {
   trap cleanup_restore_pod EXIT
   render_restore_pod "$restore_pod" "$restore_pvc" "$source_image" "$jaeger_image" "$restore_configmap" |
     kubectl create -f -
-  wait_for_jsonpath "$NAMESPACE" "pvc/$restore_pvc" '{.status.phase}' 'Bound'
+  wait_for_jsonpath "$NAMESPACE" "pvc/$restore_pvc" '{.status.phase}' 'Bound' "$restore_pod"
   wait_for_restored_opensearch "$restore_pod"
 
   restored_version=$(restored_api "$restore_pod" '' | jq -r '.version.number')
