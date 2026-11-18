@@ -122,8 +122,7 @@ type TableEngine struct {
 	// keep every row on every replica of the shard. It is required on a cluster with more than
 	// one replica.
 	Replicated configoptional.Optional[ReplicatedEngine] `mapstructure:"replicated"`
-	// Cluster, when set, additionally distributes the schema across a named ClickHouse
-	// cluster, independent of whether the engine above keeps replicas.
+	// Cluster creates the schema as Distributed tables over a named ClickHouse cluster.
 	Cluster configoptional.Optional[ClusterConfig] `mapstructure:"cluster"`
 }
 
@@ -147,14 +146,16 @@ type ReplicatedEngine struct {
 	ReplicaName string `mapstructure:"replica_name"`
 }
 
-// ClusterConfig names the ClickHouse cluster a schema is additionally distributed across.
-// Whether tables keep copies (merge_tree or replicated) and whether there is a sharded
-// cluster are independent questions, so each is asked once, here. Setting it always
-// creates the `_local`/`Distributed` layout; see docs/rfc/0022-clickhouse-schema-migrations.md
-// §6 for the cluster setups it selects.
+// ClusterConfig makes create_schema create every table twice: a storage table named
+// <table>_local with the engine that TableEngine selects, and a Distributed table under
+// the public name, which routes each insert to one shard of the named cluster and sends
+// each query to all of them. It is meant for a cluster with more than one shard; a
+// single shard with replicas needs only the replicated engine. It is independent of the
+// engine choice: merge_tree or replicated decides whether a shard keeps replicas of its
+// rows, and this block decides whether the rows are divided between shards (RFC 0022 §6).
 type ClusterConfig struct {
-	// Name is the cluster, the first argument of every `Distributed(...)` table created
-	// under it. Required when `cluster` is set.
+	// Name is the cluster that the Distributed tables forward to, as defined in the
+	// server's remote_servers. Required.
 	Name string `mapstructure:"name"`
 }
 
