@@ -358,27 +358,45 @@ func TestFromDBModelErrors(t *testing.T) {
 		{
 			name:    "wrong trace-id",
 			dbSpans: []dbmodel.Span{{TraceID: dbmodel.TraceID("trace-id")}},
-			err:     "encoding/hex: invalid byte: U+0074 't'",
+			err:     "trace ID from DB has unexpected length",
 		},
 		{
-			name:    "wrong span-id",
-			dbSpans: []dbmodel.Span{{SpanID: dbmodel.SpanID("span-id")}},
-			err:     "encoding/hex: invalid byte: U+0073 's'",
+			name: "wrong span-id",
+			dbSpans: []dbmodel.Span{{
+				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:  dbmodel.SpanID("span-id"),
+			}},
+			err: "span ID from DB has unexpected length",
 		},
 		{
-			name:    "wrong parent span-id",
-			dbSpans: []dbmodel.Span{{ParentSpanID: dbmodel.SpanID("parent-span-id")}},
-			err:     "encoding/hex: invalid byte: U+0070 'p'",
+			name: "wrong parent span-id",
+			dbSpans: []dbmodel.Span{{
+				TraceID:      dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:       dbmodel.SpanID("0123456789abcdef"),
+				ParentSpanID: dbmodel.SpanID("parent-span-id"),
+			}},
+			err: "span ID from DB has unexpected length",
 		},
 		{
-			name:    "wrong-ref-trace-id",
-			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}}}},
-			err:     "encoding/hex: invalid byte: U+0072 'r'",
+			name: "wrong-ref-trace-id",
+			dbSpans: []dbmodel.Span{{
+				TraceID:    dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:     dbmodel.SpanID("0123456789abcdef"),
+				References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}},
+			}},
+			err: "trace ID from DB has unexpected length",
 		},
 		{
-			name:    "wrong-ref-span-id",
-			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
-			err:     "encoding/hex: invalid byte: U+0072 'r'",
+			name: "wrong-ref-span-id",
+			dbSpans: []dbmodel.Span{{
+				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:  dbmodel.SpanID("0123456789abcdef"),
+				References: []dbmodel.Reference{{
+					TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+					SpanID:  dbmodel.SpanID("ref-span-id"),
+				}},
+			}},
+			err: "span ID from DB has unexpected length",
 		},
 		{
 			name: "wrong parent span-id with valid trace-id",
@@ -387,7 +405,7 @@ func TestFromDBModelErrors(t *testing.T) {
 				SpanID:       dbmodel.SpanID("0123456789abcdef"),
 				ParentSpanID: dbmodel.SpanID("invalid-par"),
 			}},
-			err: "encoding/hex: invalid byte: U+0069 'i'",
+			err: "span ID from DB has unexpected length",
 		},
 	}
 
@@ -400,16 +418,31 @@ func TestFromDBModelErrors(t *testing.T) {
 }
 
 func TestSetParentId(t *testing.T) {
+	traceId := [16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanId := [8]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
 	parentSpanId := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
-	trace, err := FromDBModel([]dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
+	trace, err := FromDBModel([]dbmodel.Span{{
+		TraceID:      getDbTraceIdFromByteArray(traceId),
+		SpanID:       getDbSpanIdFromByteArray(spanId),
+		ParentSpanID: getDbSpanIdFromByteArray(parentSpanId),
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, pcommon.SpanID(parentSpanId), trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID())
 }
 
 func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	traceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	spanId := getDbSpanIdFromByteArray([8]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08})
 	refTraceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x81})
-	trace, err := FromDBModel([]dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
+	refSpanId := getDbSpanIdFromByteArray([8]byte{0x02, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08})
+	trace, err := FromDBModel([]dbmodel.Span{{
+		TraceID: traceId,
+		SpanID:  spanId,
+		References: []dbmodel.Reference{{
+			TraceID: refTraceId,
+			SpanID:  refSpanId,
+		}},
+	}})
 	require.NoError(t, err)
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
