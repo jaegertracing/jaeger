@@ -56,9 +56,14 @@ the storage table, using the engine `table_engine` otherwise selects, and once u
 public name as a `Distributed` table over the storage table, with a sharding key for each
 table whose rows belong to one trace or one point in time. Application reads and writes
 against the public name are routed and fanned out across the cluster's shards. Materialized
-views attach to the storage tables, never to a `Distributed` table. On every insert into a
-`Distributed` table, the backend sets `distributed_foreground_insert = 1`, so an acknowledged
-insert is stored on its shard rather than queued for background delivery.
+views attach to the storage tables, never to a `Distributed` table.
+
+Jaeger inserts with the ClickHouse default for `distributed_foreground_insert`: a
+`Distributed` table acknowledges an insert once the rows are queued on the node that received
+them, and forwards them to their shards in the background, so the rows become readable shortly
+after the insert returns. An operator who needs an acknowledged insert to be stored on its
+shard sets `distributed_foreground_insert = 1` in the settings profile of the ClickHouse user
+that Jaeger connects as, at the price of slower inserts that fail while a shard is unreachable.
 
 A multi-node deployment needs a `Replicated` database: with `create_schema: true`, Jaeger
 issues its schema statements once, and the database itself delivers them to every node. An
@@ -73,8 +78,6 @@ rows are stored once per replica rather than once per shard.
 `merge_tree` with `cluster` is accepted, with a startup warning: this shards without
 replicas, so the data has no second copy, and a node that is down affects every shard, not
 only its own.
-
-`Purge` truncates the `Distributed` tables and leaves the storage tables as they are.
 
 ### Attribute layout
 

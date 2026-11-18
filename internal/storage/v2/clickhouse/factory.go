@@ -137,13 +137,14 @@ func newSchemaBuilder(
 	// to itself. The materialized views carry no engine of their own, because each writes
 	// TO its target table.
 	//
-	// table is the public name a Distributed table is created under once more, beside the
-	// storage table or materialized view that query renders; shardingKey is set only for a
-	// table whose rows belong to one trace or one point in time.
+	// publicName is set for a table and empty for a materialized view. Under the
+	// distributed layout a Distributed table is created under it, beside the storage table
+	// that query renders. shardingKey is set only for a table whose rows belong to one trace
+	// or one point in time.
 	schema := []struct {
 		name        string
 		query       string
-		table       string
+		publicName  string
 		shardingKey string
 	}{
 		{"spans table", sql.CreateSpansTable, "spans", "cityHash64(trace_id)"},
@@ -166,11 +167,11 @@ func newSchemaBuilder(
 			return nil, err
 		}
 		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
-		if cluster != nil && s.table != "" {
-			name := strings.ReplaceAll(s.table, "_", " ") + " distributed table"
+		if cluster != nil && s.publicName != "" {
+			name := strings.TrimSuffix(s.name, "table") + "distributed table"
 			distributedQuery, err := loadTemplate(name, sql.CreateDistributedTable, distributedTableParams{
-				Table:       s.table,
-				LocalTable:  s.table + suffix,
+				Table:       s.publicName,
+				LocalTable:  s.publicName + suffix,
 				Cluster:     cluster.Name,
 				ShardingKey: s.shardingKey,
 			})
