@@ -19,7 +19,7 @@ about the second.
 
 ## Tuning the tool limits
 
-Three tools bound how much one call may ask for. Each has a default, and each
+Three settings bound what six tools may return. Each has a default, and each
 can be raised under the same `ai.mcp` block:
 
 ```yaml
@@ -44,5 +44,7 @@ Leave a setting out, or set it to `0`, to keep its default. A value outside the
 range above is rejected at startup rather than being silently clamped, so a
 limit an operator raised deliberately is the limit that takes effect.
 
-The bounds are per call, not per client: they stop one request from allocating
-without limit, and do not cap what a client can ask for across many requests.
+The bounds are per call, not per client: they bound what one call returns, and
+do not cap what a client can ask for across many requests. They apply after the
+data is loaded, so a tool whose cap is small, such as `get_trace_topology`, may
+still read the whole trace before trimming its answer.

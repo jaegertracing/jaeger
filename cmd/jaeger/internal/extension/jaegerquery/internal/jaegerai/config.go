@@ -117,7 +117,12 @@ type MCPConfig struct {
 	// MaxSearchResults bounds how much one search may return: the number of
 	// traces find_traces searches, and the number of spans find_spans returns.
 	// Zero (the default) is 100. Raised to at most 1000.
-	MaxSearchResults uint32 `mapstructure:"max_search_results" valid:"optional"`
+	//
+	// Deliberately an int, not the uint32 the MCP handlers take: mapstructure
+	// narrows into uint32 without an overflow check, so 2^32 would decode to 0
+	// and quietly keep the default, and 2^32+1 would decode to 1 and pass
+	// Validate. Validate range-checks this wider type and applyTo converts.
+	MaxSearchResults int `mapstructure:"max_search_results" valid:"optional"`
 	// MaxReadFileSize bounds how many bytes read_skill serves from one skill
 	// file. Zero (the default) is 512 KiB. Raised to at most 10 MiB.
 	MaxReadFileSize int64 `mapstructure:"max_read_file_size" valid:"optional"`
@@ -135,7 +140,9 @@ func (c *MCPConfig) applyTo(cfg *mcptools.ServerParams) {
 		cfg.MaxSpanDetailsPerRequest = c.MaxSpanDetailsPerRequest
 	}
 	if c.MaxSearchResults != 0 {
-		cfg.MaxSearchResults = c.MaxSearchResults
+		// Validate has already range-checked this value, so the conversion is
+		// lossless; the field is an int only so a wrapped value cannot slip past it.
+		cfg.MaxSearchResults = uint32(c.MaxSearchResults)
 	}
 	if c.MaxReadFileSize != 0 {
 		cfg.MaxReadFileSize = c.MaxReadFileSize
@@ -150,7 +157,7 @@ func (c *MCPConfig) Validate() error {
 		return fmt.Errorf("ai.mcp.max_span_details_per_request must be between 1 and %d, or 0 to keep the default of %d",
 			mcptools.MaxSpanDetailsPerRequestLimit, mcptools.DefaultMaxSpanDetailsPerRequest)
 	}
-	if c.MaxSearchResults > mcptools.MaxSearchResultsLimit {
+	if c.MaxSearchResults < 0 || c.MaxSearchResults > mcptools.MaxSearchResultsLimit {
 		return fmt.Errorf("ai.mcp.max_search_results must be between 1 and %d, or 0 to keep the default of %d",
 			mcptools.MaxSearchResultsLimit, mcptools.DefaultMaxSearchResults)
 	}

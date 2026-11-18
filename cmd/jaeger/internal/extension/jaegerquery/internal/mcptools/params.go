@@ -28,9 +28,9 @@ const (
 )
 
 // ServerParams holds what NewHandler needs beyond its dependencies: the tool
-// limits and server identity, which are fixed by DefaultServerParams, and the
-// operator-set parts of ai.mcp that the query server copies in (the custom
-// skills directory and the transport options).
+// limits and server identity, which DefaultServerParams supplies and the query
+// server then overlays with the operator-set parts of ai.mcp (the tunables, the
+// custom skills directory, and the transport options).
 type ServerParams struct {
 	ServerName               string
 	ServerVersion            string

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
@@ -356,6 +357,11 @@ func TestMCPConfigValidateRejectsTunablesOutOfRange(t *testing.T) {
 			want: "ai.mcp.max_span_details_per_request must be between 1 and 100, or 0 to keep the default of 20",
 		},
 		{
+			name: "negative search results",
+			cfg:  MCPConfig{MaxSearchResults: -1},
+			want: "ai.mcp.max_search_results must be between 1 and 1000, or 0 to keep the default of 100",
+		},
+		{
 			name: "oversized search results",
 			cfg:  MCPConfig{MaxSearchResults: 1001},
 			want: "ai.mcp.max_search_results must be between 1 and 1000, or 0 to keep the default of 100",
@@ -397,4 +403,19 @@ func TestMCPConfigApplyTo(t *testing.T) {
 	// Fields applyTo does not own are left as DefaultServerParams set them.
 	assert.Equal(t, mcptools.DefaultServerParams().ServerVersion, set.ServerVersion)
 	assert.Nil(t, set.CustomSkillsFS)
+}
+
+// A uint32 field narrows these values without an overflow check: 2^32 becomes
+// 0, which "keeps the default" rather than complaining, and 2^32+1 becomes 1,
+// which passes Validate. Decoding into a wider int leaves Validate able to see
+// the value the operator actually wrote.
+func TestMCPConfigUnmarshalRejectsSearchResultsThatWouldWrap(t *testing.T) {
+	for _, value := range []int{4294967296, 4294967297} {
+		conf := confmap.NewFromStringMap(map[string]any{"max_search_results": value})
+		var cfg MCPConfig
+		require.NoError(t, conf.Unmarshal(&cfg))
+		require.Equal(t, value, cfg.MaxSearchResults, "%d must survive decoding", value)
+		require.ErrorContains(t, cfg.Validate(),
+			"ai.mcp.max_search_results must be between 1 and 1000", "%d must be rejected", value)
+	}
 }
