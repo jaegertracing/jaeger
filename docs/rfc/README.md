@@ -33,9 +33,23 @@ The two documents then point at each other through their `Status` fields — the
 
 Graduation is optional and not the only end state. An RFC may also be superseded by a later RFC, or simply abandoned — in both cases it stays in this directory as a record of what was considered.
 
+## Evidence for claims about other systems
+
+A design often depends on how a database or another external system behaves: what a statement does on a cluster, what happens when a node restarts, which error a misconfiguration produces. The author tests such a claim and records the test in the RFC, so that a reviewer checks that the test is adequate instead of repeating it or taking the claim on trust.
+
+- **Run the test before stating the claim.** Documentation describes what a system is meant to do, and a test shows what the tested version does. Where the two differ, the RFC says so.
+- **Script the test.** The files that run it live in a directory next to the RFC, named after the RFC file without its extension: `NNNN-short-slug/`. One script starts the environment, starts from a clean state, runs every test, and prints each result under an identifier. A reader can run it again, and nobody has to in order to review the RFC.
+- **Commit the output.** The output of the run is committed in the same directory, and it names the version of the system that was tested.
+- **Cite the test from the claim.** An appendix of the RFC lists the tests with their results, and each claim in the body names the test that backs it.
+- **List what was not tested.** A claim that rests on documentation alone, or that cannot be tested, appears in a "Not tested" list with the reason.
+- **Review the test as evidence, not as product code.** The files in `NNNN-short-slug/` are not built, shipped or maintained after the RFC merges. A review checks that each test is adequate for the claim that cites it and that the committed output shows what the RFC says. The standards for production code, such as naming, structure, error handling and test coverage, do not apply to them.
+
+[RFC 0022](./0022-clickhouse-schema-migrations.md) is the example: its Appendix A cites the tests in [`0022-clickhouse-schema-migrations/`](./0022-clickhouse-schema-migrations/).
+
 ## Conventions
 
 - File name `NNNN-short-slug.md`, next number in sequence; title `# RFC NNNN: Title`.
+- Files that accompany an RFC, such as test scripts, their recorded output and images, go in a directory `NNNN-short-slug/` next to it.
 - Header block: Status, Author(s), Created, Last Updated, plus Issue / Related / Supersedes links where applicable. Statuses in use: Draft, Partially Implemented, Implemented, Superseded.
 - Open with an Abstract, then numbered sections starting at `1. Motivation`.
 - Add an entry to the index below, prefixed with the status marker that matches the header block (see the legend there). When an RFC's status changes, change the marker in the same PR.

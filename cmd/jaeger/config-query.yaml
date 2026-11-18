@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [nop]
-      processors: [batch]
+      processors: []
       exporters: [nop]
   telemetry:
     resource:
@@ -45,7 +45,6 @@ receivers:
   nop:
 
 processors:
-  batch:
 
 exporters:
   nop:
