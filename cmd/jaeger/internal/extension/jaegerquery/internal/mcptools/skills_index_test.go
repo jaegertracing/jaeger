@@ -14,11 +14,10 @@ import (
 )
 
 // The root index and each skill's frontmatter both carry that skill's
-// description, and the two must be identical
-// so they cannot drift. Two readers see them: an agent matches the index line
-// before deciding whether to open a skill, while clients following the
-// agentskills.io specification or the Open Knowledge Format read the
-// frontmatter block.
+// description, and the two must be identical so they cannot drift. Two
+// readers see them: an agent matches the index line before deciding whether
+// to open a skill, while clients following the agentskills.io specification
+// or the Open Knowledge Format read the frontmatter block.
 
 type skillFrontmatter struct {
 	Name        string `yaml:"name"`
