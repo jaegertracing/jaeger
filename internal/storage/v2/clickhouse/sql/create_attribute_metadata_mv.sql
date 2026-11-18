@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW IF NOT EXISTS attribute_metadata_mv TO attribute_metadata AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS attribute_metadata_mv TO attribute_metadata{{ .LocalTableSuffix }} AS
 SELECT
     tp.1 AS attribute_key,
     tp.2 AS type,
@@ -46,6 +46,6 @@ FROM (
                 'scope'
             ), {{ .KeysFn "scope" "complex" }})
         )) AS tp
-    FROM spans
+    FROM spans{{ .LocalTableSuffix }}
 )
 GROUP BY attribute_key, type, level;

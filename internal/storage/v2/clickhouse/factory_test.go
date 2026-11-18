@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +27,10 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -161,7 +165,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "services materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesMaterializedView: assert.AnError,
+				schemaQuery(t, "services materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create services materialized view",
 		},
@@ -175,7 +179,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "operations materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsMaterializedView: assert.AnError,
+				schemaQuery(t, "operations materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create operations materialized view",
 		},
@@ -189,7 +193,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsMaterializedView: assert.AnError,
+				schemaQuery(t, "trace id timestamps materialized view"): assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps materialized view",
 		},
@@ -397,11 +401,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		cfg           Configuration
 		mockFn        func(name, tmplBody string, data any) (string, error)
 		expectedError string
 	}{
 		{
 			name: "first loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
@@ -409,6 +415,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			name: "second loadTemplate call fails",
+			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -421,16 +428,37 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			}(),
 			expectedError: "mock template error",
 		},
+		{
+			// The second call under a distributed layout renders the first table's
+			// Distributed table, a different template than the second call renders
+			// without one.
+			name: "distributed table loadTemplate call fails",
+			cfg: Configuration{
+				CreateSchema: true,
+				Database:     "jaeger",
+				TableEngine: TableEngine{
+					Replicated: configoptional.Some(ReplicatedEngine{}),
+					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
+				},
+			},
+			mockFn: func() func(name, tmplBody string, data any) (string, error) {
+				calls := 0
+				return func(name, tmplBody string, data any) (string, error) {
+					calls++
+					if calls == 2 {
+						return "", errors.New("mock distributed template error")
+					}
+					return loadTemplateImpl(name, tmplBody, data)
+				}
+			}(),
+			expectedError: "mock distributed template error",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
-			_, err := NewFactory(
-				context.Background(),
-				Configuration{CreateSchema: true, TableEngine: localTableEngine},
-				telemetry.NoopSettings(),
-			)
+			_, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
@@ -705,6 +733,48 @@ func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
 	require.ErrorContains(t, err, "attribute_layout must be nested or map")
 }
 
+// TestNewFactory_InvalidCluster checks that NewFactory rejects an invalid cluster block
+// before attempting to connect, the same way it rejects an invalid attribute layout.
+func TestNewFactory_InvalidCluster(t *testing.T) {
+	cfg := Configuration{
+		CreateSchema: true,
+		TableEngine: TableEngine{
+			MergeTree: configoptional.Some(MergeTreeEngine{}),
+			Cluster:   configoptional.Some(ClusterConfig{Name: "it's"}),
+		},
+	}
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "`table_engine.cluster.name` must not contain a single quote or a backslash")
+}
+
+// TestNewFactory_MergeTreeClusterWarns checks that NewFactory logs a warning, rather than
+// failing, when the cluster block distributes a merge_tree engine, which shards without
+// replicas.
+func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+
+	core, observed := observer.New(zap.WarnLevel)
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Database = "jaeger"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.CreateSchema = true
+	cfg.TableEngine = TableEngine{
+		MergeTree: configoptional.Some(MergeTreeEngine{}),
+		Cluster:   configoptional.Some(ClusterConfig{Name: "my_cluster"}),
+	}
+	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{
+		Logger:  zap.New(core),
+		Metrics: metrics.NullFactory,
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	require.Equal(t, 1, observed.Len())
+	assert.Contains(t, observed.All()[0].Message, "the data has no second copy")
+}
+
 // TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check
 // before it creates the schema: the test server reports a spans table in the map layout, and
 // the configuration is nested. A view of the other layout would fail to create with an error
@@ -830,6 +900,42 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 		_, err := buildSchema(Configuration{CreateSchema: true})
 		require.ErrorContains(t, err, "`create_schema` requires `table_engine`")
 	})
+}
+
+// TestSchemaBuilder_Distributed snapshots the whole schema with and without
+// table_engine.cluster, one file per case with each statement under its name, so that the
+// two layouts can be compared side by side.
+func TestSchemaBuilder_Distributed(t *testing.T) {
+	tests := []struct {
+		name        string
+		tableEngine TableEngine
+	}{
+		{
+			name: "with cluster",
+			tableEngine: TableEngine{
+				Replicated: configoptional.Some(ReplicatedEngine{}),
+				Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
+			},
+		},
+		{
+			name:        "without cluster",
+			tableEngine: localTableEngine,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, err := buildSchema(Configuration{
+				CreateSchema: true,
+				TableEngine:  tt.tableEngine,
+			})
+			require.NoError(t, err)
+			var schema strings.Builder
+			for _, stmt := range builder.statements {
+				fmt.Fprintf(&schema, "-- %s\n%s\n\n", stmt.name, strings.TrimSpace(stmt.query))
+			}
+			clickhousetest.VerifyQuerySnapshot(t, schema.String())
+		})
+	}
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
