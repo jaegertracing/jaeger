@@ -137,9 +137,10 @@ func newSchemaBuilder(
 	// to itself. The materialized views carry no engine of their own, because each writes
 	// TO its target table.
 	//
-	// publicName is set for a table and empty for a materialized view. Under the
-	// distributed layout a Distributed table is created under it, beside the storage table
-	// that query renders. shardingKey is set only for a table whose rows belong to one trace
+	// publicName is the name that the reader and the writers use for a table, such as
+	// spans; it is empty for a materialized view. When TableEngine.Cluster is set, query
+	// creates the storage table as <publicName>_local, and a Distributed table named
+	// publicName is created after it. shardingKey is set only for a table whose rows belong to one trace
 	// or one point in time.
 	schema := []struct {
 		name        string
