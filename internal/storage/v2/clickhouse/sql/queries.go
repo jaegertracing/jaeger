@@ -572,7 +572,7 @@ const SelectCallCounts = `
 SELECT
     toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
     service_name,
-    count(*) AS val
+    toFloat64(count(*)) AS val
 FROM
     spans
 WHERE
@@ -591,7 +591,7 @@ SELECT
     toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
     service_name,
     name,
-    count(*) AS val
+    toFloat64(count(*)) AS val
 FROM
     spans
 WHERE
