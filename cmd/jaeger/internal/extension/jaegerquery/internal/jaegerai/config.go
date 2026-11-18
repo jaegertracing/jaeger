@@ -142,7 +142,7 @@ func (c *MCPConfig) applyTo(cfg *mcptools.ServerParams) {
 	if c.MaxSearchResults != 0 {
 		// Validate has already range-checked this value, so the conversion is
 		// lossless; the field is an int only so a wrapped value cannot slip past it.
-		cfg.MaxSearchResults = uint32(c.MaxSearchResults)
+		cfg.MaxSearchResults = uint32(c.MaxSearchResults) //nolint:gosec // G115: Validate caps the value at MaxSearchResultsLimit
 	}
 	if c.MaxReadFileSize != 0 {
 		cfg.MaxReadFileSize = c.MaxReadFileSize
