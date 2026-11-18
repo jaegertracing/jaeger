@@ -32,6 +32,13 @@ PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
 PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
 CLEAN_UNINSTALL_TIMEOUT="${JAEGER_DEMO_CLEAN_UNINSTALL_TIMEOUT:-10m0s}"
 
+if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]] && deploy_jaeger; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ jq is required for the public smoke tests (JSON response assertions)" >&2
+    exit 1
+  fi
+fi
+
 uninstall_release() {
   local name=$1
 
@@ -223,7 +230,8 @@ smoke_expect() {
   local output=$3
 
   for attempt in $(seq 1 12); do
-    if curl -fsS "$url" -o "$output" && grep -q "$expected" "$output"; then
+    rm -f "$output"
+    if curl -sS --fail-with-body "$url" -o "$output" && grep -q "$expected" "$output"; then
       echo "✅ Smoke check passed: $url"
       return 0
     fi
@@ -238,10 +246,36 @@ smoke_expect() {
   return 1
 }
 
+smoke_expect_json() {
+  local url=$1
+  local jq_filter=$2
+  local output=$3
+
+  for attempt in $(seq 1 12); do
+    rm -f "$output"
+    if curl -sS --fail-with-body "$url" -o "$output" && jq -e "$jq_filter" "$output" >/dev/null 2>&1; then
+      echo "✅ Smoke check passed: $url (satisfied ${jq_filter})"
+      return 0
+    fi
+    echo "Waiting for $url to satisfy ${jq_filter} (attempt $attempt/12)..."
+    sleep 10
+  done
+
+  echo "❌ Smoke check failed: $url"
+  echo "Expected HTTP 2xx with a JSON body satisfying: ${jq_filter}"
+  echo "Last response:"
+  cat "$output" 2>/dev/null || true
+  return 1
+}
+
 if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]] && deploy_jaeger; then
   echo "🔎 Step 7: Verifying public demo endpoints..."
-  smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' /tmp/hotrod-smoke.json
-  smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' /tmp/jaeger-services.json
+  SMOKE_OUTPUT_DIR=$(mktemp -d)
+  trap 'rm -rf "$SMOKE_OUTPUT_DIR"' EXIT
+  smoke_expect "${PUBLIC_BASE_URL}/hotrod/dispatch?customer=123" '"Driver"' "$SMOKE_OUTPUT_DIR/hotrod-smoke.json"
+  smoke_expect "${PUBLIC_BASE_URL}/jaeger/api/v3/services" '"frontend"' "$SMOKE_OUTPUT_DIR/jaeger-services.json"
+  smoke_expect_json "${PUBLIC_BASE_URL}/jaeger/api/metrics/calls?service=frontend" '(.metrics | type) == "array" and (.metrics | length) > 0' "$SMOKE_OUTPUT_DIR/jaeger-metrics-calls.json"
+  smoke_expect_json "${PUBLIC_BASE_URL}/grafana/api/health" '.database == "ok"' "$SMOKE_OUTPUT_DIR/grafana-health.json"
 fi
 
 # Output Port-forward Instructions

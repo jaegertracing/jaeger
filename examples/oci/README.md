@@ -35,6 +35,10 @@ Ensure the following tools are installed and configured:
 - [`Helm 3`](https://helm.sh/docs/intro/install/)
 - `git`
 
+Public smoke tests (`RUN_PUBLIC_SMOKE_TESTS=true`) also require `curl` (7.76.0 or newer)
+and `jq`. They check ingestion, services, non-empty call metrics and Grafana health
+when deploying Jaeger, including Jaeger-only upgrades with existing monitoring.
+
 ---
 
 ## Deploy the Jaeger Demo Setup
