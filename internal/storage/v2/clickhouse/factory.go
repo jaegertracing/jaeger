@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"text/template"
 	"time"
 
@@ -48,8 +49,8 @@ type schemaTemplateParams struct {
 	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
 	HoistedColumns []string
 	// LocalTableSuffix is "_local" under the distributed layout (table_engine.cluster
-	// set), "" otherwise. It shifts a table's own definition and every materialized view
-	// around it onto the distributed layout together.
+	// set), "" otherwise. The tables and the views take it in every table name, so that
+	// the views attach to the storage tables.
 	LocalTableSuffix string
 	// layout is the layout of the typed attribute groups of the spans table. The templates
 	// reach it through the methods below.
@@ -76,11 +77,12 @@ func (p schemaTemplateParams) KeysFn(level expression.Level, attributeType chtra
 }
 
 // distributedTableParams is what create_distributed_table.sql is rendered with, once per
-// table in the schema, under the distributed layout.
+// public name in the schema, under the distributed layout.
 type distributedTableParams struct {
-	// Table is the public name the Distributed table is created under.
+	// Table is the public name.
 	Table string
-	// LocalTable is the table's local counterpart, Table with the schema's "_local" suffix.
+	// LocalTable is the storage table that Table forwards to, Table with the schema's
+	// "_local" suffix.
 	LocalTable string
 	// Cluster is table_engine.cluster.name.
 	Cluster string
@@ -131,13 +133,18 @@ func newSchemaBuilder(
 	for _, column := range hoistedColumns {
 		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
 	}
-	// shardingKey is set only for a table whose rows belong to one trace or one point in
-	// time.
+	// Every statement is rendered as a template, and one without template actions renders
+	// to itself. The materialized views carry no engine of their own, because each writes
+	// TO its target table.
+	//
+	// table is the public name a Distributed table is created under once more, beside the
+	// storage table or materialized view that query renders; shardingKey is set only for a
+	// table whose rows belong to one trace or one point in time.
 	schema := []struct {
-		name             string
-		query            string
-		distributedTable string
-		shardingKey      string
+		name        string
+		query       string
+		table       string
+		shardingKey string
 	}{
 		{"spans table", sql.CreateSpansTable, "spans", "cityHash64(trace_id)"},
 		{"services table", sql.CreateServicesTable, "services", ""},
@@ -159,20 +166,18 @@ func newSchemaBuilder(
 			return nil, err
 		}
 		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
-		if cluster != nil && s.distributedTable != "" {
-			wrapper, err := loadTemplate(s.distributedTable+" distributed table", sql.CreateDistributedTable, distributedTableParams{
-				Table:       s.distributedTable,
-				LocalTable:  s.distributedTable + suffix,
+		if cluster != nil && s.table != "" {
+			name := strings.ReplaceAll(s.table, "_", " ") + " distributed table"
+			distributedQuery, err := loadTemplate(name, sql.CreateDistributedTable, distributedTableParams{
+				Table:       s.table,
+				LocalTable:  s.table + suffix,
 				Cluster:     cluster.Name,
 				ShardingKey: s.shardingKey,
 			})
 			if err != nil {
 				return nil, err
 			}
-			builder.statements = append(builder.statements, schemaStatement{
-				name:  s.distributedTable + " distributed table",
-				query: wrapper,
-			})
+			builder.statements = append(builder.statements, schemaStatement{name: name, query: distributedQuery})
 		}
 	}
 	return builder, nil
@@ -210,11 +215,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
-		cluster, err := cfg.TableEngine.clusterConfig()
-		if err != nil {
-			return nil, err
-		}
-		if cluster != nil && cfg.TableEngine.MergeTree.HasValue() {
+		if cfg.TableEngine.Cluster.HasValue() && cfg.TableEngine.MergeTree.HasValue() {
 			telset.Logger.Warn("table_engine.cluster is set with merge_tree: the data has no second copy, " +
 				"and a node that is down affects every shard, not only its own (RFC 0022 §6.8)")
 		}
@@ -235,11 +236,6 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			Database: f.config.Database,
 		},
 		DialTimeout: f.config.DialTimeout,
-		// distributed_foreground_insert makes an insert into a Distributed table wait
-		// for its rows to reach their shard before acknowledging; the ClickHouse default
-		// queues them for background delivery instead. It has no effect on a non-Distributed
-		// table, so it is set unconditionally rather than only under table_engine.cluster.
-		Settings: clickhouse.Settings{"distributed_foreground_insert": 1},
 	}
 	basicAuth := f.config.Auth.Basic.Get()
 	if basicAuth != nil {

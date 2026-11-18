@@ -51,14 +51,14 @@ table_engine:
     name: my_cluster
 ```
 
-Setting `cluster` creates every table twice: once under its name with a `_local` suffix,
-using the engine `table_engine` otherwise selects, and once under its plain name as a
-`Distributed` table over `_local`, with a sharding key for each table whose rows belong to
-one trace or one point in time. Application reads and writes against the plain name are then
-routed and fanned out across the cluster's shards without a code change. Materialized views
-attach to the `_local` tables, never to a `Distributed` wrapper. The backend's connection sets
-`distributed_foreground_insert = 1`, so an acknowledged insert into a `Distributed` table is
-stored on its shard rather than queued for background delivery.
+Setting `cluster` creates every table twice: once under its name with a `_local` suffix as
+the storage table, using the engine `table_engine` otherwise selects, and once under the
+public name as a `Distributed` table over the storage table, with a sharding key for each
+table whose rows belong to one trace or one point in time. Application reads and writes
+against the public name are routed and fanned out across the cluster's shards. Materialized
+views attach to the storage tables, never to a `Distributed` table. On every insert into a
+`Distributed` table, the backend sets `distributed_foreground_insert = 1`, so an acknowledged
+insert is stored on its shard rather than queued for background delivery.
 
 A multi-node deployment needs a `Replicated` database: with `create_schema: true`, Jaeger
 issues its schema statements once, and the database itself delivers them to every node. An
@@ -74,7 +74,7 @@ rows are stored once per replica rather than once per shard.
 replicas, so the data has no second copy, and a node that is down affects every shard, not
 only its own.
 
-`Purge` truncates the `Distributed` tables and leaves the `_local` tables as they are.
+`Purge` truncates the `Distributed` tables and leaves the storage tables as they are.
 
 ### Attribute layout
 

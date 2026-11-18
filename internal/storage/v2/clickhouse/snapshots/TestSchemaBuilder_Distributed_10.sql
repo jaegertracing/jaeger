@@ -1,4 +1,4 @@
--- trace_id_timestamps distributed table
+-- trace id timestamps distributed table
 CREATE TABLE
     IF NOT EXISTS trace_id_timestamps AS trace_id_timestamps_local ENGINE = Distributed(
         'my_cluster',

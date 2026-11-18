@@ -107,8 +107,8 @@ var localTableEngine = TableEngine{
 	MergeTree: configoptional.Some(MergeTreeEngine{}),
 }
 
-// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and
-// the hoisted columns that cfg selects.
+// buildSchema renders the schema for cfg as NewFactory does, with the attribute layout and the
+// hoisted columns that cfg selects.
 func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	layout, err := cfg.attributeLayout()
 	if err != nil {
@@ -430,9 +430,9 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			// The second call under a distributed layout renders the first table's
-			// Distributed wrapper, a different template than the second call renders
+			// Distributed table, a different template than the second call renders
 			// without one.
-			name: "distributed wrapper loadTemplate call fails",
+			name: "distributed table loadTemplate call fails",
 			cfg: Configuration{
 				CreateSchema: true,
 				Database:     "jaeger",
@@ -904,8 +904,8 @@ func TestSchemaBuilder_Engines(t *testing.T) {
 
 // TestSchemaBuilder_Distributed snapshots all 18 statements table_engine.cluster renders,
 // each statement's name in a leading comment, so a reviewer sees the whole layout: every
-// table's own CREATE under its "_local" name, every materialized view wired to the "_local"
-// tables, and a Distributed wrapper under each table's plain name.
+// table's own CREATE under its "_local" name, every materialized view wired to the storage
+// tables, and a Distributed table under each public name.
 func TestSchemaBuilder_Distributed(t *testing.T) {
 	cfg := Configuration{
 		CreateSchema: true,
@@ -928,24 +928,49 @@ func TestSchemaBuilder_Distributed(t *testing.T) {
 	t.Run("without cluster, nothing is distributed", func(t *testing.T) {
 		builder, err := buildSchema(Configuration{CreateSchema: true, TableEngine: localTableEngine})
 		require.NoError(t, err)
-		for _, stmt := range builder.statements {
-			assert.NotContains(t, stmt.query, "_local", stmt.name)
-			assert.NotContains(t, stmt.query, "Distributed", stmt.name)
+		require.Len(t, builder.statements, 12)
+		queries := make([]string, len(builder.statements))
+		for i, stmt := range builder.statements {
+			queries[i] = fmt.Sprintf("-- %s\n%s", stmt.name, stmt.query)
 		}
+		clickhousetest.VerifyQuerySnapshot(t, queries...)
 	})
 }
 
-// TestNewFactory_SetsDistributedForegroundInsert checks that the connection carries
-// distributed_foreground_insert=1 on every request, which is what makes an insert into a
-// Distributed table wait for its rows to reach their shard rather than queuing them for
-// background delivery (RFC 0022 §6.7). Over HTTP, clickhouse-go bakes connection-level
-// Settings into the URL query string of every request, so the ping request shows it.
-func TestNewFactory_SetsDistributedForegroundInsert(t *testing.T) {
-	var gotQuery string
+// TestDependencyWriter_SetsDistributedForegroundInsert checks that the dependency writer's
+// insert carries distributed_foreground_insert=1, and that no other request the connection
+// makes does (RFC 0022 §6.7). The trace writer sets it through the identical one-line
+// pattern; this test exercises the mechanism once, through the simpler of the two tables,
+// rather than duplicating the real HTTP round trip for both. The setting is a per-query
+// option, not a connection option: a connection that carries it is refused outright by a
+// read-only ClickHouse user, which is why it has to reach the server this way and not
+// through clickhouse.Options.Settings.
+func TestDependencyWriter_SetsDistributedForegroundInsert(t *testing.T) {
+	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer fakeServer.Close()
+
+	var queries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
-		defer fakeServer.Close()
+		body, _ := io.ReadAll(r.Body)
+		queries = append(queries, r.URL.RawQuery)
+		if strings.Contains(string(body), "DESCRIBE TABLE dependencies") {
+			block := chproto.NewBlock()
+			block.AddColumn("name", "String")
+			block.AddColumn("type", "String")
+			block.AddColumn("default_type", "String")
+			block.AddColumn("default_expression", "String")
+			block.AddColumn("comment", "String")
+			block.AddColumn("codec_expression", "String")
+			block.AddColumn("ttl_expression", "String")
+			block.Append("timestamp", "DateTime64(9)", "", "", "", "", "")
+			block.Append("dependencies_json", "String", "", "", "", "", "")
+			var buf proto.Buffer
+			block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(buf.Buf)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		fakeServer.Config.Handler.ServeHTTP(w, r)
 	}))
 	defer srv.Close()
@@ -958,7 +983,18 @@ func TestNewFactory_SetsDistributedForegroundInsert(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, f.Close()) }()
 
-	assert.Contains(t, gotQuery, "distributed_foreground_insert=1")
+	// Every request so far (ping, handshake) was made to open the connection, none of it an
+	// insert, so none of it should carry the setting.
+	for _, q := range queries {
+		assert.NotContains(t, q, "distributed_foreground_insert")
+	}
+
+	dependencyWriter, err := f.CreateDependencyWriter()
+	require.NoError(t, err)
+	require.NoError(t, dependencyWriter.WriteDependencies(context.Background(), time.Now(), nil))
+
+	require.NotEmpty(t, queries)
+	assert.Contains(t, queries[len(queries)-1], "distributed_foreground_insert=1")
 }
 
 func TestNewFactory_KeepsExplicitZeroCacheSettings(t *testing.T) {
