@@ -90,7 +90,7 @@ func (r *Reader) GetCallRates(ctx context.Context, params *metricstore.CallRateQ
 		name, desc = "service_operation_call_rate", "calls/sec, grouped by service & operation"
 		query = sql.SelectCallCountsByOperation
 	}
-	queryStart := start.Add(-time.Duration(lookback-1) * time.Duration(step) * time.Second)
+	queryStart := start.Add(-time.Duration(lookback-1) * time.Duration(step) * time.Second) //nolint:gosec // G115: step is a query step in seconds, always well within int64 range
 
 	rows, err := r.conn.Query(ctx, query, step, queryStart, end, base.ServiceNames, kinds)
 	if err != nil {
@@ -133,7 +133,7 @@ func windowCallRates(
 	lookback int,
 	queryStart, start, end time.Time,
 ) map[metricsKey][]*metrics.MetricPoint {
-	step := int64(stepSecs)
+	step := int64(stepSecs) //nolint:gosec // G115: stepSecs is a query step in seconds, always well within int64 range
 	firstTick := alignDown(queryStart.Unix(), step)
 	lastTick := alignDown(end.Add(-time.Nanosecond).Unix(), step)
 	windowSeconds := float64(lookback) * float64(stepSecs)
