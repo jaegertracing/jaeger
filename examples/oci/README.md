@@ -2,6 +2,30 @@
 
 This guide walks you through deploying **Jaeger** (using the v2 Helm chart), **Prometheus**, and the **HotROD demo app** on Kubernetes.
 
+## Collector batching migration
+
+OpenTelemetry has [deprecated the `batch` processor](https://opentelemetry.io/blog/2026/collector-batching-migration/),
+with removal planned for Collector v0.177.0 (May 2027). This demo uses
+`queue_batch` before the storage/spanmetrics fanout, with the storage exporter's
+queue disabled so spans pass through one batching stage. The shared stage uses
+one consumer, 8192 raw-request slots, blocking overflow, and an 8192-span or
+200ms flush threshold. Slots remain occupied until export completes, including
+requests already in the active batch. This capacity lets one-span requests
+reach the batch threshold; it is not a span or memory limit. See the
+[storage exporter migration guide](../../cmd/jaeger/internal/exporters/storageexporter/README.md#batching)
+for the difference from the former processor's input buffer and acknowledgment
+semantics.
+
+Use a Jaeger image containing `queue_batch` support (#10145), including a matching
+snapshot image until a release includes it. Deploy the image and configuration
+together. Existing operator configurations using `batch` remain accepted by
+Jaeger, but must be migrated before the legacy component is removed.
+
+After an upgrade, verify that newly generated HotROD traces can be queried and
+that spanmetrics continue to reach Prometheus. The existing deployment workflow
+performs public ingestion/query and SPM smoke checks. Roll back the Helm release
+to the previous image and configuration if verification fails.
+
 ## Prerequisites
 
 Ensure the following tools are installed and configured:
