@@ -46,3 +46,17 @@ Linking an issue through the sidebar, and a label or state change on a linked is
 The action keeps one current comment on a flagged pull request. It rewrites that comment when the linked issues change, and when the pull request meets the policy. A pull request that is flagged again gets a new comment, because GitHub notifies the author of a new comment and not of an edited one.
 
 The action recognizes its comment by a hidden marker in the comment body. It honors the marker only in a comment from `github-actions[bot]`, which is the account of a workflow, or from an owner, organization member or collaborator. Pasting the marker into any other comment does not make the action rewrite that comment.
+
+## Running locally
+
+The script in `.github/scripts` applies the policy to every open pull request of a repository, which is how the policy reaches the pull requests that were open before the workflow existed. It reports what it would do and writes nothing unless `--apply` is given:
+
+```bash
+cd .github/scripts
+npm ci
+export GITHUB_TOKEN=$(gh auth token)
+node apply-pr-linked-issue-policy.js                          # dry run on jaegertracing/jaeger
+node apply-pr-linked-issue-policy.js jaegertracing jaeger-ui  # dry run on another repository
+node apply-pr-linked-issue-policy.js --pr 1234                # dry run on one pull request
+node apply-pr-linked-issue-policy.js --apply                  # label and comment
+```
