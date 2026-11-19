@@ -31,8 +31,9 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	params := &spanstore.TraceQueryParameters{
 		StartTimeMin: endTs.Add(-1 * lookback),
 		StartTimeMax: endTs,
-		// Dependencies must count every trace in the window, so do not let the
-		// trace search default limit apply.
+		// The badger trace reader replaces a NumTraces of 0 with its default
+		// search limit of 100, so set the maximum to count every trace in the
+		// window.
 		NumTraces: math.MaxUint32,
 	}
 
