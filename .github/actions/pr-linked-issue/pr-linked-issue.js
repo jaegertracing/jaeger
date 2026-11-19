@@ -20,6 +20,13 @@ const POLICY_URL =
 // The exemption names the bots instead of exempting every bot account,
 // because a coding agent can also open a pull request as a bot.
 const DEPENDENCY_BOT_LOGINS = ['dependabot', 'renovate-bot'];
+const POLICY_COMMENT_MARKER = '<!-- jaeger-pr-linked-issue -->';
+// The workflow posts the policy comment as github-actions[bot], and a
+// maintainer who applies the policy by hand posts it under their own account.
+// A marker in a comment from anyone else is ignored, so that pasting the
+// marker does not make the action rewrite that comment.
+const WORKFLOW_ACCOUNT_LOGIN = 'github-actions[bot]';
+const MAINTAINER_AUTHOR_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
 const pullRequestFields = `
   fragment pullRequestFields on PullRequest {
@@ -126,13 +133,41 @@ function linkedIssueProblems(pr, repository, owner) {
 }
 
 function missingIssueComment(problems) {
-  return `This pull request is labelled \`${MISSING_ISSUE_LABEL_NAME}\` because it is not linked to an open issue that carries the \`${QUALIFYING_ISSUE_LABEL_NAME}\` label:
+  return `${POLICY_COMMENT_MARKER}
+This pull request is labelled \`${MISSING_ISSUE_LABEL_NAME}\` because it is not linked to an open issue that carries the \`${QUALIFYING_ISSUE_LABEL_NAME}\` label:
 
 ${problems.map(problem => `- ${problem}`).join('\n')}
 
 Jaeger accepts a pull request only for an issue that a maintainer has marked \`${QUALIFYING_ISSUE_LABEL_NAME}\`, as described in [Link each pull request to an issue](${POLICY_URL}). To resolve this, link the pull request to such an issue with a closing keyword in the description, for example \`Fixes #123\`. If the issue is not labelled \`${QUALIFYING_ISSUE_LABEL_NAME}\`, ask on the issue whether the maintainers would accept a contribution.
 
 The pull request is also labelled \`${STALE_LABEL_NAME}\` and is closed automatically after about a week without activity unless such an issue is linked. A maintainer can exempt the pull request with the \`${EXEMPT_LABEL_NAME}\` label.`;
+}
+
+function policyMetComment() {
+  return `${POLICY_COMMENT_MARKER}
+This pull request now meets the linked issue policy.`;
+}
+
+function isPolicyComment(comment) {
+  return comment.body?.includes(POLICY_COMMENT_MARKER) &&
+    (comment.user?.login === WORKFLOW_ACCOUNT_LOGIN ||
+      MAINTAINER_AUTHOR_ASSOCIATIONS.includes(comment.author_association));
+}
+
+async function findLatestPolicyComment(octokit, owner, repo, number) {
+  const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+    owner, repo, issue_number: number, per_page: 100
+  });
+  return comments.findLast(isPolicyComment);
+}
+
+// The latest policy comment is rewritten in place, so that a pull request
+// carries one current statement of its state and not a history of them.
+async function rewritePolicyComment(octokit, owner, repo, number, body) {
+  const comment = await findLatestPolicyComment(octokit, owner, repo, number);
+  if (comment && comment.body !== body) {
+    await octokit.rest.issues.updateComment({ owner, repo, comment_id: comment.id, body });
+  }
 }
 
 /**
@@ -172,21 +207,29 @@ async function processLinkedIssuePolicy(
     if (violatesPolicy) {
       flaggedPullRequests.push(number);
       logger.log(`PR #${number} by @${login}: ${problems.join('; ')}`);
-      if (dryRun || isFlagged) continue;
-      // The comment is written before the labels, so that the stale label is
-      // the last change and the stale workflow counts idle days from it.
-      await octokit.rest.issues.createComment({
-        owner, repo, issue_number: number, body: missingIssueComment(problems)
-      });
-      await octokit.rest.issues.addLabels({
-        owner, repo, issue_number: number, labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
-      });
+      if (dryRun) continue;
+      const body = missingIssueComment(problems);
+      // A newly flagged pull request always gets a new comment, because GitHub
+      // notifies the author of a new comment and not of an edited one. The
+      // comment is written before the labels, so that the stale label is the
+      // last change and the stale workflow counts idle days from it.
+      if (isFlagged) {
+        await rewritePolicyComment(octokit, owner, repo, number, body);
+      } else {
+        await octokit.rest.issues.createComment({ owner, repo, issue_number: number, body });
+      }
+      const labels = [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+        .filter(name => !presentLabelNames.includes(name));
+      if (labels.length > 0) {
+        await octokit.rest.issues.addLabels({ owner, repo, issue_number: number, labels });
+      }
     } else if (isFlagged) {
       unflaggedPullRequests.push(number);
       logger.log(`PR #${number} by @${login}: meets the policy, removing ${MISSING_ISSUE_LABEL_NAME}`);
       if (dryRun) continue;
+      await rewritePolicyComment(octokit, owner, repo, number, policyMetComment());
       // missing-issue is removed last, so that a run that fails in between
-      // still finds the pull request flagged and finishes the removal.
+      // still finds the pull request flagged and finishes the work.
       for (const name of [STALE_LABEL_NAME, MISSING_ISSUE_LABEL_NAME]) {
         if (presentLabelNames.includes(name)) {
           await octokit.rest.issues.removeLabel({ owner, repo, issue_number: number, name });
@@ -228,6 +271,7 @@ async function githubActionHandler({ github, core, owner, repo, pullRequestNumbe
 module.exports = githubActionHandler;
 module.exports.processLinkedIssuePolicy = processLinkedIssuePolicy;
 module.exports.parseOptionalNumber = parseOptionalNumber;
+module.exports.POLICY_COMMENT_MARKER = POLICY_COMMENT_MARKER;
 module.exports.QUALIFYING_ISSUE_LABEL_NAME = QUALIFYING_ISSUE_LABEL_NAME;
 module.exports.MISSING_ISSUE_LABEL_NAME = MISSING_ISSUE_LABEL_NAME;
 module.exports.EXEMPT_LABEL_NAME = EXEMPT_LABEL_NAME;

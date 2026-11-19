@@ -31,3 +31,9 @@ A pull request meets the policy when one of the first 20 issues that it closes i
 A pull request is exempt when its author has write access to the repository, when it comes from Dependabot or Renovate, or when a maintainer applied the `no-issue-needed` label to it.
 
 The action closes no pull request. The stale workflow of the repository closes a pull request that keeps the `stale` label. When the pull request later meets the policy, the action removes both labels.
+
+## The comment
+
+The action keeps one current comment on a flagged pull request. It rewrites that comment when the linked issues change, and when the pull request meets the policy. A pull request that is flagged again gets a new comment, because GitHub notifies the author of a new comment and not of an edited one.
+
+The action recognizes its comment by a hidden marker in the comment body. It honors the marker only in a comment from `github-actions[bot]`, which is the account of a workflow, or from an owner, organization member or collaborator. Pasting the marker into any other comment does not make the action rewrite that comment.
