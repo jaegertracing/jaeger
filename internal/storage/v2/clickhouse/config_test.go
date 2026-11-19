@@ -200,6 +200,68 @@ func TestValidate(t *testing.T) {
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
 			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
 		},
+		{
+			name: "replicated with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "merge_tree with cluster is accepted",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "cluster without a name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{})
+			},
+			wantErr: "`table_engine.cluster.name` is required when `table_engine.cluster` is set",
+		},
+		{
+			name: "cluster name with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "it's"})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "cluster name with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: `my\cluster`})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "database with a quote is fine without cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			// database is never quoted in a Distributed(...) statement: it renders as
+			// currentDatabase(), a constant expression ClickHouse resolves server-side.
+			name: "database with a quote is fine with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
 	}
 
 	for _, tt := range tests {

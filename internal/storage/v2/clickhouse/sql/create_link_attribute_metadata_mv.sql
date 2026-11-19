@@ -1,9 +1,9 @@
-CREATE MATERIALIZED VIEW IF NOT EXISTS link_attribute_metadata_mv TO attribute_metadata AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS link_attribute_metadata_mv TO attribute_metadata{{ .LocalTableSuffix }} AS
 SELECT
     tp.1 AS attribute_key,
     tp.2 AS type,
     'link' AS level
-FROM spans
+FROM spans{{ .LocalTableSuffix }}
 ARRAY JOIN arrayConcat(
     arrayMap(k -> (k, 'bool'),   arrayFlatten({{ .KeysFn "link" "bool" }})),
     arrayMap(k -> (k, 'double'), arrayFlatten({{ .KeysFn "link" "double" }})),
