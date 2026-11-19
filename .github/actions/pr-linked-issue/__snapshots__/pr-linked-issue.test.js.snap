@@ -1,0 +1,24 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`the policy comments a pull request that meets the policy again 1`] = `
+"<!-- jaeger-pr-linked-issue -->
+This pull request now meets the linked issue policy."
+`;
+
+exports[`the policy comments a pull request whose linked issues do not qualify 1`] = `
+"<!-- jaeger-pr-linked-issue -->
+This pull request is labelled \`missing-issue\` because it is not linked to an open issue that carries the \`help wanted\` label. The linked issues do not qualify: #7, owner/other#8.
+
+Jaeger accepts a pull request only for an issue that a maintainer has marked \`help wanted\`, as described in [Link each pull request to an issue](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue). To resolve this, link the pull request to such an issue with a closing keyword in the description, for example \`Fixes #123\`. If the issue is not labelled \`help wanted\`, ask on the issue whether the maintainers would accept a contribution.
+
+The pull request is also labelled \`stale\` and is closed automatically after about a week without activity unless such an issue is linked. A maintainer can exempt the pull request with the \`no-issue-needed\` label."
+`;
+
+exports[`the policy comments a pull request without a linked issue 1`] = `
+"<!-- jaeger-pr-linked-issue -->
+This pull request is labelled \`missing-issue\` because it is not linked to an open issue that carries the \`help wanted\` label. No issue is linked to this pull request.
+
+Jaeger accepts a pull request only for an issue that a maintainer has marked \`help wanted\`, as described in [Link each pull request to an issue](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue). To resolve this, link the pull request to such an issue with a closing keyword in the description, for example \`Fixes #123\`. If the issue is not labelled \`help wanted\`, ask on the issue whether the maintainers would accept a contribution.
+
+The pull request is also labelled \`stale\` and is closed automatically after about a week without activity unless such an issue is linked. A maintainer can exempt the pull request with the \`no-issue-needed\` label."
+`;

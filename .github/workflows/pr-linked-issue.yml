@@ -1,0 +1,63 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Linked Issue
+
+on:
+  pull_request_target:
+    # edited covers a closing keyword added to the description. A push is not
+    # listed because a commit message does not link a pull request to an issue.
+    types: [opened, edited, reopened, labeled, unlabeled]
+  issues:
+    types: [labeled, unlabeled, closed, reopened]
+  workflow_dispatch:
+    inputs:
+      pullRequestNumber:
+        description: 'Pull request to check'
+        required: true
+        type: string
+      dryRun:
+        description: 'Log intended changes without writing labels or comments'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  check-linked-issue:
+    # Of the label events, only the exemption label on a pull request and the
+    # help wanted label on an issue change the outcome.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request_target' &&
+        (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+          github.event.label.name == 'no-issue-needed')) ||
+      (github.event_name == 'issues' &&
+        (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+          github.event.label.name == 'help wanted'))
+    # Two runs for the events of one pull request would both find no policy
+    # comment and post two. The group is on the job because a skipped job does
+    # not acquire it, so an unrelated label event cannot cancel a queued run.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || inputs.pullRequestNumber }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # The job runs the default branch's copy of the action, never the code
+          # of the pull request.
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check the linked issue
+        uses: ./.github/actions/pr-linked-issue
+        with:
+          token: ${{ github.token }}
+          pull-request-number: ${{ github.event.pull_request.number || inputs.pullRequestNumber }}
+          issue-number: ${{ github.event.issue.number }}
+          dry-run: ${{ inputs.dryRun || 'false' }}
