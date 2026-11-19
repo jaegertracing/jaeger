@@ -13,7 +13,13 @@ inputs:
       so pass the workflow token from a job that declares those permissions.
     required: true
   pull-request-number:
-    description: 'Pull request to check. Every open pull request is checked when it is empty.'
+    description: 'Pull request to check. Takes precedence over issue-number.'
+    required: false
+    default: ''
+  issue-number:
+    description: >-
+      Issue whose event asked for the run. The pull requests linked to it are
+      checked.
     required: false
     default: ''
   dry-run:
@@ -29,6 +35,7 @@ runs:
         # Inputs pass through the environment rather than being interpolated into the script
         # body, so a value from a workflow input cannot inject JavaScript.
         LINKED_ISSUE_PR_NUMBER: ${{ inputs.pull-request-number }}
+        LINKED_ISSUE_ISSUE_NUMBER: ${{ inputs.issue-number }}
         LINKED_ISSUE_DRY_RUN: ${{ inputs.dry-run }}
       with:
         github-token: ${{ inputs.token }}
@@ -40,5 +47,6 @@ runs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             pullRequestNumber: process.env.LINKED_ISSUE_PR_NUMBER,
+            issueNumber: process.env.LINKED_ISSUE_ISSUE_NUMBER,
             dryRun: process.env.LINKED_ISSUE_DRY_RUN === 'true'
           })

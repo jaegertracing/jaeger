@@ -171,15 +171,16 @@ async function rewritePolicyComment(octokit, owner, repo, number, body) {
 }
 
 /**
- * Apply the policy to one pull request, or to every open pull request when
- * no number is given.
+ * Apply the policy to one pull request, to the pull requests linked to one
+ * issue of this repository, or to every open pull request when neither number
+ * is given.
  *
  * @returns {Promise<{flaggedPullRequests: number[], unflaggedPullRequests: number[]}>}
  *   The pull requests that violate the policy, and the ones that carried the
  *   `missing-issue` label and no longer violate it.
  */
 async function processLinkedIssuePolicy(
-  octokit, owner, repo, { pullRequestNumber, dryRun = false } = {}, logger = console
+  octokit, owner, repo, { pullRequestNumber, issueNumber, dryRun = false } = {}, logger = console
 ) {
   const repository = `${owner}/${repo}`;
   let pullRequests;
@@ -187,7 +188,11 @@ async function processLinkedIssuePolicy(
     const pr = await fetchPullRequestIfOpen(octokit, owner, repo, pullRequestNumber);
     pullRequests = pr ? [pr] : [];
   } else {
-    pullRequests = await fetchOpenPullRequests(octokit, owner, repo);
+    pullRequests = (await fetchOpenPullRequests(octokit, owner, repo)).filter(pr =>
+      !issueNumber || pr.closingIssuesReferences.nodes.some(issue =>
+        issueReference(issue, repository) === `#${issueNumber}`
+      )
+    );
   }
 
   const permissionsByLogin = new Map();
@@ -253,10 +258,13 @@ function parseOptionalNumber(value, name) {
   return Number(value);
 }
 
-async function githubActionHandler({ github, core, owner, repo, pullRequestNumber, dryRun = false }) {
+async function githubActionHandler({
+  github, core, owner, repo, pullRequestNumber, issueNumber, dryRun = false
+}) {
   try {
     const result = await processLinkedIssuePolicy(github, owner, repo, {
       pullRequestNumber: parseOptionalNumber(pullRequestNumber, 'pull-request-number'),
+      issueNumber: parseOptionalNumber(issueNumber, 'issue-number'),
       dryRun
     });
     const prefix = dryRun ? 'Dry-run plan: ' : '';

@@ -21,7 +21,10 @@ steps:
 | Input | Required | Default | Purpose |
 |---|---|---|---|
 | `token` | yes | — | Token used to label and comment. Needs `issues: write` and `pull-requests: write`. |
-| `pull-request-number` | no | — | The pull request to check. Every open pull request is checked when it is empty. |
+| `pull-request-number` | no | — | The pull request to check. Takes precedence over `issue-number`. |
+| `issue-number` | no | — | The issue whose event asked for the run. The open pull requests linked to it are checked. |
+
+Without `pull-request-number` and `issue-number` the action checks every open pull request.
 | `dry-run` | no | `false` | Report which pull requests violate the policy without writing anything. |
 
 ## The policy
@@ -30,7 +33,13 @@ A pull request meets the policy when one of the first 20 issues that it closes i
 
 A pull request is exempt when its author has write access to the repository, when it comes from Dependabot or Renovate, or when a maintainer applied the `no-issue-needed` label to it.
 
-The action closes no pull request. The stale workflow of the repository closes a pull request that keeps the `stale` label. When the pull request later meets the policy, the action removes both labels.
+The action closes no pull request. The step of `.github/workflows/stale.yml` that is restricted to `missing-issue` closes the pull request after about a week without activity, and a repository that calls this action needs the same step. The `do-not-expire` label does not protect a pull request from that step; `no-issue-needed` is the exemption for this policy. When the pull request later meets the policy, the action removes both labels.
+
+## When the action runs
+
+`.github/workflows/pr-linked-issue.yml` calls the action when a pull request is opened, edited or reopened, when `no-issue-needed` is added to or removed from a pull request, and when an issue is closed, reopened, or has `help wanted` added or removed. The workflow has no scheduled run, so a pull request that was open before the workflow existed is checked only when one of those events touches it.
+
+Linking an issue through the sidebar, and a label or state change on a linked issue in another repository, fire no event for the pull request. Its description has to be edited, or the workflow run manually for it, before it is checked again.
 
 ## The comment
 
