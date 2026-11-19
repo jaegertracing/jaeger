@@ -4,6 +4,7 @@
 package jaegerquery
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -60,6 +61,13 @@ func (cfg *Config) Validate() error {
 			return fmt.Errorf("invalid base_path %q: must not contain dot segments, path traversal, or duplicate slashes (normalized: %q)", bp, clean)
 		}
 		cfg.BasePath = clean
+	}
+	if cfg.ServiceCacheTTL < 0 {
+		return fmt.Errorf("invalid service_cache_ttl %v: must not be negative", cfg.ServiceCacheTTL)
+	}
+	if cfg.ServiceCacheTTL > 0 && (cfg.BearerTokenPropagation || len(cfg.HeaderForwarding) > 0) {
+		return errors.New("service_cache_ttl cannot be used with bearer_token_propagation or header_forwarding, " +
+			"because cached results are shared by all users of a tenant")
 	}
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
