@@ -85,7 +85,9 @@ var (
 //
 //  1. FindTraceIDs: the user always supplies [StartTimeMin, StartTimeMax]. No adjustment needed.
 //
-//  2. GetTraces (by trace ID): no time range is known. The reader uses [now-maxSpanAge, now].
+//  2. GetTraces (by trace ID): the caller may supply a window for each trace ID. A missing end
+//     defaults to now and a missing start to end-maxSpanAge, so without a window the reader
+//     uses [now-maxSpanAge, now].
 //     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
 //       only existing indices within that window.
 //     - Alias indices: a single alias covers all data. The factory overrides maxSpanAge to
@@ -94,8 +96,8 @@ var (
 // multiRead always adds a time-range filter to the ES query for shard pruning (helps ES skip
 // irrelevant shards). This is harmless for periodic indices and essential for aliases.
 //
-// multiRead is called from both paths. When called from FindTraces, the time range is the user's
-// search window — but a trace may extend beyond it. The ±maxTraceDuration padding on index
+// multiRead is called from both paths with a time range for each trace. From FindTraces, it is
+// the user's search window — but a trace may extend beyond it, as it may beyond a GetTraces window. The ±maxTraceDuration padding on index
 // selection and the ES time filter ensure all spans of a trace are found even when they extend
 // beyond the search window.
 //
@@ -204,13 +206,32 @@ func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCur
 	return req
 }
 
-// GetTraces takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
+// GetTraces returns the traces with the given IDs, each searched within its own time window.
+// See timeRangeDesign above for the defaults of a missing start or end.
+func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.GetTraceParameters) ([]dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
-	// TODO: use start time & end time in "query" struct
-	return s.multiRead(ctx, query, currentTime.Add(-s.maxSpanAge), currentTime)
+	reads := make([]traceRead, len(query))
+	for i, params := range query {
+		endTime := params.EndTime
+		if endTime.IsZero() {
+			endTime = currentTime
+		}
+		startTime := params.StartTime
+		if startTime.IsZero() {
+			startTime = endTime.Add(-s.maxSpanAge)
+		}
+		reads[i] = traceRead{traceID: params.TraceID, startTime: startTime, endTime: endTime}
+	}
+	return s.multiRead(ctx, reads)
+}
+
+// traceRead is a trace ID to read and the time range of the start times of its spans.
+type traceRead struct {
+	traceID   dbmodel.TraceID
+	startTime time.Time
+	endTime   time.Time
 }
 
 func (s *SpanReader) collectSpans(esSpansRaw []esclient.SearchHit) ([]dbmodel.Span, error) {
@@ -283,7 +304,11 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	reads := make([]traceRead, len(uniqueTraceIDs))
+	for i, traceID := range uniqueTraceIDs {
+		reads[i] = traceRead{traceID: traceID, startTime: traceQuery.StartTimeMin, endTime: traceQuery.StartTimeMax}
+	}
+	return s.multiRead(ctx, reads)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
@@ -306,34 +331,40 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 	return esTraceIDs, nil
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
+func (s *SpanReader) multiRead(ctx context.Context, reads []traceRead) ([]dbmodel.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
 
 	if childSpan.IsRecording() {
-		tracesIDs := make([]string, len(traceIDs))
-		for i, traceID := range traceIDs {
-			tracesIDs[i] = string(traceID)
+		tracesIDs := make([]string, len(reads))
+		for i, read := range reads {
+			tracesIDs[i] = string(read.traceID)
 		}
 		childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 	}
 
-	traces := make([]dbmodel.Trace, 0, len(traceIDs))
+	traces := make([]dbmodel.Trace, 0, len(reads))
 
-	if len(traceIDs) == 0 {
+	if len(reads) == 0 {
 		return traces, nil
 	}
 
-	// See timeRangeDesign above for context on the padding and the alias filter.
-	idxList := s.spanRotation.ReadTargets(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
+	// Follow-up pages of a trace are read within the same time range as its first page.
+	readsByTraceID := make(map[dbmodel.TraceID]traceRead, len(reads))
+	for _, read := range reads {
+		readsByTraceID[read.traceID] = read
+	}
 	searchAfter := make(map[dbmodel.TraceID]traceReadCursor)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
-	for len(traceIDs) != 0 {
-		searchRequests := make([]esclient.MultiSearchRequest, len(traceIDs))
-		for i, traceID := range traceIDs {
-			traceQuery := buildTraceByIDQuery(traceID)
-			startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
+	for len(reads) != 0 {
+		searchRequests := make([]esclient.MultiSearchRequest, len(reads))
+		for i, read := range reads {
+			// See timeRangeDesign above for context on the padding and the alias filter.
+			startTime := read.startTime.Add(-s.maxTraceDuration)
+			endTime := read.endTime.Add(s.maxTraceDuration)
+			traceQuery := buildTraceByIDQuery(read.traceID)
+			startTimeRangeQuery := s.buildStartTimeQuery(startTime, endTime)
 			query := esquery.NewBoolQuery().
 				Must(traceQuery).
 				Must(startTimeRangeQuery)
@@ -341,17 +372,17 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			// First page sends no search_after; follow-up pages resume from the
 			// previous page's last span.
 			var cursor *traceReadCursor
-			if val, ok := searchAfter[traceID]; ok {
+			if val, ok := searchAfter[read.traceID]; ok {
 				cursor = &val
 			}
 
 			searchRequests[i] = esclient.MultiSearchRequest{
-				Indices: idxList,
+				Indices: s.spanRotation.ReadTargets(startTime, endTime),
 				Search:  s.buildTraceReadRequest(query, cursor),
 			}
 		}
-		// set traceIDs to empty
-		traceIDs = nil
+		// set reads to empty
+		reads = nil
 		responses, err := s.searcher.MultiSearch(ctx, searchRequests)
 		if err != nil {
 			logErrorToSpan(childSpan, err)
@@ -392,7 +423,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < result.Hits.Total.Value {
-				traceIDs = append(traceIDs, lastSpan.TraceID)
+				reads = append(reads, readsByTraceID[lastSpan.TraceID])
 				searchAfter[lastSpan.TraceID] = traceReadCursor{
 					startTime: lastSpan.StartTime,
 					spanID:    string(lastSpan.SpanID),
