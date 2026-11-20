@@ -393,6 +393,9 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if errors.Is(err, disabled.ErrDisabled) || errors.Is(err, errors.ErrUnsupported) {
 		statusCode = http.StatusNotImplemented
 	}
+	if errors.Is(err, tracestore.ErrInvalidQuery) {
+		statusCode = http.StatusBadRequest
+	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}

@@ -391,6 +391,7 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		name          string
 		requestUrl    string
 		expectedError string
+		expectedCode  int
 	}{
 		{
 			name:          "bad trace ID",
@@ -427,21 +428,39 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
 			expectedError: "malformed parameter raw_traces",
 		},
+		{
+			name:          "inverted time window (canonical)",
+			requestUrl:    "/api/v3/traces/1?startTime=2020-01-02T00:00:00Z&endTime=2020-01-01T00:00:00Z",
+			expectedError: "end time must be after start time",
+			expectedCode:  http.StatusBadRequest,
+		},
+		{
+			name:          "equal time window (deprecated)",
+			requestUrl:    "/api/v3/traces/1?start_time=2020-01-01T00:00:00Z&end_time=2020-01-01T00:00:00Z",
+			expectedError: "end time must be after start time",
+			expectedCode:  http.StatusBadRequest,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")
-			gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
-				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-					yield([]ptrace.Traces{}, nil)
-				})).Once()
+			if tc.expectedCode == 0 {
+				gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+					Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+						yield([]ptrace.Traces{}, nil)
+					})).Once()
+			}
 
 			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, http.NoBody)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
 			assert.Contains(t, w.Body.String(), tc.expectedError)
+			if tc.expectedCode != 0 {
+				assert.Equal(t, tc.expectedCode, w.Code)
+				gw.reader.AssertNotCalled(t, "GetTraces", mock.Anything, mock.Anything)
+			}
 		})
 	}
 }

@@ -135,6 +135,67 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 }
 
+func TestGetTraces_InvertedTimeRange(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name  string
+		start time.Time
+		end   time.Time
+	}{
+		{name: "end before start", start: now, end: now.Add(-time.Hour)},
+		{name: "end equal to start", start: now, end: now},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tqs := initializeTestService()
+			params := GetTraceParams{
+				TraceIDs: []tracestore.GetTraceParams{{
+					TraceID: testTraceID,
+					Start:   tc.start,
+					End:     tc.end,
+				}},
+			}
+			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+			_, err := jiter.FlattenWithErrors(getTracesIter)
+			require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+			require.ErrorContains(t, err, "end time must be after start time")
+			tqs.traceReader.AssertNotCalled(t, "GetTraces", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestGetTraces_OneSidedTimeRangeAllowed(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name  string
+		start time.Time
+		end   time.Time
+	}{
+		{name: "only start", start: now.Add(-time.Hour)},
+		{name: "only end", end: now},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tqs := initializeTestService()
+			params := GetTraceParams{
+				TraceIDs: []tracestore.GetTraceParams{{
+					TraceID: testTraceID,
+					Start:   tc.start,
+					End:     tc.end,
+				}},
+			}
+			tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})).Once()
+			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+			require.Len(t, gotTraces, 1)
+		})
+	}
+}
+
 func TestGetTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
 	params := GetTraceParams{
@@ -796,18 +857,32 @@ func TestArchiveTrace(t *testing.T) {
 	tests := []struct {
 		name          string
 		options       []testOption
+		query         tracestore.GetTraceParams
 		setupMocks    func(tqs *testQueryService)
 		expectedError error
 	}{
 		{
 			name:          "no options",
 			options:       nil,
+			query:         tracestore.GetTraceParams{TraceID: testTraceID},
 			setupMocks:    func(*testQueryService) {},
 			expectedError: errNoArchiveSpanStorage,
 		},
 		{
+			name:    "inverted time range",
+			options: []testOption{withArchiveTraceWriter()},
+			query: tracestore.GetTraceParams{
+				TraceID: testTraceID,
+				Start:   time.Unix(2, 0).UTC(),
+				End:     time.Unix(1, 0).UTC(),
+			},
+			setupMocks:    func(*testQueryService) {},
+			expectedError: tracestore.ErrInvalidQuery,
+		},
+		{
 			name:    "get trace error",
 			options: []testOption{withArchiveTraceWriter()},
+			query:   tracestore.GetTraceParams{TraceID: testTraceID},
 			setupMocks: func(tqs *testQueryService) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{}, assert.AnError)
@@ -820,6 +895,7 @@ func TestArchiveTrace(t *testing.T) {
 		{
 			name:    "archive writer error",
 			options: []testOption{withArchiveTraceWriter()},
+			query:   tracestore.GetTraceParams{TraceID: testTraceID},
 			setupMocks: func(tqs *testQueryService) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -834,6 +910,7 @@ func TestArchiveTrace(t *testing.T) {
 		{
 			name:    "success",
 			options: []testOption{withArchiveTraceWriter()},
+			query:   tracestore.GetTraceParams{TraceID: testTraceID},
 			setupMocks: func(tqs *testQueryService) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -848,6 +925,7 @@ func TestArchiveTrace(t *testing.T) {
 		{
 			name:    "trace not found",
 			options: []testOption{withArchiveTraceWriter()},
+			query:   tracestore.GetTraceParams{TraceID: testTraceID},
 			setupMocks: func(tqs *testQueryService) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{}, nil)
@@ -864,9 +942,7 @@ func TestArchiveTrace(t *testing.T) {
 			tqs := initializeTestService(test.options...)
 			test.setupMocks(tqs)
 
-			query := tracestore.GetTraceParams{
-				TraceID: testTraceID,
-			}
+			query := test.query
 
 			err := tqs.queryService.ArchiveTrace(context.Background(), query)
 			if test.expectedError != nil {
