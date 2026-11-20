@@ -29,6 +29,10 @@ upgrades OpenSearch before Dashboards. A version check and a fresh collector-to-
 query trace check must pass before recording the revision. Recovery failure stops
 the update. Automated runs never waive recovery or perform a clean reinstall.
 
+The deployment job has a time limit sized for a full-stack run that includes the
+restore test, and it removes that run's disposable restore pod when it ends,
+including after a failure or cancellation.
+
 The manual `demo_stack`, `otel_deploy_scope`, image overrides, `deploy_mode`, and
 recovery inputs are preserved. The historical `otel_deploy_scope` input also
 accepts `monitoring` for an isolated OCI monitoring upgrade. Invalid stack/scope
@@ -37,9 +41,11 @@ pairs fail. Direct script callers can select a scope through
 
 For the initial catch-up, review and merge the paired OpenSearch/Dashboards 3.9.0
 Renovate update first. Keep other component updates separate. Major database
-changes require a tested migration in their reviewed change. Existing missing or
-failed OCI monitoring releases must be repaired under #10002; an upgrade reports
-that failure instead of skipping monitoring and reporting success.
+changes require a tested migration in their reviewed change. Existing missing
+OCI monitoring releases and pending Helm operations must be repaired under
+#10002; an upgrade reports that failure instead of skipping monitoring and
+reporting success. A `failed` monitoring release is upgraded in place by the
+next reconciliation or `monitoring`-scope run.
 
 Run the maintenance tests through `scripts/utils/run-tests.sh`, alongside the
 repository-required formatting, lint, and test targets. To inspect discovery

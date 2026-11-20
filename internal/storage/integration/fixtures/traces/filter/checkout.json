@@ -39,6 +39,12 @@
                   "value": {
                     "stringValue": "200"
                   }
+                },
+                {
+                  "key": "queue.depth",
+                  "value": {
+                    "intValue": "0"
+                  }
                 }
               ],
               "status": {}

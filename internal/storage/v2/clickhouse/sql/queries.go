@@ -5,7 +5,9 @@ package sql
 
 import _ "embed"
 
-const InsertSpan = `
+// InsertSpanNestedLayout inserts a span into a spans table in the Nested attribute layout, where
+// an attribute group is a pair of parallel key and value columns.
+const InsertSpanNestedLayout = `
 INSERT INTO
     spans (
         id,
@@ -130,7 +132,105 @@ VALUES
     )
 `
 
-const SelectSpansQuery = `
+// InsertSpanMapLayout inserts a span into a spans table in the Map attribute layout, where an
+// attribute group of a span, a resource or a scope is one column.
+const InsertSpanMapLayout = `
+INSERT INTO
+    spans (
+        id,
+        trace_id,
+        trace_state,
+        parent_span_id,
+        name,
+        kind,
+        start_time,
+        status_code,
+        status_message,
+        duration,
+        bool_attributes,
+        double_attributes,
+        int_attributes,
+        str_attributes,
+        complex_attributes,
+        events.name,
+        events.timestamp,
+        events.bool_attributes,
+        events.double_attributes,
+        events.int_attributes,
+        events.str_attributes,
+        events.complex_attributes,
+        links.trace_id,
+        links.span_id,
+        links.trace_state,
+        links.bool_attributes,
+        links.double_attributes,
+        links.int_attributes,
+        links.str_attributes,
+        links.complex_attributes,
+        service_name,
+        resource_bool_attributes,
+        resource_double_attributes,
+        resource_int_attributes,
+        resource_str_attributes,
+        resource_complex_attributes,
+        scope_name,
+        scope_version,
+        scope_bool_attributes,
+        scope_double_attributes,
+        scope_int_attributes,
+        scope_str_attributes,
+        scope_complex_attributes
+    )
+VALUES
+    (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    )
+`
+
+// SelectSpansNestedLayout reads spans from a spans table in the Nested attribute layout.
+const SelectSpansNestedLayout = `
 SELECT
     id,
     trace_id,
@@ -201,10 +301,83 @@ SELECT
     scope_complex_attributes.key,
     scope_complex_attributes.value
 FROM
-    spans s
-`
+    spans s`
 
-const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
+// SelectSpansMapLayout reads spans from a spans table in the Map attribute layout.
+// It selects the same columns in the same order as SelectSpansNestedLayout, so a span is
+// scanned the same way from either layout.
+const SelectSpansMapLayout = `
+SELECT
+    id,
+    trace_id,
+    trace_state,
+    parent_span_id,
+    name,
+    kind,
+    start_time,
+    status_code,
+    status_message,
+    duration,
+    mapKeys(bool_attributes),
+    mapValues(bool_attributes),
+    mapKeys(double_attributes),
+    mapValues(double_attributes),
+    mapKeys(int_attributes),
+    mapValues(int_attributes),
+    mapKeys(str_attributes),
+    mapValues(str_attributes),
+    mapKeys(complex_attributes),
+    mapValues(complex_attributes),
+    events.name,
+    events.timestamp,
+    arrayMap(m -> mapKeys(m), events.bool_attributes),
+    arrayMap(m -> mapValues(m), events.bool_attributes),
+    arrayMap(m -> mapKeys(m), events.double_attributes),
+    arrayMap(m -> mapValues(m), events.double_attributes),
+    arrayMap(m -> mapKeys(m), events.int_attributes),
+    arrayMap(m -> mapValues(m), events.int_attributes),
+    arrayMap(m -> mapKeys(m), events.str_attributes),
+    arrayMap(m -> mapValues(m), events.str_attributes),
+    arrayMap(m -> mapKeys(m), events.complex_attributes),
+    arrayMap(m -> mapValues(m), events.complex_attributes),
+    links.trace_id,
+    links.span_id,
+    links.trace_state,
+    arrayMap(m -> mapKeys(m), links.bool_attributes),
+    arrayMap(m -> mapValues(m), links.bool_attributes),
+    arrayMap(m -> mapKeys(m), links.double_attributes),
+    arrayMap(m -> mapValues(m), links.double_attributes),
+    arrayMap(m -> mapKeys(m), links.int_attributes),
+    arrayMap(m -> mapValues(m), links.int_attributes),
+    arrayMap(m -> mapKeys(m), links.str_attributes),
+    arrayMap(m -> mapValues(m), links.str_attributes),
+    arrayMap(m -> mapKeys(m), links.complex_attributes),
+    arrayMap(m -> mapValues(m), links.complex_attributes),
+    service_name,
+    mapKeys(resource_bool_attributes),
+    mapValues(resource_bool_attributes),
+    mapKeys(resource_double_attributes),
+    mapValues(resource_double_attributes),
+    mapKeys(resource_int_attributes),
+    mapValues(resource_int_attributes),
+    mapKeys(resource_str_attributes),
+    mapValues(resource_str_attributes),
+    mapKeys(resource_complex_attributes),
+    mapValues(resource_complex_attributes),
+    scope_name,
+    scope_version,
+    mapKeys(scope_bool_attributes),
+    mapValues(scope_bool_attributes),
+    mapKeys(scope_double_attributes),
+    mapValues(scope_double_attributes),
+    mapKeys(scope_int_attributes),
+    mapValues(scope_int_attributes),
+    mapKeys(scope_str_attributes),
+    mapValues(scope_str_attributes),
+    mapKeys(scope_complex_attributes),
+    mapValues(scope_complex_attributes)
+FROM
+    spans s`
 
 // SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //
@@ -263,6 +436,32 @@ SELECT
     level
 FROM
     attribute_metadata`
+
+// SelectHoistedColumn reads how the spans table declares one column. The server formats the
+// stored expression and the configured one before it compares their text, so a difference in
+// spacing or in how a string literal is escaped does not count as a difference. An ordinary
+// column has no expression to format, which formatQuerySingleLineOrNull reports as NULL and
+// not as an error.
+const SelectHoistedColumn = `
+SELECT
+    type,
+    default_kind,
+    default_expression,
+    compression_codec,
+    ifNull(formatQuerySingleLineOrNull(concat('SELECT ', default_expression)) = formatQuerySingleLine(concat('SELECT ', ?)), 0) AS same_expression
+FROM system.columns
+WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
+
+// SelectAttributeGroupType returns how the spans table declares the str_attributes group, and
+// no row when the table does not exist. The server lists a Nested group as the array
+// str_attributes.key, or as str_attributes when flatten_nested is off.
+const SelectAttributeGroupType = `
+SELECT type
+FROM system.columns
+WHERE database = currentDatabase() AND table = 'spans' AND name IN ('str_attributes', 'str_attributes.key')`
+
+// SelectSpansTable returns one row when the current database has a spans table.
+const SelectSpansTable = `SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = 'spans'`
 
 const (
 	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
@@ -437,3 +636,6 @@ var CreateEventAttributeMetadataMaterializedView string
 
 //go:embed create_link_attribute_metadata_mv.sql
 var CreateLinkAttributeMetadataMaterializedView string
+
+//go:embed create_distributed_table.sql
+var CreateDistributedTable string

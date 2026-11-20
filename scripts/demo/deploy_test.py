@@ -1,7 +1,9 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+from itertools import takewhile
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -108,6 +110,57 @@ class DeploymentTests(unittest.TestCase):
         component.assert_called_once_with("otel-demo", self.env)
         resolve.assert_not_called()
         self.assertEqual(self.desired, json.loads(run.call_args.kwargs["input"])["data"])
+
+    def run_workflow_step(self, step, kubectl_status, **env):
+        lines = step.split("\n      run: |\n", 1)[1].splitlines()
+        script = "\n".join(line[8:] for line in takewhile(lambda line: line.startswith(" " * 8) or not line, lines))
+        self.assertNotIn("${{", script)
+        with tempfile.TemporaryDirectory() as temp:
+            kubectl = Path(temp) / "kubectl"
+            kubectl.write_text('#!/bin/sh\necho "$*" >> "$TEST_KUBECTL_LOG"\nexit "$TEST_KUBECTL_STATUS"\n')
+            kubectl.chmod(0o755)
+            log = Path(temp) / "kubectl.log"
+            env = dict(os.environ, PATH=temp + os.pathsep + os.environ["PATH"], TEST_KUBECTL_LOG=str(log),
+                       TEST_KUBECTL_STATUS=str(kubectl_status), **env)
+            result = subprocess.run(["bash", "-e", "-c", script], env=env, text=True, capture_output=True)
+            return result, log.read_text().splitlines()
+
+    def test_deploy_workflow_guards_the_restore_test(self):
+        workflows = deploy.ROOT / ".github/workflows"
+        workflow = (workflows / "ci-deploy-demo.yml").read_text()
+        job, *steps = workflow.split("\n    - name: ")
+        names = [step.split("\n", 1)[0] for step in steps]
+        self.assertEqual(["Reconcile demo components", "Collect OpenSearch recovery diagnostics",
+                          "Remove disposable restore pod", "Send detailed Slack notification on failure"], names[-4:])
+        self.assertNotIn("continue-on-error", workflow)
+        limit = re.search(r"^    timeout-minutes: (\d+)$", job, re.MULTILINE)
+        self.assertIsNotNone(limit, "the deploy job has no timeout-minutes")
+        recovery_limit = re.search(r"^    timeout-minutes: (\d+)$", (workflows / "ci-opensearch-recovery.yml").read_text(), re.MULTILINE)
+        self.assertLess(int(recovery_limit[1]), int(limit[1]))
+        self.assertLess(int(limit[1]), 360)
+
+        diagnostics, cleanup, slack = steps[-3:]
+        self.assertIn("\n      if: failure()\n", diagnostics)
+        self.assertIn("\n      if: always()\n", cleanup)
+        self.assertIn("\n      if: failure()\n", slack)
+        self.assertIn("\n        OPENSEARCH_RECOVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}\n", cleanup)
+        script = deploy.ROOT / "examples/otel-demo/opensearch-recovery.sh"
+        self.assertIn('local restore_pod="jaeger-os-verify-$RECOVERY_ID"', script.read_text())
+        run = dict(GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2", OPENSEARCH_RECOVERY_ID="")
+        derived = subprocess.run(["bash", "-c", 'source "$1" && echo "$RECOVERY_ID"', "bash", str(script)],
+                                 env=dict(os.environ, **run), text=True, capture_output=True, check=True)
+        self.assertEqual("123-2", derived.stdout.strip())
+        selector = " -l jaegertracing.io/recovery-source=opensearch -o custom-columns="
+        for status in (0, 1):
+            with self.subTest(kubectl_status=status):
+                result, calls = self.run_workflow_step(diagnostics, status)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(["volumesnapshots", "pvc", "pods"], [call.split()[3] for call in calls])
+                self.assertTrue(all(call.startswith("-n opensearch get ") and selector in call for call in calls))
+                result, calls = self.run_workflow_step(cleanup, status, OPENSEARCH_RECOVERY_ID="123-2")
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(["-n opensearch delete pod jaeger-os-verify-123-2 --ignore-not-found=true --wait=false"], calls)
+                self.assertEqual(bool(status), "::warning::" in result.stdout)
 
     @patch("deploy.resolve_snapshots")
     @patch("deploy.run")

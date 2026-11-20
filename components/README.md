@@ -44,5 +44,8 @@ and processor removal for v0.177.0 (May 2027). Exporter-level batching is the
 preferred migration for most pipelines; `queue_batch` supports pipelines that
 still need batching before downstream processors or multiple exporters.
 
-Existing `batch` configurations remain supported. Adding the replacement does
-not change Jaeger's shipped pipeline configurations or batching defaults.
+Existing `batch` configurations remain supported. Shipped configurations use
+exporter-level batching, or `queue_batch` before storage/spanmetrics fanout.
+See the [storage exporter batching guide](../cmd/jaeger/internal/exporters/storageexporter/README.md#batching)
+for migration settings and acknowledgment semantics. Global exporter defaults
+remain unchanged.
