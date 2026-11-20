@@ -9,7 +9,8 @@ const {
   QUALIFYING_ISSUE_LABEL_NAME,
   MISSING_ISSUE_LABEL_NAME,
   EXEMPT_LABEL_NAME,
-  STALE_LABEL_NAME
+  STALE_LABEL_NAME,
+  POLICY_COMMENT_MARKER
 } = handler;
 
 function makeIssue(number, { labels = [QUALIFYING_ISSUE_LABEL_NAME], state = 'OPEN', repository = 'owner/repo' } = {}) {
@@ -31,8 +32,9 @@ function makePR(number, { issues = [], labels = [], author = 'newcomer', state =
   };
 }
 
-function makeOctokit(pullRequests) {
+function makeOctokit(pullRequests, comments = []) {
   return {
+    paginate: jest.fn().mockResolvedValue(comments),
     graphql: jest.fn((query, { number }) => Promise.resolve({
       repository: {
         pullRequests: { nodes: pullRequests.filter(pr => pr.state === 'OPEN'), pageInfo: { hasNextPage: false } },
@@ -46,12 +48,18 @@ function makeOctokit(pullRequests) {
         )
       },
       issues: {
+        listComments: jest.fn(),
         createComment: jest.fn().mockResolvedValue({}),
+        updateComment: jest.fn().mockResolvedValue({}),
         addLabels: jest.fn().mockResolvedValue({}),
         removeLabel: jest.fn().mockResolvedValue({})
       }
     }
   };
+}
+
+function policyComment(id, text, authorFields = { user: { login: 'github-actions[bot]' } }) {
+  return { id, body: `${POLICY_COMMENT_MARKER}\n${text}`, ...authorFields };
 }
 
 function applyPolicy(octokit, options) {
@@ -122,14 +130,53 @@ describe('flagging a pull request', () => {
     expect(logger.log).toHaveBeenCalledWith(`PR #1 by @newcomer: ${problems.join('; ')}`);
   });
 
-  test('leaves a pull request that is already flagged alone', async () => {
-    const octokit = makeOctokit([makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })]);
+  test('posts a new comment when a pull request is flagged again', async () => {
+    const octokit = makeOctokit([makePR(1)], [policyComment(56, 'now meets the policy')]);
 
-    const result = await applyPolicy(octokit);
+    await applyPolicy(octokit);
 
-    expect(result.flaggedPullRequests).toEqual([1]);
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+  });
+
+  test('rewrites the latest policy comment when the linked issues of a flagged pull request change', async () => {
+    const pr = makePR(1, {
+      issues: [makeIssue(7, { labels: [] })],
+      labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+    });
+    const octokit = makeOctokit([pr], [policyComment(54, 'older'), policyComment(56, 'No issue is linked')]);
+
+    await applyPolicy(octokit);
+
+    const [{ comment_id: commentId, body }] = octokit.rest.issues.updateComment.mock.calls[0];
+    expect(commentId).toBe(56);
+    expect(body).toContain('- #7 is not labelled `help wanted`');
     expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
     expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test('restores the stale label on a flagged pull request that lost it', async () => {
+    const octokit = makeOctokit([makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ labels: [STALE_LABEL_NAME] }));
+  });
+
+  test.each([
+    { name: 'the workflow account', authorFields: { user: { login: 'github-actions[bot]' } }, rewritten: true },
+    { name: 'the repository owner', authorFields: { author_association: 'OWNER' }, rewritten: true },
+    { name: 'an organization member', authorFields: { author_association: 'MEMBER' }, rewritten: true },
+    { name: 'a collaborator', authorFields: { author_association: 'COLLABORATOR' }, rewritten: true },
+    { name: 'another bot', authorFields: { user: { login: 'coding-agent[bot]' }, author_association: 'NONE' }, rewritten: false },
+    { name: 'a contributor', authorFields: { author_association: 'CONTRIBUTOR' }, rewritten: false }
+  ])('a marked comment from $name is rewritten: $rewritten', async ({ authorFields, rewritten }) => {
+    const pr = makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME] });
+    const octokit = makeOctokit([pr], [policyComment(56, 'outdated', authorFields)]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.updateComment).toHaveBeenCalledTimes(rewritten ? 1 : 0);
   });
 
   test('looks up the permission of an author once', async () => {
@@ -152,6 +199,29 @@ describe('a pull request that meets the policy', () => {
     expect(result).toEqual({ flaggedPullRequests: [], unflaggedPullRequests: [1] });
     expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name))
       .toEqual([STALE_LABEL_NAME, MISSING_ISSUE_LABEL_NAME]);
+  });
+
+  test('has its policy comment rewritten to say so', async () => {
+    const pr = makePR(1, { issues: [makeIssue(7)], labels: [MISSING_ISSUE_LABEL_NAME] });
+    const octokit = makeOctokit([pr], [policyComment(56, 'No issue is linked')]);
+
+    await applyPolicy(octokit);
+
+    const [{ comment_id: commentId, body }] = octokit.rest.issues.updateComment.mock.calls[0];
+    expect(commentId).toBe(56);
+    expect(body).toContain(POLICY_COMMENT_MARKER);
+    expect(body).toContain('now meets the linked issue policy');
+    expect(octokit.rest.issues.updateComment.mock.invocationCallOrder[0])
+      .toBeLessThan(octokit.rest.issues.removeLabel.mock.invocationCallOrder[0]);
+  });
+
+  test('keeps a policy comment that already says so', async () => {
+    const pr = makePR(1, { issues: [makeIssue(7)], labels: [MISSING_ISSUE_LABEL_NAME] });
+    const octokit = makeOctokit([pr], [policyComment(56, 'This pull request now meets the linked issue policy.')]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
   });
 
   test('keeps the stale label when it was never flagged', async () => {
@@ -207,7 +277,7 @@ test('a dry run reports the plan and writes nothing', async () => {
   const result = await applyPolicy(octokit, { dryRun: true });
 
   expect(result).toEqual({ flaggedPullRequests: [1], unflaggedPullRequests: [2] });
-  for (const method of ['createComment', 'addLabels', 'removeLabel']) {
+  for (const method of ['createComment', 'updateComment', 'addLabels', 'removeLabel']) {
     expect(octokit.rest.issues[method]).not.toHaveBeenCalled();
   }
 });
