@@ -142,6 +142,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 - Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext` and `now`; `attr('key')` is refused with a hint naming the three map columns.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
+- A statement longer than 16 KiB, which is refused before parsing.
 
 Four spellings are parse errors rather than refusals, because the parser library does not know them: PostgreSQL's `~` operator, the SQL-92 `TIMESTAMP '...'` literal, `EXISTS (SELECT * ...)`, and `x NOT REGEXP 'p'`, which is written `NOT x REGEXP 'p'`.
 
