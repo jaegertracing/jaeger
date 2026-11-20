@@ -260,6 +260,36 @@ func TestGetTraceTraceIDError(t *testing.T) {
 	assert.Nil(t, recv)
 }
 
+func TestGetTraceInvertedTimeRange(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{name: "end before start", startTime: now, endTime: now.Add(-time.Hour)},
+		{name: "end equal to start", startTime: now, endTime: now},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
+				TraceId:   "1",
+				StartTime: tc.startTime,
+				EndTime:   tc.endTime,
+			})
+			require.NoError(t, err)
+			recv, err := getTraceStream.Recv()
+			require.ErrorContains(t, err, "end time must be after start time")
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+			assert.Equal(t, codes.InvalidArgument, st.Code())
+			assert.Nil(t, recv)
+			tsc.reader.AssertNotCalled(t, "GetTraces", mock.Anything, mock.Anything)
+		})
+	}
+}
+
 func TestFindTraces(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).

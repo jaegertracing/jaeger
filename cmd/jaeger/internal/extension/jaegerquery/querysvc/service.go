@@ -166,8 +166,12 @@ func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if err := validateGetTraceTimeRanges(params.TraceIDs); err != nil {
+			yield(nil, err)
+			return
+		}
+		getTracesIter := qs.interceptTraceResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
@@ -184,6 +188,18 @@ func (qs QueryService) GetTraces(
 			}
 		}
 	}
+}
+
+// validateGetTraceTimeRanges refuses a GetTraces / ArchiveTrace request whose optional
+// start and end bounds are both set but do not form a non-empty window. A missing bound
+// remains allowed: storage backends treat each side independently as an optimization hint.
+func validateGetTraceTimeRanges(params []tracestore.GetTraceParams) error {
+	for _, p := range params {
+		if !p.Start.IsZero() && !p.End.IsZero() && !p.End.After(p.Start) {
+			return fmt.Errorf("%w: end time must be after start time", tracestore.ErrInvalidQuery)
+		}
+	}
+	return nil
 }
 
 func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
@@ -547,6 +563,9 @@ func (qs QueryService) summarizeTraceIDPages(
 func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
+	}
+	if err := validateGetTraceTimeRanges([]tracestore.GetTraceParams{query}); err != nil {
+		return err
 	}
 	// use primary reader only to avoid readArchive->archive cycle
 	getTracesIter := qs.traceReader.GetTraces(ctx, query)

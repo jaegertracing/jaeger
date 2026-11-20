@@ -102,16 +102,29 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 
 func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 	testCases := []struct {
-		name  string
-		query string
+		name        string
+		query       string
+		expectedErr string
 	}{
 		{
-			name:  "Bad start time",
-			query: "start=a",
+			name:        "Bad start time",
+			query:       "start=a",
+			expectedErr: "unable to parse param",
 		},
 		{
-			name:  "Bad end time",
-			query: "end=b",
+			name:        "Bad end time",
+			query:       "end=b",
+			expectedErr: "unable to parse param",
+		},
+		{
+			name:        "Inverted time window",
+			query:       "start=2000000&end=1000000",
+			expectedErr: "end time must be after start time",
+		},
+		{
+			name:        "Equal start and end time",
+			query:       "start=1000000&end=1000000",
+			expectedErr: "end time must be after start time",
 		},
 	}
 	for _, tc := range testCases {
@@ -122,7 +135,8 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 				err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?"+tc.query, []string{}, &response)
 				require.Error(t, err)
 				require.ErrorContains(t, err, "400 error from server")
-				require.ErrorContains(t, err, "unable to parse param")
+				require.ErrorContains(t, err, tc.expectedErr)
+				ts.traceReader.AssertNotCalled(t, "GetTraces", mock.Anything, mock.Anything)
 			}, querysvc.QueryServiceOptions{ArchiveTraceWriter: mockWriter})
 		})
 	}
