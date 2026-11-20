@@ -37,7 +37,9 @@ The action closes no pull request. The step of `.github/workflows/stale.yml` tha
 
 ## When the action runs
 
-`.github/workflows/pr-linked-issue.yml` calls the action when a pull request is opened, edited or reopened, when `no-issue-needed` is added to or removed from a pull request, and when an issue is closed, reopened, or has `help wanted` added or removed. The workflow has no scheduled run, so a pull request that was open before the workflow existed is checked only when one of those events touches it.
+`.github/workflows/pr-linked-issue.yml` reacts when a pull request is opened, edited or reopened, when `no-issue-needed` is added to or removed from a pull request, and when an issue is closed, reopened, or has `help wanted` added or removed. The run that an event starts does not call the action. It dispatches the workflow on the default branch once for each pull request to check, and the dispatched run calls the action. For a pull request event that is the pull request. For an issue event it is each open pull request of this repository linked to the issue.
+
+All dispatched runs for one pull request share a concurrency group, so two events never write to the same pull request at once. A concurrency group holds one waiting run, so GitHub cancels a waiting run when a newer one arrives, and the newer one checks the pull request. The cancelled run is on the default branch and does not appear among the checks of the pull request. The cost is that a check that fails also shows only as a failed run on the default branch; the check on the pull request reports whether the dispatch succeeded. The workflow has no scheduled run, so a pull request that was open before the workflow existed is checked only when one of those events touches it.
 
 Linking an issue through the sidebar, and a label or state change on a linked issue in another repository, fire no event for the pull request. Its description has to be edited, or the workflow run manually for it, before it is checked again.
 
