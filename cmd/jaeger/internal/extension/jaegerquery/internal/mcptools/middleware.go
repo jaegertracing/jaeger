@@ -6,18 +6,23 @@ package mcptools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -58,7 +63,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			ctx = contextWithRequestMetaTraceContext(ctx, req)
 
 			toolName := toolNameFromRequest(method, req)
-			sessionID := sessionIDFromRequest(req)
 			spanName := method
 			attrs := []attribute.KeyValue{
 				otelsemconv.McpMethodName(method),
@@ -74,10 +78,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
 				}
 			}
-			if sessionID != "" {
-				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
-			}
-
 			ctx, span := tracer.Start(
 				ctx,
 				spanName,
@@ -153,6 +153,69 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 			return result, err
 		}
 	}, nil
+}
+
+// errToolPanicked is what the client sees for a tool call that panicked; the
+// panic value and stack go to the server log only.
+var errToolPanicked = errors.New("internal error while running the tool")
+
+// createRecoveryMiddleware turns a panic in a method handler into an error for
+// that request: an error result for a tool call, or an internal JSON-RPC error
+// for any other method. The SDK runs handlers on goroutines of its own with no
+// recover, out of reach of the HTTP recovery handler, so without this a single
+// panic terminates the process.
+func createRecoveryMiddleware(logger *zap.Logger) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					return
+				}
+				logger.Error("Recovered from panic in MCP handler",
+					zap.String("method", method),
+					zap.String("tool", toolNameFromRequest(method, req)),
+					zap.Any("panic", r),
+					zap.Stack("stack"),
+				)
+				if method == mcpMethodToolsCall {
+					callResult := &mcp.CallToolResult{}
+					callResult.SetError(errToolPanicked)
+					result, err = callResult, nil
+					return
+				}
+				result, err = nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "internal error"}
+			}()
+			return next(ctx, method, req)
+		}
+	}
+}
+
+type searchCapabilitiesQueryService interface {
+	SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error)
+}
+
+// createFindSpansFilterMiddleware removes find_spans from a tools/list result when the storage
+// backend does not declare span search, so that an agent is not offered a tool whose every
+// call the query service refuses. A backend that cannot report its capabilities is read as
+// one without span search.
+func createFindSpansFilterMiddleware(queryAPI searchCapabilitiesQueryService) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			result, err := next(ctx, method, req)
+			toolList, ok := result.(*mcp.ListToolsResult)
+			if err != nil || !ok {
+				return result, err
+			}
+			if caps, capsErr := queryAPI.SearchCapabilities(ctx); capsErr == nil && caps.SpanSearch {
+				return toolList, nil
+			}
+			toolList.Tools = slices.DeleteFunc(toolList.Tools, func(tool *mcp.Tool) bool {
+				return tool.Name == findSpansToolName
+			})
+			return toolList, nil
+		}
+	}
 }
 
 func buildMetricAttributes(method, toolName, status string) []attribute.KeyValue {
@@ -238,17 +301,6 @@ func truncateForSpan(text string, maxChars int) string {
 		keep--
 	}
 	return prefix + text[:keep]
-}
-
-func sessionIDFromRequest(req mcp.Request) string {
-	if req == nil {
-		return ""
-	}
-	session := req.GetSession()
-	if isNil(session) {
-		return ""
-	}
-	return session.ID()
 }
 
 func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {

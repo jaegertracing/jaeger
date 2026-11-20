@@ -9,7 +9,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
@@ -77,8 +77,20 @@ receivers:
         endpoint: "0.0.0.0:4318"
 
 processors:
-  batch:
 
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
+    queue:
+      enabled: true
+      sizer: requests
+      num_consumers: 1
+      queue_size: 8192
+      block_on_overflow: true
+      wait_for_result: false
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms

@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -38,9 +40,11 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
@@ -708,6 +712,36 @@ func TestServerInUseHostPort(t *testing.T) {
 	}
 }
 
+// TestServerReportsServeErrors makes both Serve calls fail by closing their
+// listeners before the servers accept on them, so the error branches of the two
+// serving goroutines run every time instead of only when Close happens to race
+// ahead of Serve.
+func TestServerReportsServeErrors(t *testing.T) {
+	zapCore, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(zapCore), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+		&QueryOptions{
+			HTTP: confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "127.0.0.1:0", Transport: confignet.TransportTypeTCP}},
+		},
+		noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+
+	// A closed listener fails Accept with a permanent error, which both Serve
+	// calls report, whether or not they had started accepting yet. The reports
+	// are awaited before Close, because a running gRPC Serve that observes Stop
+	// while it handles the Accept error returns nil instead.
+	require.NoError(t, server.httpConn.Close())
+	require.NoError(t, server.grpcConn.Close())
+	logged := func(message string) bool {
+		return logs.FilterMessage(message).Len() == 1
+	}
+	assert.Eventually(t, func() bool { return logged("Could not start HTTP server") }, 5*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return logged("Could not start GRPC server") }, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, server.Close())
+}
+
 func TestServerGracefulExit(t *testing.T) {
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
@@ -888,8 +922,8 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			name:          "api v1/v2",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
+			queryString:   "/api/quality-metrics",
+			expectedTrace: "/api/quality-metrics",
 		},
 		{
 			name:          "api v3",
@@ -1072,6 +1106,55 @@ func TestServerGRPC_HeaderForwarding(t *testing.T) {
 	assert.Equal(t, "alice", gotUser)
 }
 
+// TestServerGRPC_RecoversFromPanic checks that a panic while serving one call,
+// unary or streaming, fails only that call: without recovery it would terminate
+// the test binary. The tenancy interceptor, which runs after recovery, must still
+// reject a call that carries no tenant.
+func TestServerGRPC_RecoversFromPanic(t *testing.T) {
+	traceReader := &tracestoremocks.Reader{}
+	traceReader.On("GetServices", mock.Anything).Run(func(mock.Arguments) { panic("storage failed") }).Once()
+	traceReader.On("GetServices", mock.Anything).Return([]string{"svc"}, nil)
+	traceReader.On("GetTraces", mock.Anything, mock.Anything).Run(func(mock.Arguments) { panic("storage failed") })
+	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	opts := &QueryOptions{
+		Tenancy: tenancy.Options{Enabled: true},
+		HTTP:    confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+		GRPC:    configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+	}
+	tenancyMgr := tenancy.NewManager(&opts.Tenancy)
+	core, logs := observer.New(zap.ErrorLevel)
+	telset := initTelSet(zap.New(core), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), qs, nil, opts, noBackendCaps, tenancyMgr, telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	client := newGRPCClient(t, server.GRPCAddr())
+	t.Cleanup(func() { require.NoError(t, client.conn.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tenantCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(tenancyMgr.Header, "acme"))
+
+	_, err = client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Internal, status.Code(err), "unary call that panicked")
+
+	stream, err := client.GetTrace(tenantCtx, &api_v2.GetTraceRequest{TraceID: model.NewTraceID(0, 1)})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	assert.Equal(t, codes.Internal, status.Code(err), "streaming call that panicked")
+
+	res, err := client.GetServices(tenantCtx, &api_v2.GetServicesRequest{})
+	require.NoError(t, err, "the server must keep serving after a panic")
+	assert.Equal(t, []string{"svc"}, res.Services)
+
+	_, err = client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.Equal(t, codes.Unauthenticated, status.Code(err), "tenancy must still be enforced")
+
+	assert.Equal(t, 2, logs.FilterMessage("Recovered from panic in gRPC handler").Len())
+}
+
 func TestInitRouter_HeaderForwarding(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	traceReader := &tracestoremocks.Reader{}
@@ -1106,6 +1189,67 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		}
 	}
 	assert.Equal(t, "alice", gotUser)
+}
+
+// A header named in header_forwarding reaches the agent on each turn's WebSocket
+// handshake, beside the static agent_headers and under its outbound name, and a
+// forwarded value replaces a static header of the same name. The agent here
+// only records the upgrade and speaks no ACP, so the chat request fails after
+// the handshake; the handshake is what this test is about.
+func TestInitRouter_HeaderForwardingReachesAgentHandshake(t *testing.T) {
+	gotHeaders := make(chan http.Header, 1)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders <- r.Header.Clone()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn.Close()
+	}))
+	t.Cleanup(agent.Close)
+
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	opts := DefaultQueryOptions()
+	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{
+		{HTTPName: "X-Identity-Token"},
+		{HTTPName: "X-User", HTTPOutboundName: "X-Forwarded-User"},
+		{HTTPName: "X-Caller"},
+		{HTTPName: "X-Never-Sent"},
+	}
+	opts.AI = configoptional.Some(jaegerai.Config{
+		AgentURL: "ws" + strings.TrimPrefix(agent.URL, "http"),
+		AgentHeaders: configopaque.MapList{
+			{Name: "X-Secret-Key", Value: "s3cret"},
+			{Name: "X-Caller", Value: "gateway"},
+		},
+		MaxRequestBodySize: 1 << 20,
+	})
+	handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, noopTenancyMgr(), telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cs.Close()) })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
+	req.Header.Set("X-Identity-Token", "tok-123")
+	req.Header.Set("X-User", "alice")
+	req.Header.Set("X-Caller", "alice")
+	req.Header.Set("X-Unlisted", "private")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	var got http.Header
+	select {
+	case got = <-gotHeaders:
+	default:
+		t.Fatal("the gateway did not dial the agent")
+	}
+	assert.Equal(t, "s3cret", got.Get("X-Secret-Key"), "static agent headers still go on the handshake")
+	assert.Equal(t, "tok-123", got.Get("X-Identity-Token"))
+	assert.Equal(t, "alice", got.Get("X-Forwarded-User"), "a forwarded header is sent under its outbound name")
+	assert.Empty(t, got.Values("X-User"), "the inbound name is not sent when an outbound name is configured")
+	assert.Equal(t, "alice", got.Get("X-Caller"), "a forwarded header replaces a static header of the same name")
+	assert.Empty(t, got.Values("X-Never-Sent"), "a listed header the request did not carry is not sent")
+	assert.Empty(t, got.Values("X-Unlisted"), "a request header that is not listed stays with the gateway")
 }
 
 func TestInitRouterAIHandlerRegistration(t *testing.T) {
@@ -1252,14 +1396,15 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		alice := http.Header{"X-Test-User": {"alice"}}
 
 		// An admitted request reaches the handler behind the gate, and both handlers
-		// judge the probe's empty `{}` body for themselves: the MCP transport wants an
-		// SSE Accept header and the chat gateway wants a prompt. 400 from either one
-		// proves the gate let the request through.
+		// judge the probe for themselves: the MCP transport answers a GET with 405,
+		// because it has no standing event stream, and the chat gateway rejects the
+		// empty `{}` body because it wants a prompt. Either answer proves the gate
+		// let the request through.
 		for _, route := range []struct {
 			method, path string
 			admitted     int
 		}{
-			{http.MethodGet, "/api/ai/mcp/", http.StatusBadRequest},
+			{http.MethodGet, "/api/ai/mcp/", http.StatusMethodNotAllowed},
 			{http.MethodPost, "/api/ai/chat", http.StatusBadRequest},
 		} {
 			anonymous := serve(route.method, route.path, http.Header{})
@@ -1325,10 +1470,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		}
 	})
 
-	t.Run("mcp stateless reaches the SDK handler", func(t *testing.T) {
-		// Two routers stand in for two jaeger-query replicas: the session that
-		// initialize creates lives in one handler's memory, so a tools/list that a
-		// load balancer sends to the other replica only succeeds when stateless.
+	t.Run("mcp endpoint serves a client from any replica", func(t *testing.T) {
+		// Two routers stand in for two jaeger-query replicas behind a load
+		// balancer without session affinity: nothing from the initialize one
+		// replica answered is needed by the tools/list the other one receives.
 		initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 		listTools := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 		post := func(handler http.Handler, body, sessionID string) *httptest.ResponseRecorder {
@@ -1342,25 +1487,19 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 			return rr
 		}
-		for _, tc := range []struct {
-			stateless bool
-			want      int
-		}{{stateless: false, want: http.StatusNotFound}, {stateless: true, want: http.StatusOK}} {
-			opts := DefaultQueryOptions()
-			opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{StreamableHTTP: mcptools.StreamableHTTPConfig{Stateless: tc.stateless}}), MaxRequestBodySize: 1 << 20})
-			first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, cs1.Close()) })
-			second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, cs2.Close()) })
-			rr := post(first, initialize, "")
-			require.Equal(t, http.StatusOK, rr.Code)
-			sessionID := rr.Header().Get("Mcp-Session-Id")
-			require.NotEmpty(t, sessionID)
-			rr = post(second, listTools, sessionID)
-			assert.Equal(t, tc.want, rr.Code, "stateless=%v", tc.stateless)
-		}
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(jaegerai.Config{MCP: configoptional.Some(jaegerai.MCPConfig{}), MaxRequestBodySize: 1 << 20})
+		first, cs1, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs1.Close()) })
+		second, cs2, err := initRouter(context.Background(), querySvc.qs, nil, &opts, noBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, cs2.Close()) })
+		rr := post(first, initialize, "")
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Empty(t, rr.Header().Get("Mcp-Session-Id"), "the endpoint issues no session id")
+		rr = post(second, listTools, "")
+		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {

@@ -123,10 +123,13 @@ func createGRPCServer(
 	telset telemetry.Settings,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
+	// Recovery comes first so that it also covers the interceptors after it.
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		recoveryhandler.NewUnaryServerInterceptor(telset.Logger),
 		bearertoken.NewUnaryServerInterceptor(),
 	}
 	streamInterceptors := []grpc.StreamServerInterceptor{
+		recoveryhandler.NewStreamServerInterceptor(telset.Logger),
 		bearertoken.NewStreamServerInterceptor(),
 	}
 

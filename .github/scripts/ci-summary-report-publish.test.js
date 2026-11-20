@@ -3,6 +3,10 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
+const handler = require('./ci-summary-report-publish');
 const {
   safeNum,
   sanitizeMetricName,
@@ -14,7 +18,8 @@ const {
   postCheckRun,
   postOrUpdateComment,
   COMMENT_TAG,
-} = require('./ci-summary-report-publish');
+  resolvePublishTarget,
+} = handler;
 
 // ── safeNum ──────────────────────────────────────────────────────────────────
 
@@ -626,5 +631,378 @@ describe('postOrUpdateComment', () => {
       expect.objectContaining({ owner, repo, comment_id: 100, body })
     );
     expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('Updating existing comment id=100'));
+  });
+});
+
+
+// ── publish target binding ────────────────────────────────────────────────────
+// The commit and PR come from the CI run GitHub reports, never the artifact.
+
+const RUN_SHA = 'a'.repeat(40);
+const NEWER_SHA = 'b'.repeat(40);
+const ARTIFACT_SHA = 'c'.repeat(40);
+const INJECTED_PR = '1\n::set-output name=pr_number::2';
+const INJECTED_SHA = 'ab\n::set-output name=head_sha::' + 'e'.repeat(40);
+
+function recordingCore() {
+  const lines = [];
+  const record = (line) => {
+    lines.push(String(line));
+  };
+  return {
+    lines,
+    info: jest.fn(record),
+    warning: jest.fn(record),
+    error: jest.fn(record),
+  };
+}
+
+function recordingGithub({ pulls = [], run = null, pullsError = null } = {}) {
+  const calls = [];
+  const record = (name, data) => async (args) => {
+    calls.push({ name, args });
+    if (pullsError && name.startsWith('pulls.')) throw pullsError;
+    return { data };
+  };
+  return {
+    calls,
+    paginate: jest.fn(async (_fn, args) => {
+      calls.push({ name: 'paginate', args });
+      return [];
+    }),
+    rest: {
+      actions: {
+        getWorkflowRun: jest.fn(record('actions.getWorkflowRun', run)),
+      },
+      checks: {
+        create: jest.fn(record('checks.create', { id: 1, html_url: 'https://example.com/check/1' })),
+      },
+      issues: {
+        listComments: jest.fn(),
+        createComment: jest.fn(record('issues.createComment', { id: 2, html_url: 'https://example.com/comment/2' })),
+        updateComment: jest.fn(record('issues.updateComment', { html_url: 'https://example.com/comment/2' })),
+      },
+      pulls: {
+        list: jest.fn(record('pulls.list', pulls)),
+      },
+    },
+  };
+}
+
+// A Pulls API entry, or an entry of a run's pull_requests array.
+function pr(number, { sha = RUN_SHA } = {}) {
+  return { number, head: { sha } };
+}
+
+// A CI Orchestrator workflow run.
+function ciRun(overrides = {}) {
+  return {
+    id: 100,
+    event: 'pull_request',
+    head_sha: RUN_SHA,
+    head_branch: 'feature',
+    head_repository: { owner: { login: 'org' } },
+    pull_requests: [],
+    ...overrides,
+  };
+}
+
+function forkRun(overrides = {}) {
+  return ciRun({
+    head_repository: { owner: { login: 'forker' } },
+    ...overrides,
+  });
+}
+
+function workflowRunContext(run) {
+  return {
+    eventName: 'workflow_run',
+    repo: { owner: 'org', repo: 'repo' },
+    runId: 200,
+    payload: { workflow_run: run },
+  };
+}
+
+function dispatchContext(inputs) {
+  return {
+    eventName: 'workflow_dispatch',
+    repo: { owner: 'org', repo: 'repo' },
+    runId: 200,
+    payload: { inputs },
+  };
+}
+
+describe('resolvePublishTarget', () => {
+  function resolve(github, context) {
+    return resolvePublishTarget({ github, context, core: recordingCore() });
+  }
+
+  test('finds the open PR by head repository and branch at the run head SHA', async () => {
+    const github = recordingGithub({ pulls: [pr(42)] });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: 42 });
+    expect(github.rest.pulls.list).toHaveBeenCalledWith(expect.objectContaining({
+      owner: 'org', repo: 'repo', state: 'open', head: 'org:feature',
+    }));
+  });
+
+  test('finds a fork PR by the fork owner and branch', async () => {
+    const github = recordingGithub({ pulls: [pr(77)] });
+    const result = await resolve(github, workflowRunContext(forkRun()));
+    expect(result.prNumber).toBe(77);
+    expect(github.rest.pulls.list).toHaveBeenCalledWith(expect.objectContaining({ head: 'forker:feature' }));
+  });
+
+  test('keeps the run SHA but skips the comment when the PR head has moved on', async () => {
+    const github = recordingGithub({ pulls: [pr(77, { sha: NEWER_SHA })] });
+    const result = await resolve(github, workflowRunContext(forkRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+  });
+
+  test('skips the comment when two open PRs share the head', async () => {
+    const github = recordingGithub({ pulls: [pr(1), pr(2)] });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result.prNumber).toBeNull();
+  });
+
+  test('does not look up a PR for a push to main, whatever pull_requests lists', async () => {
+    const github = recordingGithub();
+    const result = await resolve(github, workflowRunContext(ciRun({
+      event: 'push',
+      head_branch: 'main',
+      pull_requests: [pr(1)],
+    })));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('does not look up a PR for a merge_group run', async () => {
+    const github = recordingGithub();
+    const result = await resolve(github, workflowRunContext(ciRun({ event: 'merge_group' })));
+    expect(result.prNumber).toBeNull();
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('keeps the run SHA when the Pulls API fails', async () => {
+    const github = recordingGithub({ pullsError: new Error('boom') });
+    const result = await resolve(github, workflowRunContext(ciRun()));
+    expect(result).toEqual({ runId: 100, headSha: RUN_SHA, prNumber: null });
+  });
+
+  test('returns null when the run has no valid head SHA', async () => {
+    const github = recordingGithub();
+    expect(await resolve(github, workflowRunContext(ciRun({ head_sha: INJECTED_SHA })))).toBeNull();
+    expect(await resolve(github, workflowRunContext(ciRun({ head_sha: RUN_SHA.toUpperCase() })))).toBeNull();
+    expect(github.rest.pulls.list).not.toHaveBeenCalled();
+  });
+
+  test('workflow_dispatch: fetches the run by run_id and finds its PR', async () => {
+    const github = recordingGithub({ run: ciRun({ id: 555 }), pulls: [pr(42)] });
+    const result = await resolve(github, dispatchContext({ run_id: '555' }));
+    expect(github.rest.actions.getWorkflowRun).toHaveBeenCalledWith({ owner: 'org', repo: 'repo', run_id: 555 });
+    expect(result).toEqual({ runId: 555, headSha: RUN_SHA, prNumber: 42 });
+  });
+
+  test('workflow_dispatch: rejects an injected run_id without calling the API', async () => {
+    const github = recordingGithub({ run: ciRun() });
+    const core = recordingCore();
+    const result = await resolvePublishTarget({
+      github, core, context: dispatchContext({ run_id: '555\n::set-output name=x::y' }),
+    });
+    expect(result).toBeNull();
+    expect(github.rest.actions.getWorkflowRun).not.toHaveBeenCalled();
+    expect(core.lines.join('\n')).not.toContain('::set-output');
+  });
+});
+
+describe('handler publish target', () => {
+  function artifactFs(value) {
+    return { readFileSync: jest.fn(() => JSON.stringify(value)) };
+  }
+
+  function collectStrings(value, out = []) {
+    if (typeof value === 'string') out.push(value);
+    else if (Array.isArray(value)) value.forEach(item => collectStrings(item, out));
+    else if (value && typeof value === 'object') {
+      Object.values(value).forEach(item => collectStrings(item, out));
+    }
+    return out;
+  }
+
+  function textsFrom(core, github) {
+    return [...core.lines, ...collectStrings(github.calls)];
+  }
+
+  const changedArtifact = {
+    pr_number: INJECTED_PR,
+    head_sha: INJECTED_SHA,
+    metrics_has_infra_errors: false,
+    metrics_total_changes: 1,
+    coverage_skipped: true,
+    coverage_conclusion: 'skipped',
+  };
+
+  test('posts to the run SHA and PR and never prints artifact pr_number or head_sha', async () => {
+    const core = recordingCore();
+    const github = recordingGithub({ pulls: [pr(42)] });
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun()),
+      fs: artifactFs(changedArtifact),
+    });
+
+    expect(github.rest.checks.create.mock.calls.map(call => call[0].head_sha)).toEqual([RUN_SHA, RUN_SHA]);
+    expect(github.rest.issues.createComment).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 42 }));
+    const blob = textsFrom(core, github).join('\n');
+    expect(blob).not.toContain(INJECTED_PR);
+    expect(blob).not.toContain(INJECTED_SHA);
+    expect(blob).not.toContain('::set-output');
+    expect(blob).toContain('https://github.com/org/repo/actions/runs/100');
+    expect(blob).toContain('https://github.com/org/repo/actions/runs/200');
+    for (const line of core.lines) {
+      expect(line).not.toMatch(/[\r\n]/);
+      expect(line).not.toContain('::');
+    }
+  });
+
+  test('ignores a well-formed artifact PR and SHA that disagree with the run', async () => {
+    const core = recordingCore();
+    const github = recordingGithub({ pulls: [pr(42)] });
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun()),
+      fs: artifactFs({ ...changedArtifact, pr_number: 999, head_sha: ARTIFACT_SHA }),
+    });
+
+    expect(github.rest.checks.create.mock.calls.map(call => call[0].head_sha)).toEqual([RUN_SHA, RUN_SHA]);
+    expect(github.rest.issues.createComment).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 42 }));
+    const blob = textsFrom(core, github).join('\n');
+    expect(blob).not.toContain(ARTIFACT_SHA);
+    expect(blob).not.toContain('999');
+  });
+
+  test('posts checks but no comment on a push that lists fork PRs', async () => {
+    const core = recordingCore();
+    const github = recordingGithub();
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun({
+        event: 'push',
+        head_branch: 'main',
+        pull_requests: [pr(1)],
+      })),
+      fs: artifactFs(changedArtifact),
+    });
+
+    expect(github.rest.checks.create.mock.calls.map(call => call[0].head_sha)).toEqual([RUN_SHA, RUN_SHA]);
+    expect(github.paginate).not.toHaveBeenCalled();
+    expect(github.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(core.lines).toContain('No PR number; skipping PR comment.');
+  });
+
+  test('posts checks on the tested commit, not the newer PR head, when the PR has moved on', async () => {
+    const core = recordingCore();
+    const github = recordingGithub({ pulls: [pr(77, { sha: NEWER_SHA })] });
+    await handler({ github, core, context: workflowRunContext(forkRun()), fs: artifactFs(changedArtifact) });
+
+    expect(github.rest.checks.create.mock.calls.map(call => call[0].head_sha)).toEqual([RUN_SHA, RUN_SHA]);
+    expect(github.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(textsFrom(core, github).join('\n')).not.toContain(NEWER_SHA);
+  });
+
+  test('does not echo an unparseable artifact that contains a workflow command', async () => {
+    const core = recordingCore();
+    const github = recordingGithub({ pulls: [pr(42)] });
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun()),
+      fs: { readFileSync: jest.fn(() => `{ "pr_number": "${INJECTED_PR}" `) },
+    });
+
+    expect(github.rest.checks.create).toHaveBeenCalledWith(expect.objectContaining({
+      head_sha: RUN_SHA,
+      conclusion: 'failure',
+      output: expect.objectContaining({
+        summary: 'ci-summary artifact missing or unparseable; check CI run logs.',
+      }),
+    }));
+    expect(github.rest.issues.createComment).not.toHaveBeenCalled();
+    const blob = textsFrom(core, github).join('\n');
+    expect(blob).not.toContain('::set-output');
+    expect(core.lines).toContain('ci-summary.json not found or unparseable.');
+  });
+
+  test('treats a non-object artifact as missing', async () => {
+    const core = recordingCore();
+    const github = recordingGithub({ pulls: [pr(42)] });
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun()),
+      fs: { readFileSync: jest.fn(() => '[]') },
+    });
+
+    expect(core.lines).toContain('ci-summary.json not found or unparseable.');
+    expect(github.rest.checks.create).toHaveBeenCalledWith(expect.objectContaining({
+      head_sha: RUN_SHA,
+      conclusion: 'failure',
+    }));
+  });
+
+  test('posts nothing when the run has no valid head SHA', async () => {
+    const core = recordingCore();
+    const github = recordingGithub();
+    await handler({
+      github, core,
+      context: workflowRunContext(ciRun({ head_sha: '' })),
+      fs: artifactFs({ ...changedArtifact, head_sha: ARTIFACT_SHA }),
+    });
+
+    expect(github.rest.checks.create).not.toHaveBeenCalled();
+    expect(github.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(core.lines).toContain('No CI run to publish; skipping check runs and PR comment.');
+  });
+});
+
+describe('ci-summary workflows', () => {
+  const workflowsDir = path.join(__dirname, '../workflows');
+  const publishYaml = fs.readFileSync(path.join(workflowsDir, 'ci-summary-report-publish.yml'), 'utf8');
+  const reportYaml = fs.readFileSync(path.join(workflowsDir, 'ci-summary-report.yml'), 'utf8');
+
+  // Return the bodies of every `run: |` and `script: |` block in a workflow.
+  function blockBodies(yaml) {
+    const bodies = [];
+    let indent = -1;
+    let body = null;
+    for (const line of yaml.split('\n')) {
+      if (body !== null) {
+        if (line.trim() === '' || line.search(/\S/) > indent) {
+          body.push(line);
+          continue;
+        }
+        bodies.push(body.join('\n'));
+        body = null;
+      }
+      const m = line.match(/^(\s*)(?:- )?(?:run|script): \|/);
+      if (m) {
+        indent = m[1].length;
+        body = [];
+      }
+    }
+    if (body !== null) bodies.push(body.join('\n'));
+    return bodies;
+  }
+
+  test('the publish workflow interpolates no expressions into shell or script source', () => {
+    const bodies = blockBodies(publishYaml);
+    expect(bodies.length).toBe(3);
+    for (const body of bodies) {
+      expect(body).not.toContain('${{');
+    }
+    expect(publishYaml).toContain('await handler({ github, core, context, fs: require(\'fs\') });');
+  });
+
+  test('the CI artifact does not name a PR or commit', () => {
+    expect(reportYaml).not.toContain('pr_number');
+    expect(reportYaml).not.toContain('head_sha');
   });
 });

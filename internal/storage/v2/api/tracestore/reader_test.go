@@ -22,3 +22,24 @@ func TestUnsupportedSpanSearch_FindSpans(t *testing.T) {
 	}
 	assert.Equal(t, 1, iterations, "expected exactly one yield carrying ErrUnsupported")
 }
+
+func TestTraceQueryParams_ReplacePaginationWithDepth(t *testing.T) {
+	t.Run("no pagination is returned unchanged", func(t *testing.T) {
+		query := TraceQueryParams{ServiceName: "svc", SearchDepth: 7}
+		got, err := query.ReplacePaginationWithDepth()
+		require.NoError(t, err)
+		assert.Equal(t, query, got)
+	})
+	t.Run("page size becomes the depth", func(t *testing.T) {
+		query := TraceQueryParams{ServiceName: "svc", Pagination: &Pagination{PageSize: 3}}
+		got, err := query.ReplacePaginationWithDepth()
+		require.NoError(t, err)
+		assert.Equal(t, TraceQueryParams{ServiceName: "svc", SearchDepth: 3}, got)
+	})
+	t.Run("a token is refused", func(t *testing.T) {
+		query := TraceQueryParams{Pagination: &Pagination{PageSize: 3, PageToken: "t"}}
+		_, err := query.ReplacePaginationWithDepth()
+		require.ErrorIs(t, err, ErrPaginationUnsupported)
+		assert.ErrorContains(t, err, "do not page yet")
+	})
+}
