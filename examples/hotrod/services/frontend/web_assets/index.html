@@ -76,6 +76,17 @@ var lastRequestID = 0;
 
 $(".uuid").html(`Your web client's id: <strong>${clientUUID}</strong>`);
 
+// Use current URI as basepath for ajax requests
+var pathPrefix = window.location.pathname;
+pathPrefix = pathPrefix != "/" ? pathPrefix : '';
+
+const configRequest = $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
+  method: 'GET',
+  success: function(data, textStatus) {
+    console.log('config', data);
+  },
+});
+
 $(".hotrod-button").click(function(evt) {
   lastRequestID++;
   const requestID = clientUUID + "-" + lastRequestID;
@@ -85,15 +96,6 @@ $(".hotrod-button").click(function(evt) {
       'baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log('sending headers', headers);
-
-  // Use current URI as basepath for ajax requests
-  var pathPrefix = window.location.pathname;
-  pathPrefix = pathPrefix != "/" ? pathPrefix : '';
-
-  // TODO this should be done on page load, not on every button click
-  const configRequest = $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
-    method: 'GET',
-  });
 
   const before = Date.now();
   $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
