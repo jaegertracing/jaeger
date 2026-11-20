@@ -437,7 +437,7 @@ SELECT
 FROM
     attribute_metadata`
 
-// SelectHoistedColumn reads how the spans table declares one column. The server formats the
+// SelectHoistedColumn reads how the given table declares one column. The server formats the
 // stored expression and the configured one before it compares their text, so a difference in
 // spacing or in how a string literal is escaped does not count as a difference. An ordinary
 // column has no expression to format, which formatQuerySingleLineOrNull reports as NULL and
@@ -450,7 +450,7 @@ SELECT
     compression_codec,
     ifNull(formatQuerySingleLineOrNull(concat('SELECT ', default_expression)) = formatQuerySingleLine(concat('SELECT ', ?)), 0) AS same_expression
 FROM system.columns
-WHERE database = currentDatabase() AND table = 'spans' AND name = ?`
+WHERE database = currentDatabase() AND table = ? AND name = ?`
 
 // SelectAttributeGroupType returns how the spans table declares the str_attributes group, and
 // no row when the table does not exist. The server lists a Nested group as the array
@@ -460,8 +460,13 @@ SELECT type
 FROM system.columns
 WHERE database = currentDatabase() AND table = 'spans' AND name IN ('str_attributes', 'str_attributes.key')`
 
-// SelectSpansTable returns one row when the current database has a spans table.
-const SelectSpansTable = `SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = 'spans'`
+// SelectTableEngines returns the engine of each of the two named tables that exists in the
+// current database. The engine is read from the server because the operator may have created
+// the tables.
+const SelectTableEngines = `
+SELECT name, engine
+FROM system.tables
+WHERE database = currentDatabase() AND name IN (?, ?)`
 
 const (
 	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
