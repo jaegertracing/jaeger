@@ -10,7 +10,9 @@ service:
       exporters: [nop]
   telemetry:
     resource:
-      service.name: jaeger-query
+      attributes:
+        - name: service.name
+          value: jaeger-query
     metrics:
       level: detailed
       readers:
