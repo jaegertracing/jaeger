@@ -273,6 +273,60 @@ func TestPerOperationSamplingBounds(t *testing.T) {
 	}
 }
 
+func TestPerOperationSamplingBoundsWithoutOperationStrategies(t *testing.T) {
+	provider, err := NewProvider(Options{
+		StrategiesFile:             "fixtures/per_operation_bounds_without_operations.json",
+		DefaultSamplingProbability: DefaultSamplingProbability,
+	}, zap.NewNop())
+	require.NoError(t, err)
+
+	tests := []struct {
+		service     string
+		probability float64
+		lower       float64
+		upper       float64
+	}{
+		{service: "bar", probability: 0.8, lower: 3, upper: 20},
+		{service: "baz", probability: 0.8, lower: 2, upper: 20},
+		{service: "explicit_zero", probability: 0.8, lower: 0, upper: 20},
+		{service: "unlisted", probability: 0.5, lower: 2, upper: 20},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.service, func(t *testing.T) {
+			s, err := provider.GetSamplingStrategy(context.Background(), tt.service)
+			require.NoError(t, err)
+			require.NotNil(t, s.OperationSampling)
+			assert.Empty(t, s.OperationSampling.PerOperationStrategies)
+			assert.InDelta(t, tt.probability, s.OperationSampling.DefaultSamplingProbability, 1e-9)
+			assert.InDelta(t, tt.lower, s.OperationSampling.DefaultLowerBoundTracesPerSecond, 1e-9)
+			assert.InDelta(t, tt.upper, s.OperationSampling.DefaultUpperBoundTracesPerSecond, 1e-9)
+		})
+	}
+}
+
+func TestPerOperationSamplingBoundsWithoutDefaultBounds(t *testing.T) {
+	provider, err := NewProvider(Options{
+		StrategiesFile:             "fixtures/service_bounds_without_default_bounds.json",
+		DefaultSamplingProbability: DefaultSamplingProbability,
+	}, zap.NewNop())
+	require.NoError(t, err)
+
+	sAlpha, err := provider.GetSamplingStrategy(context.Background(), "alpha")
+	require.NoError(t, err)
+	require.NotNil(t, sAlpha.OperationSampling)
+	assert.InDelta(t, 5.0, sAlpha.OperationSampling.DefaultLowerBoundTracesPerSecond, 1e-9)
+	assert.InDelta(t, 0.0, sAlpha.OperationSampling.DefaultUpperBoundTracesPerSecond, 1e-9)
+
+	sBeta, err := provider.GetSamplingStrategy(context.Background(), "beta")
+	require.NoError(t, err)
+	assert.Nil(t, sBeta.OperationSampling)
+
+	sUnlisted, err := provider.GetSamplingStrategy(context.Background(), "unlisted")
+	require.NoError(t, err)
+	assert.Nil(t, sUnlisted.OperationSampling)
+}
+
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	provider, err := NewProvider(Options{StrategiesFile: "fixtures/missing-service-types.json", DefaultSamplingProbability: DefaultSamplingProbability}, logger)

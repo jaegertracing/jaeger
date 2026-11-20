@@ -224,12 +224,6 @@ func (h *samplingProvider) parseStrategies(strategies *strategies) {
 			if newStore.serviceStrategies[s.Service].ProbabilisticSampling != nil {
 				newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
 			}
-			if s.LowerBoundTracesPerSecond != nil {
-				newOpS.DefaultLowerBoundTracesPerSecond = *s.LowerBoundTracesPerSecond
-			}
-			if s.UpperBoundTracesPerSecond != nil {
-				newOpS.DefaultUpperBoundTracesPerSecond = *s.UpperBoundTracesPerSecond
-			}
 			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
 			continue
 		}
@@ -270,7 +264,9 @@ func mergePerOperationSamplingStrategies(
 
 func (h *samplingProvider) parseServiceStrategies(strategy *serviceStrategy) *api_v2.SamplingStrategyResponse {
 	resp := h.parseStrategy(&strategy.strategy)
-	if len(strategy.OperationStrategies) == 0 {
+	if len(strategy.OperationStrategies) == 0 &&
+		strategy.LowerBoundTracesPerSecond == nil &&
+		strategy.UpperBoundTracesPerSecond == nil {
 		return resp
 	}
 	opS := &api_v2.PerOperationSamplingStrategies{
