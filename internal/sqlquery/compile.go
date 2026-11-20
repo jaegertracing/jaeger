@@ -68,9 +68,9 @@ func Compile(sql string, now time.Time) (*Query, error) {
 			fmt.Sprintf("A statement is limited to %d bytes (RFC 0019 §8)", maxStatementBytes))
 	}
 	c := &compiler{now: now, pos: newPositions(sql)}
-	stmts, err := parser.NewParser(sql).ParseStmts()
+	stmts, err := c.parse(sql)
 	if err != nil {
-		return nil, c.pos.fromParser(err)
+		return nil, err
 	}
 	if len(stmts) == 0 {
 		return nil, c.pos.atOffset(0, "the request holds no statement", "Send one SELECT statement")
@@ -93,6 +93,22 @@ func Compile(sql string, now time.Time) (*Query, error) {
 type compiler struct {
 	now time.Time
 	pos positions
+}
+
+// parse runs the parser library over the statement. The library can panic on text it does
+// not expect, and a panic carries no position, so it is reported as a syntax error at the end
+// of the statement.
+func (c *compiler) parse(sql string) (stmts []parser.Expr, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stmts, err = nil, c.pos.atOffset(len(sql), "the statement is incomplete or malformed", hintNotSQL)
+		}
+	}()
+	stmts, err = parser.NewParser(sql).ParseStmts()
+	if err != nil {
+		return nil, c.pos.fromParser(err)
+	}
+	return stmts, nil
 }
 
 func (c *compiler) statement(sel *parser.SelectQuery) (*Query, error) {
