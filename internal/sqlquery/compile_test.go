@@ -193,7 +193,8 @@ func TestCompileFilters(t *testing.T) {
 					AND status_message NOT LIKE 'ok'
 					AND scope_name NOT LIKE 'io.%'
 					AND scope_version NOT LIKE '1.%'
-					AND name NOT LIKE '%health'`,
+					AND name NOT LIKE '%health'
+					AND service NOT LIKE 'probe%'`,
 			want: p.And(
 				p.Span().ParentSpanID.Exists(),
 				p.Not(p.Span().ParentSpanID.Matches(`^abc[\s\S]*$`)),
@@ -205,6 +206,7 @@ func TestCompileFilters(t *testing.T) {
 				p.Scope().Version.Exists(),
 				p.Not(p.Scope().Version.Matches(`^1\.[\s\S]*$`)),
 				p.Not(p.Span().Name.Matches(`^[\s\S]*health$`)),
+				p.Not(p.Resource().Service.Matches(`^probe[\s\S]*$`)),
 			),
 		},
 		{

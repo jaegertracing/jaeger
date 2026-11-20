@@ -851,12 +851,10 @@ func likeHasWildcard(pattern string) bool {
 // does not carry, or a built-in field that OTLP leaves empty, such as the parent of a root span or
 // the trace state of a span that has none. A field that every span has is never absent.
 func mayBeAbsent(ref ast.Expression) bool {
-	if _, ok := ref.(*ast.AttributeRef); ok {
-		return true
-	}
 	field, ok := ref.(*ast.FieldRef)
 	if !ok {
-		return false
+		_, isAttribute := ref.(*ast.AttributeRef)
+		return isAttribute
 	}
 	switch field.Level {
 	case ast.LevelSpan:
