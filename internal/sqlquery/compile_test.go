@@ -183,6 +183,51 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "not like on a built-in field that can be absent holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND parent_span_id NOT LIKE 'abc%'
+					AND trace_state NOT ILIKE 'k=%'
+					AND status_message NOT LIKE 'ok'
+					AND scope_name NOT LIKE 'io.%'
+					AND scope_version NOT LIKE '1.%'
+					AND name NOT LIKE '%health'`,
+			want: p.And(
+				p.Span().ParentSpanID.Exists(),
+				p.Not(p.Span().ParentSpanID.Matches(`^abc[\s\S]*$`)),
+				p.Span().TraceState.Exists(),
+				p.Not(p.Span().TraceState.Matches(`(?i)^k=[\s\S]*$`)),
+				p.Span().StatusMessage.Ne("ok"),
+				p.Scope().Name.Exists(),
+				p.Not(p.Scope().Name.Matches(`^io\.[\s\S]*$`)),
+				p.Scope().Version.Exists(),
+				p.Not(p.Scope().Version.Matches(`^1\.[\s\S]*$`)),
+				p.Not(p.Span().Name.Matches(`^[\s\S]*health$`)),
+			),
+		},
+		{
+			name: "not like on the trace state of a link holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.trace_state NOT LIKE 'k=%'
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.And(
+					p.Link().TraceState.Exists(),
+					p.Not(p.Link().TraceState.Matches(`^k=[\s\S]*$`)),
+				),
+			),
+		},
+		{
 			name: "not like and not ilike on an attribute hold only where it is present",
 			sql: `
 				SELECT DISTINCT trace_id
