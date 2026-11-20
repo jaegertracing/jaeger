@@ -76,6 +76,17 @@ var lastRequestID = 0;
 
 $(".uuid").html(`Your web client's id: <strong>${clientUUID}</strong>`);
 
+// Use current URI as basepath for ajax requests
+var pathPrefix = window.location.pathname;
+pathPrefix = pathPrefix != "/" ? pathPrefix : '';
+
+const configRequest = $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
+  method: 'GET',
+  success: function(data, textStatus) {
+    console.log('config', data);
+  },
+});
+
 $(".hotrod-button").click(function(evt) {
   lastRequestID++;
   const requestID = clientUUID + "-" + lastRequestID;
@@ -85,20 +96,6 @@ $(".hotrod-button").click(function(evt) {
       'baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log('sending headers', headers);
-
-  // Use current URI as basepath for ajax requests
-  var pathPrefix = window.location.pathname;
-  pathPrefix = pathPrefix != "/" ? pathPrefix : '';
-
-  // TODO this should be done on page load, not on every button click
-  var config = {};
-  $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
-    method: 'GET',
-    success: function(data, textStatus) {
-      console.log('config', data);
-      config = data;
-    },
-  });
 
   const before = Date.now();
   $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
@@ -112,16 +109,19 @@ $(".hotrod-button").click(function(evt) {
       console.log('traceResponse', traceResponse, 'traceID', traceID);
 
       const duration = formatDuration(data.ETA);
-      var traceLink = '';
-      if (config && config['jaeger']) {
+      freshCar.html(`HotROD <b>${data.Driver}</b> arriving in ${duration} [req: ${requestID}, latency: ${after-before}ms]`);
+      configRequest.done(function(config) {
+        if (!config || !config['jaeger']) {
+          return;
+        }
         const jaeger = config['jaeger'];
         const findURL = `/search?limit=20&lookback=1h&service=frontend&tags=%7B%22driver%22%3A%22${data.Driver}%22%7D`;
-        traceLink = ` [<a href="${jaeger}${findURL}" target="_blank">find trace</a>]`;
+        let traceLink = ` [<a href="${jaeger}${findURL}" target="_blank">find trace</a>]`;
         if (traceID) {
           traceLink += ` [<a href="${jaeger}/trace/${traceID}" target="_blank">open trace</a>]`;
         }
-      }
-      freshCar.html(`HotROD <b>${data.Driver}</b> arriving in ${duration} [req: ${requestID}, latency: ${after-before}ms] ${traceLink}`);
+        freshCar.append(traceLink);
+      });
     },
   });
 });
