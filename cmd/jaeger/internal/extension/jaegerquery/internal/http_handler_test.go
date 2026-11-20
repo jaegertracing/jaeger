@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
@@ -165,6 +166,16 @@ func TestLogOnServerError(t *testing.T) {
 	assert.Equal(t, "HTTP handler, Internal Server Error", log.Message)
 	require.Len(t, log.Context, 1)
 	assert.Equal(t, e, log.Context[0].Interface)
+}
+
+func TestHandleErrorInvalidQuery(t *testing.T) {
+	qs := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewAPIHandler(qs)
+	w := httptest.NewRecorder()
+	err := fmt.Errorf("%w: end time must be after start time", tracestore.ErrInvalidQuery)
+	require.True(t, h.handleError(w, err, http.StatusInternalServerError))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "end time must be after start time")
 }
 
 // httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.
