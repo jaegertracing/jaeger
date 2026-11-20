@@ -183,6 +183,23 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "not like and not ilike on an attribute hold only where it is present",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['http.method'] NOT LIKE 'PO%'
+					AND attributes['http.route'] NOT ILIKE '%/health'
+					AND resource_attributes['env'] NOT LIKE 'prod'`,
+			want: p.And(
+				p.Span().Attr("http.method").Exists(),
+				p.Not(p.Span().Attr("http.method").Matches(`^PO[\s\S]*$`)),
+				p.Span().Attr("http.route").Exists(),
+				p.Not(p.Span().Attr("http.route").Matches(`(?i)^[\s\S]*/health$`)),
+				p.Resource().Attr("env").Ne("prod"),
+			),
+		},
+		{
 			name: "regexp and match",
 			sql: `
 				SELECT DISTINCT trace_id
