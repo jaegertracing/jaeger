@@ -698,6 +698,30 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
 }
 
+// TestTagMap_KeepsStringEncodedTypedTagsNested checks that a binary tag and a
+// non-finite float, both stored as strings, stay in the typed array even when
+// every tag is elevated, because the flat tag map cannot carry their type.
+func TestTagMap_KeepsStringEncodedTypedTagsNested(t *testing.T) {
+	tags := []dbmodel.KeyValue{
+		{Key: "ratio", Value: 1.5, Type: dbmodel.Float64Type},
+		{Key: "nan", Value: "NaN", Type: dbmodel.Float64Type},
+		{Key: "blob", Value: "0102", Type: dbmodel.BinaryType},
+	}
+	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	converter := NewSpanWriter(SpanWriterParams{
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metrics.NullFactory,
+		AllTagsAsFields: true,
+	})
+	converter.convertNestedTagsToFieldTags(&dbSpan)
+
+	expectedNested := []dbmodel.KeyValue{tags[1], tags[2]}
+	assert.Equal(t, expectedNested, dbSpan.Tags)
+	assert.Equal(t, expectedNested, dbSpan.Process.Tags)
+	assert.Equal(t, map[string]any{"ratio": 1.5}, dbSpan.Tag)
+	assert.Equal(t, map[string]any{"ratio": 1.5}, dbSpan.Process.Tag)
+}
+
 func TestNewSpanTags(t *testing.T) {
 	testCases := []struct {
 		params   SpanWriterParams

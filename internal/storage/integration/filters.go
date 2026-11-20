@@ -122,6 +122,47 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_get", "cart_post"},
 		},
 		{
+			// Without the anchor the pattern also matches search, whose name is "GET /search".
+			caption:  "a pattern anchored at the start of the operation name",
+			filter:   p.Span().Name.Matches("^search"),
+			expected: []string{"text-search"},
+		},
+		{
+			// Without the anchor the pattern also matches cart_post, whose name is "POST /cart/items".
+			caption:  "a pattern anchored at the end of the operation name",
+			filter:   p.Span().Name.Matches("/cart$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			caption:  "a pattern with a negated class",
+			filter:   p.Span().Name.Matches("GET /[^/]+$"),
+			expected: []string{"cart_get", "checkout", "search"},
+		},
+		{
+			caption:  "a pattern with a quantified group",
+			filter:   p.Span().Name.Matches("/cart(/items)?$"),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
+			caption:  "a pattern folding case",
+			filter:   p.Span().Name.Matches("(?i)^post /cart"),
+			expected: []string{"cart_post"},
+		},
+		{
+			// The range spells the lowercase of the G the name starts with and the literal the
+			// uppercase of the rest, so the case passes only when both fold.
+			caption:  "a pattern folding the case of a range",
+			filter:   p.Span().Name.Matches("(?i)^[g-h]et /CART$"),
+			expected: []string{"cart_get"},
+		},
+		{
+			// The long s (U+017F) folds to s and S under the simple case folding RE2 applies, so a
+			// pattern written with it matches a name spelled in ASCII.
+			caption:  "a pattern folding a letter beyond ASCII",
+			filter:   p.Span().Name.Matches("(?i)^po\u017ft /cart"),
+			expected: []string{"cart_post"},
+		},
+		{
 			// The write path stores an event's name as an attribute of the event, so this asserts
 			// that a filter naming the field finds what the write path recorded.
 			caption:  "the name of one of the span's events",
@@ -183,6 +224,29 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"search"},
 		},
 		{
+			// Only `checkout` carries `queue.depth`, and its value is zero. A backend that reads
+			// a missing attribute as the zero of its type would return every trace here.
+			caption:  "an attribute equal to zero leaves out a span that lacks the attribute",
+			filter:   p.Span().Attr("queue.depth").Eq(0),
+			expected: []string{"checkout"},
+		},
+		{
+			// The complement of the case above: a span that lacks the attribute does not equal
+			// zero, so the negation keeps it. The first operand limits the result to the three
+			// traces that carry `http.status_code`, of which `checkout` is the one the negation
+			// removes. It is written with equalities because a backend that refuses one operator
+			// of a filter skips the whole case.
+			caption: "a negated attribute equality keeps a span that lacks the attribute",
+			filter: p.And(
+				p.Or(
+					p.Span().Attr("http.status_code").Eq("200"),
+					p.Span().Attr("http.status_code").Eq("500"),
+				),
+				p.Not(p.Span().Attr("queue.depth").Eq(0)),
+			),
+			expected: []string{"cart_get", "cart_post"},
+		},
+		{
 			caption:  "an attribute exists",
 			filter:   p.Span().Attr("http.status_code").Exists(),
 			expected: []string{"cart_get", "cart_post", "checkout"},
@@ -190,6 +254,18 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "a pattern on an attribute value",
 			filter:   p.Span().Attr("http.status_code").Matches("5.."),
+			expected: []string{"cart_post"},
+		},
+		{
+			// The class spells the characters Lucene reads as syntax inside a class, and the value
+			// holds a hyphen.
+			caption:  "a pattern with a class holding a hyphen and a bracket",
+			filter:   p.Attr("zone").Matches(`^[a-z\]\-^]+$`),
+			expected: []string{"cart_get", "checkout"},
+		},
+		{
+			caption:  "a pattern using a Perl shorthand on an attribute value",
+			filter:   p.Span().Attr("http.status_code").Matches(`^5\d\d$`),
 			expected: []string{"cart_post"},
 		},
 		{

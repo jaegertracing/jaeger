@@ -59,6 +59,14 @@ func TestLowering(t *testing.T) {
 			}},
 		},
 		{
+			name:  "reference built elsewhere",
+			built: p.RefOf(&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}).Gt("2s"),
+			want: &ast.Call{Op: ast.OpGt, Args: []ast.Expression{
+				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
+				&ast.AnyValue{Value: "2s"},
+			}},
+		},
+		{
 			name:  "regular expression",
 			built: p.Span().Name.Matches("GET|POST"),
 			want: &ast.Call{Op: ast.OpRegex, Args: []ast.Expression{
@@ -213,6 +221,11 @@ func TestLowering(t *testing.T) {
 // TestCompareTakesTheOperatorAtRunTime covers the prefix form, which exists for an operator the
 // caller does not know when writing the query. It has to agree with the named methods, and the
 // membership operators have to take a list rather than a scalar operand.
+func TestTermIsTheReference(t *testing.T) {
+	assert.Equal(t, &ast.FieldRef{Level: ast.LevelSpan, Name: ast.SpanFieldDuration}, p.Span().Duration.Term())
+	assert.Equal(t, &ast.AttributeRef{Key: "http.route"}, p.Attr("http.route").Term())
+}
+
 func TestCompareTakesTheOperatorAtRunTime(t *testing.T) {
 	ref := p.Resource().Service
 
@@ -341,6 +354,30 @@ func TestListElementText(t *testing.T) {
 			"cart", "500", "1.5", "0.5", "true", "2s", "2026-08-16T18:56:20Z",
 		}},
 		p.Attr("k").In("cart", 500, 1.5, float32(0.5), true, 2*time.Second, instant).Args[1])
+}
+
+// TestNonFiniteFloatsRenderAsOTLPTokens covers the spelling of NaN and the infinities. They are the
+// OTLP/JSON tokens a backend stores and the wire carries, not the +Inf and -Inf of strconv, which
+// would never match a stored value.
+func TestNonFiniteFloatsRenderAsOTLPTokens(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{"positive infinity", math.Inf(1), "Infinity"},
+		{"negative infinity", math.Inf(-1), "-Infinity"},
+		{"not a number", math.NaN(), "NaN"},
+		{"32-bit positive infinity", float32(math.Inf(1)), "Infinity"},
+		{"32-bit negative infinity", float32(math.Inf(-1)), "-Infinity"},
+		{"32-bit not a number", float32(math.NaN()), "NaN"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, &ast.AnyValue{Value: test.want}, p.Attr("ratio").Eq(test.value).Args[1])
+			assert.Equal(t, &ast.List{Values: []string{test.want}}, p.Attr("ratio").In(test.value).Args[1])
+		})
+	}
 }
 
 // TestValueWithoutOwnRendering covers a value the builder has no case for. It is rendered rather

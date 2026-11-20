@@ -41,15 +41,9 @@ type Config struct {
 	// nothing else on the query port: the chat endpoint, the shared MCP endpoint,
 	// and the aiAssistant flag that tells the UI to show the chat panel. The
 	// server-wide http.auth setting applies to every route, which is the wrong
-	// grain when the UI and the REST API stay open while the AI features are
-	// rolled out to a group. The authenticator receives the request headers and
-	// the listed request_params. A rejected chat or MCP request is answered with
-	// 401, and a rejected page request is served the UI with aiAssistant off.
-	// The turn-scoped MCP endpoint that the chat sidecar dials is not covered,
-	// since the person behind that turn was already admitted on the chat
-	// request. Startup fails when the extension is not loaded. The extension also
-	// runs on every UI page load, so an anonymous visitor shows up in it as one
-	// rejected attempt per page.
+	// grain when the UI stays open while the AI features are rolled out to a
+	// group. The extension also runs on every UI page load, so an anonymous
+	// visitor shows up in it as one rejected attempt per page.
 	Auth configoptional.Optional[confighttp.AuthConfig] `mapstructure:"auth"`
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
@@ -107,8 +101,7 @@ type MCPConfig struct {
 	// SkillsDir is a directory of operator-supplied skill playbooks on the query
 	// server's disk, served by the read_skill MCP tool under custom/ beside the
 	// built-in skills, so an installation can add its own without rebuilding
-	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
-	// default) serves the built-in skills only.
+	// Jaeger. Empty (the default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
 	// StreamableHTTP holds the options of the MCP Streamable HTTP transport the
 	// endpoint is served over; see mcptools.StreamableHTTPConfig for each one.

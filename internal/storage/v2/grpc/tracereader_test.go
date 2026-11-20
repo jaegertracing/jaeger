@@ -1094,8 +1094,8 @@ func TestToProtoQueryParameters_SearchDepth(t *testing.T) {
 
 func spanOrder() []tracestore.SpanSortOrder {
 	return []tracestore.SpanSortOrder{
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending},
-		{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "traceID"}, Direction: tracestore.SortAscending},
+		tracestore.OrderBySpanField("duration", tracestore.SortDescending),
+		tracestore.OrderBySpanField("traceID", tracestore.SortAscending),
 	}
 }
 
@@ -1178,7 +1178,7 @@ func TestFindTracesRemoteErrors(t *testing.T) {
 }
 
 func TestSpanQueryConversion(t *testing.T) {
-	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{&expression.FieldRef{Level: expression.LevelSpan, Name: "name"}, &expression.StringValue{Value: "operation"}}}
+	filter := p.Span().Name.Eq(p.String("operation"))
 	query := tracestore.SpanQueryParams{Filter: filter, OrderBy: spanOrder()}
 	wire, err := toProtoSpanQuery(query)
 	require.NoError(t, err)
@@ -1201,32 +1201,6 @@ func TestSpanQueryConversion(t *testing.T) {
 		_, err := jiter.CollectWithErrors(remote.FindSpans(t.Context(), query))
 		require.Error(t, err)
 	}
-}
-
-func TestSpanRemoteEarlyExit(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
-	canceled := make(chan struct{})
-	var rpcCtx context.Context
-	reader.On("FindSpans", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
-		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
-			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
-			<-rpcCtx.Done()
-			close(canceled)
-		})).Once()
-	count := 0
-	for _, err := range spanRemote(t, reader).FindSpans(t.Context(), tracestore.SpanQueryParams{}) {
-		require.NoError(t, err)
-		count++
-		break
-	}
-	assert.Equal(t, 1, count)
-	select {
-	case <-canceled:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the remote reader did not receive cancellation")
-	}
-	reader.AssertExpectations(t)
 }
 
 type failingSpanClient struct{ storage.TraceReaderClient }
@@ -1309,5 +1283,107 @@ func TestReaderErrorDetails(t *testing.T) {
 		foreign, err := status.New(codes.InvalidArgument, "foreign error").WithDetails(&errdetails.ErrorInfo{Domain: "another.service", Reason: tc.reason})
 		require.NoError(t, err)
 		require.NotErrorIs(t, readerError(foreign.Err()), tc.err)
+	}
+}
+
+func TestTraceReader_StreamCancelledWhenIterationStopsEarly(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
+	tests := []struct {
+		name   string
+		method string
+		// results returns the reader's sequence: it yields one item and then calls waitForCancel.
+		results      func(waitForCancel func()) any
+		readAndBreak func(ctx context.Context, reader *TraceReader)
+	}{
+		{
+			name:   "GetTraces",
+			method: "GetTraces",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+					waitForCancel()
+				})
+			},
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.GetTraces(ctx, tracestore.GetTraceParams{}) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name:   "FindTraces",
+			method: "FindTraces",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+					waitForCancel()
+				})
+			},
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindTraces(ctx, queryParams) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name:   "FindTraceSummaries",
+			method: "FindTraceSummaries",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error](
+					func(yield func(tracestore.PageChunk[[]tracestore.TraceSummary], error) bool) {
+						yield(tracestore.PageChunk[[]tracestore.TraceSummary]{Results: []tracestore.TraceSummary{{}}}, nil)
+						waitForCancel()
+					})
+			},
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindTraceSummaries(ctx, queryParams) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+		{
+			name:   "FindSpans",
+			method: "FindSpans",
+			results: func(waitForCancel func()) any {
+				return iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](
+					func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+						yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+						waitForCancel()
+					})
+			},
+			readAndBreak: func(ctx context.Context, reader *TraceReader) {
+				for _, err := range reader.FindSpans(ctx, tracestore.SpanQueryParams{}) {
+					require.NoError(t, err)
+					break
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			canceled := make(chan struct{})
+			var rpcCtx context.Context
+			waitForCancel := func() {
+				<-rpcCtx.Done()
+				close(canceled)
+			}
+			reader.On(test.method, mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) { rpcCtx = args.Get(0).(context.Context) }).
+				Return(test.results(waitForCancel)).Once()
+
+			// The caller's context stays active, so only the remote reader can cancel the stream.
+			test.readAndBreak(t.Context(), spanRemote(t, reader))
+
+			select {
+			case <-canceled:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the backend reader did not receive cancellation")
+			}
+			reader.AssertExpectations(t)
+		})
 	}
 }

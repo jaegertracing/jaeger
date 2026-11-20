@@ -5,6 +5,7 @@ package integration
 
 import (
 	"encoding/binary"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -47,6 +48,12 @@ type Corpus struct {
 	// RFC 0013 search that carries no service name.
 	CrossService []ptrace.Traces
 
+	// NonFinite is a one-span trace whose resource, span and event each carry a NaN and the two
+	// infinities as double attributes, present unless the backend has excused itself from the
+	// assertion. The fixtures are JSON, which cannot spell those values, so the trace is built
+	// in code.
+	NonFinite ptrace.Traces
+
 	// Pagination holds five traces under a dedicated service, including a start-time tie.
 	Pagination map[string]ptrace.Traces
 
@@ -66,6 +73,7 @@ type Corpus struct {
 	// where the cost of the 10k-span trace actually is.
 	hasLarge      bool
 	hasDuplicates bool
+	hasNonFinite  bool
 }
 
 const (
@@ -76,8 +84,10 @@ const (
 	// for, so that a backend's skip list decides whether the corpus carries it.
 	largeTraceTest     = "GetLargeTrace"
 	duplicateSpansTest = "GetTraceWithDuplicateSpans"
+	nonFiniteTest      = "GetTraceWithNonFiniteDoubles"
 
 	largeTraceService      = "large-trace-service"
+	nonFiniteService       = "non-finite-service"
 	duplicateSpansService  = "duplicate-spans-service"
 	largeTraceSpanCount    = 10008
 	duplicateTraceSpans    = 200
@@ -130,6 +140,10 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	}
 	c.Bounded = buildBoundedTrace()
 	c.CrossService = buildCrossServiceTraces()
+	c.hasNonFinite = !skipsTest(caps, nonFiniteTest)
+	if c.hasNonFinite {
+		c.NonFinite = buildNonFiniteTrace()
+	}
 	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
@@ -221,6 +235,43 @@ func buildCrossServiceTraces() []ptrace.Traces {
 	return traces
 }
 
+// nonFiniteAttributes are the double attributes the non-finite trace carries at every level,
+// by key. A backend that encodes a double as JSON has to spell these specially, because JSON has
+// no token for them, and a backend that stores them as text has to parse them back.
+var nonFiniteAttributes = map[string]float64{
+	"double.nan":     math.NaN(),
+	"double.pos-inf": math.Inf(1),
+	"double.neg-inf": math.Inf(-1),
+}
+
+func putNonFiniteAttributes(attrs pcommon.Map) {
+	for key, value := range nonFiniteAttributes {
+		attrs.PutDouble(key, value)
+	}
+}
+
+// buildNonFiniteTrace is a single span under its own service, carrying the non-finite doubles
+// on the resource, on the span and on one event.
+func buildNonFiniteTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, nonFiniteService)
+	putNonFiniteAttributes(rs.Resource().Attributes())
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(pcommon.TraceID{0xF1})
+	span.SetSpanID(pcommon.SpanID{0xF1, 1})
+	span.SetName("non-finite-operation")
+	start := time.Now().Add(-time.Hour)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	putNonFiniteAttributes(span.Attributes())
+	event := span.Events().AppendEmpty()
+	event.SetName("non-finite-event")
+	event.SetTimestamp(span.StartTimestamp())
+	putNonFiniteAttributes(event.Attributes())
+	return trace
+}
+
 func buildPaginationTraces() map[string]ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	traces := make(map[string]ptrace.Traces)
@@ -264,6 +315,9 @@ func (c *Corpus) All() []ptrace.Traces {
 		all = append(all, c.Bounded)
 	}
 	all = append(all, c.CrossService...)
+	if c.hasNonFinite {
+		all = append(all, c.NonFinite)
+	}
 	all = append(all, c.SpanOrdering...)
 	for _, name := range slices.Sorted(maps(c.Pagination)) {
 		all = append(all, c.Pagination[name])

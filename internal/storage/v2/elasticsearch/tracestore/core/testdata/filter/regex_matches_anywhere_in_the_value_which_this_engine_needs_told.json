@@ -2,7 +2,7 @@
   "regexp": {
     "operationName": {
       "flags": "NONE",
-      "value": ".*(GET .*).*"
+      "value": ".*(GET [^\n]*).*"
     }
   }
 }

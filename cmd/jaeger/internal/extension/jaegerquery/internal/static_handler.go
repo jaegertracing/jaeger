@@ -104,7 +104,11 @@ func newStaticAssetsHandler(
 ) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		var err error
+		assetsFS, err = openAssetsFS(qOpts.UIConfig.AssetsPath, logger)
+		if err != nil {
+			return nil, err
+		}
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
@@ -178,12 +182,12 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 func (h *staticAssetsHandler) deriveIndexHTML(r *http.Request) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
-		out = cfg.regexp.ReplaceAll(out, cfg.config)
+		out = cfg.regexp.ReplaceAllLiteral(out, cfg.config)
 	}
 	versionJSON, _ := json.Marshal(version.Get())
-	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
+	out = versionPattern.ReplaceAllLiteral(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
 	capsJSON, _ := json.Marshal(h.backendCaps(r))
-	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
+	out = capabilitiesPattern.ReplaceAllLiteral(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }
 
@@ -287,7 +291,7 @@ func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	// The page carries capabilities decided for this caller, so a shared cache must
 	// not hand one caller's page to another. The assets under /static stay cacheable.
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(h.deriveIndexHTML(r))
+	_, _ = w.Write(h.deriveIndexHTML(r))
 }
 
 // Close is a no-op; the handler holds no resources that need explicit

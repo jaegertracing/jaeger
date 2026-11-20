@@ -4,6 +4,13 @@
 name: Deploy Jaeger Demo to OKE
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/oci/**'
+      - 'examples/otel-demo/**'
+      - 'scripts/demo/**'
+      - '.github/workflows/ci-deploy-demo.yml'
   schedule:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
   workflow_dispatch:
@@ -35,7 +42,7 @@ on:
           - otel
           - all
       otel_deploy_scope:
-        description: 'OTel demo deploy scope. Use otel-demo or opensearch for an isolated upgrade, or all for the full stack.'
+        description: 'Component scope. monitoring applies to OCI; otel-demo and opensearch apply to OTel.'
         required: false
         default: jaeger
         type: choice
@@ -43,6 +50,7 @@ on:
           - jaeger
           - otel-demo
           - opensearch
+          - monitoring
           - all
       opensearch_recovery:
         description: 'OpenSearch recovery policy. Waive only for disposable data in an isolated upgrade.'
@@ -63,6 +71,13 @@ jobs:
   deploy:
     name: Deploy Jaeger to OKE Cluster
     runs-on: ubuntu-latest
+    # Budget for a full-stack run with the 'required' recovery policy, taking every
+    # wait at its limit: 90m backup-test (the ci-opensearch-recovery.yml limit),
+    # 70m OpenSearch and Dashboards Helm waits (10m + 60m), 45m for the other four
+    # Helm releases (10m + 15m + 10m + 10m), 15m trace generator restarts, and about
+    # 50m of smoke-check and trace-check retries. That is 270m; the rest is setup.
+    # Rollout checks that directly follow a Helm --wait return at once.
+    timeout-minutes: 300
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
       OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
@@ -117,32 +132,32 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-    - name: Resolve and verify snapshot image tags
-      if: env.JAEGER_DEMO_STACK != 'otel' || (env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'otel-demo' && env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'opensearch') || env.JAEGER_DEMO_DEPLOY_MODE == 'clean'
-      run: bash scripts/utils/resolve-demo-snapshot-tags.sh
+    - name: Reconcile demo components
+      run: python3 scripts/demo/deploy.py
 
-    - name: Deploy using appropriate script
+    - name: Collect OpenSearch recovery diagnostics
+      if: failure()
       run: |
-        echo "🔄 Deploying demo stack ${JAEGER_DEMO_STACK} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
-        echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
-        echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
+        kubectl -n opensearch get volumesnapshots \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,READY:.status.readyToUse,AGE:.metadata.creationTimestamp || true
+        kubectl -n opensearch get pvc \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,CAPACITY:.status.capacity.storage || true
+        kubectl -n opensearch get pods \
+          -l jaegertracing.io/recovery-source=opensearch \
+          -o custom-columns=NAME:.metadata.name,PHASE:.status.phase || true
 
-        case "${JAEGER_DEMO_STACK}" in
-          oci)
-            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
-            ;;
-          otel)
-            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
-            ;;
-          all)
-            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
-            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
-            ;;
-          *)
-            echo "Unsupported demo stack: ${JAEGER_DEMO_STACK}"
-            exit 1
-            ;;
-        esac
+    # opensearch-recovery.sh names the pod after the same run ID and attempt. Its own
+    # EXIT trap is not reliable when the job is cancelled or times out.
+    - name: Remove disposable restore pod
+      if: always()
+      env:
+        OPENSEARCH_RECOVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      run: |
+        kubectl -n opensearch delete pod "jaeger-os-verify-$OPENSEARCH_RECOVERY_ID" \
+          --ignore-not-found=true --wait=false ||
+          echo "::warning::Could not confirm removal of restore pod jaeger-os-verify-$OPENSEARCH_RECOVERY_ID; delete it manually if the recovery test started"
 
     - name: Send detailed Slack notification on failure
       if: failure()

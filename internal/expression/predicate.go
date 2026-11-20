@@ -29,6 +29,7 @@ package expression
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -101,6 +102,14 @@ func (Predicate) Link() LinkLevel {
 		SpanID:     at.Field(ast.LinkFieldSpanID),
 		TraceState: at.Field(ast.LinkFieldTraceState),
 	}
+}
+
+// RefOf wraps a reference term the caller already holds, for a compiler from another syntax
+// that resolves a name to a FieldRef or AttributeRef first and chooses the operator after. A
+// term that is not a reference builds a tree ValidateFilter refuses, which is the same answer
+// a hand-written tree gets.
+func (Predicate) RefOf(term ast.Expression) Ref {
+	return Ref{term}
 }
 
 // Attr names an attribute without saying which level it lives in, which a backend looks for at
@@ -278,6 +287,10 @@ type Ref struct {
 	ref ast.Expression
 }
 
+// Term returns the reference itself, for a clause that lists references rather than predicates:
+// the projection of a span query, or an ordering.
+func (r Ref) Term() ast.Expression { return r.ref }
+
 func (r Ref) Eq(value any) *ast.Call  { return r.compare(ast.OpEq, value) }
 func (r Ref) Ne(value any) *ast.Call  { return r.compare(ast.OpNe, value) }
 func (r Ref) Gt(value any) *ast.Call  { return r.compare(ast.OpGt, value) }
@@ -391,10 +404,23 @@ func render(value any) string {
 	case time.Time:
 		return term.Format(time.RFC3339Nano)
 	case float32:
-		return strconv.FormatFloat(float64(term), 'g', -1, 32)
+		return renderFloat(float64(term), 32)
 	case float64:
-		return strconv.FormatFloat(term, 'g', -1, 64)
+		return renderFloat(term, 64)
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+// renderFloat spells a non-finite number as the OTLP/JSON token — Infinity, -Infinity — that the
+// rest of the system uses on the wire and that a backend storing the value as text keeps, rather
+// than the +Inf and -Inf of strconv, which no backend stores. NaN is already spelled the same.
+func renderFloat(value float64, bitSize int) string {
+	if math.IsInf(value, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(value, -1) {
+		return "-Infinity"
+	}
+	return strconv.FormatFloat(value, 'g', -1, bitSize)
 }

@@ -6,6 +6,7 @@ package elasticsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -222,6 +223,47 @@ func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 	assert.True(t, math.IsNaN(result))
 }
 
+func TestFiltersUnsupported(t *testing.T) {
+	// A reader without a searcher must reject filters before touching storage.
+	r := MetricsReader{}
+	end, lookback, step, rate := time.Now(), time.Hour, time.Minute, time.Minute
+	params := metricstore.BaseQueryParameters{
+		ServiceNames: []string{"frontend"},
+		EndTime:      &end,
+		Lookback:     &lookback,
+		Step:         &step,
+		RatePer:      &rate,
+		Filters:      map[string]string{"deployment.environment": "prod"},
+	}
+	for name, query := range map[string]func() (*metrics.MetricFamily, error){
+		"latencies": func() (*metrics.MetricFamily, error) {
+			return r.GetLatencies(t.Context(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: params})
+		},
+		"calls": func() (*metrics.MetricFamily, error) {
+			return r.GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{BaseQueryParameters: params})
+		},
+		"errors": func() (*metrics.MetricFamily, error) {
+			return r.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: params})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := query()
+			require.ErrorIs(t, err, errors.ErrUnsupported)
+			assert.Nil(t, got)
+		})
+	}
+}
+
+func TestGetDimensions(t *testing.T) {
+	mockServer := startMockEsServer(t, "", mockEmptyResponse)
+	defer mockServer.Close()
+	reader, _ := setupMetricsReaderFromServer(t, mockServer)
+
+	dims, err := reader.GetDimensions(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, dims)
+}
+
 func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
 	tests := []struct {
@@ -298,8 +340,8 @@ func TestGetCallRates(t *testing.T) {
 			{1749895200, math.NaN()},
 			{1749895260, math.NaN()},
 			{1749895320, math.NaN()},
-			{1749895380, 0.75},
-			{1749895440, 0.9},
+			{1749895380, math.NaN()},
+			{1749895440, 0.92},
 			{1749895500, math.NaN()},
 		},
 	}
@@ -357,8 +399,8 @@ func TestGetCallRates(t *testing.T) {
 					{1749895200, math.NaN()},
 					{1749895260, math.NaN()},
 					{1749895320, math.NaN()},
-					{1749895380, 0.75},
-					{1749895440, 0.9},
+					{1749895380, math.NaN()},
+					{1749895440, 0.92},
 				},
 				expectedPoints[0],
 			},
@@ -718,7 +760,7 @@ func TestGetErrorRates(t *testing.T) {
 			{1749895200, math.NaN()},
 			{1749895260, math.NaN()},
 			{1749895320, math.NaN()},
-			{1749895380, 0.5},
+			{1749895380, math.NaN()},
 			{1749895440, 0.75},
 			{1749895500, math.NaN()},
 		},
@@ -785,7 +827,7 @@ func TestGetErrorRates(t *testing.T) {
 						{1749895200, math.NaN()},
 						{1749895260, math.NaN()},
 						{1749895320, math.NaN()},
-						{1749895380, 0.8},
+						{1749895380, math.NaN()},
 						{1749895440, 0.8},
 					},
 					expectedPoints[0], // FindNearest Expected Points
