@@ -10,6 +10,10 @@ on:
   workflow_dispatch:
 
 permissions:
+  # The stale action deletes its saved progress through the caches API. Without
+  # this permission a saved entry stays forever, and the items in it are
+  # skipped on every run.
+  actions: write
   issues: write
   pull-requests: write
 
@@ -61,9 +65,8 @@ jobs:
       # a shorter time to close.
       #
       # Both steps keep their progress in one cache entry of the stale action.
-      # On a day when the step above runs out of operations, this step skips
-      # the pull requests that the step above has already visited, and closes
-      # them on a later run.
+      # A step that runs out of operations makes the other step skip the items
+      # it visited, until one of the steps completes a full pass.
       - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e
         with:
           # No issue carries missing-issue, so this step skips every issue.
