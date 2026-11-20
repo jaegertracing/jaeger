@@ -25,22 +25,75 @@ on:
 permissions: {}
 
 jobs:
-  check-linked-issue:
+  # The check-linked-issue job runs under one concurrency group per pull
+  # request, and GitHub cancels a queued job of a group when a newer one arrives.
+  # This job keeps that cancellation off the pull request: it only dispatches the
+  # workflow, so the cancelled run belongs to the default branch, and the pull
+  # request's check reports only whether the dispatch succeeded. It also turns
+  # an issue event into one check per linked pull request, so that an issue event
+  # and a pull request event never write to the same pull request at once.
+  dispatch-linked-issue-check:
     # Of the label events, only the exemption label on a pull request and the
     # help wanted label on an issue change the outcome.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request_target' &&
         (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
           github.event.label.name == 'no-issue-needed')) ||
       (github.event_name == 'issues' &&
         (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
           github.event.label.name == 'help wanted'))
-    # Two runs for the events of one pull request would both find it without
-    # the label and post two comments. The group is on the job because a skipped job does
-    # not acquire it, so an unrelated label event cannot cancel a queued run.
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Dispatch a check for each pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LINKED_PULL_REQUESTS_QUERY: |
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                issue(number: $number) {
+                  closedByPullRequestsReferences(first: 100) {
+                    nodes { number state repository { nameWithOwner } }
+                  }
+                }
+              }
+            }
+          # An issue also lists its merged pull requests and those of other
+          # repositories. The action skips a pull request that is not open, and
+          # a run in this repository cannot check one of another repository.
+          OPEN_PULL_REQUEST_NUMBERS_FILTER: >-
+            .data.repository.issue.closedByPullRequestsReferences.nodes[]
+            | select(.state == "OPEN" and .repository.nameWithOwner == env.GH_REPO)
+            | .number
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            pr_numbers="$PR_NUMBER"
+          else
+            pr_numbers=$(gh api graphql -f query="$LINKED_PULL_REQUESTS_QUERY" \
+              -F owner="$REPO_OWNER" -F name="$REPO_NAME" -F number="$ISSUE_NUMBER" \
+              --jq "$OPEN_PULL_REQUEST_NUMBERS_FILTER")
+          fi
+          for pr_number in $pr_numbers; do
+            gh workflow run pr-linked-issue.yml --ref "$DEFAULT_BRANCH" -f pullRequestNumber="$pr_number"
+          done
+
+  check-linked-issue:
+    if: github.event_name == 'workflow_dispatch'
+    # Two runs for one pull request would both find it without the label and
+    # post two comments. The group is on the job because at workflow level every
+    # run that only dispatches would share one group, and GitHub would cancel a
+    # queued one before it dispatched its checks.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || inputs.pullRequestNumber }}
+      group: ${{ github.workflow }}-${{ inputs.pullRequestNumber }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
@@ -58,6 +111,5 @@ jobs:
         uses: ./.github/actions/pr-linked-issue
         with:
           token: ${{ github.token }}
-          pull-request-number: ${{ github.event.pull_request.number || inputs.pullRequestNumber }}
-          issue-number: ${{ github.event.issue.number }}
+          pull-request-number: ${{ inputs.pullRequestNumber }}
           dry-run: ${{ inputs.dryRun || 'false' }}
