@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -59,7 +58,7 @@ func spanSearchConn(rows ...*dbmodel.SpanRow) (conn *clickhousetest.Driver, serv
 	serve(rows...)
 	conn = &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			sql.SelectSpansQuery: response,
+			nestedSelectSpans: response,
 		},
 	}
 	return conn, serve
@@ -96,7 +95,7 @@ func TestFindSpans_Query(t *testing.T) {
 		spanSearchRow("b", "0000000000000002", now.Add(-time.Second)),
 		spanSearchRow("c", "0000000000000003", now.Add(-2*time.Second)),
 	)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 
 	names, token := findSpans(t, reader, spanSearchQuery(2, ""))
 	assert.Equal(t, []string{"a", "b"}, names)
@@ -108,7 +107,7 @@ func TestFindSpans_Query(t *testing.T) {
 	assert.Empty(t, token)
 
 	require.Len(t, conn.RecordedQueries, 2)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{
 		now.Add(-time.Hour).UnixNano(), now.UnixNano(), "cart", uint64(3),
 	}, conn.RecordedArgs[0], "the first page fetches one row beyond the page")
@@ -131,7 +130,7 @@ func TestFindSpans_ExplicitOrder(t *testing.T) {
 	mid.Duration = 2000
 	fast := spanSearchRow("fast", "0000000000000003", now.Add(-time.Second))
 	conn, serve := spanSearchConn(slow, mid, fast)
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 
 	query := spanSearchQuery(2, "")
 	query.OrderBy = []tracestore.SpanSortOrder{
@@ -149,7 +148,7 @@ func TestFindSpans_ExplicitOrder(t *testing.T) {
 	assert.Empty(t, token)
 
 	require.Len(t, conn.RecordedQueries, 2)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{
 		now.Add(-time.Hour).UnixNano(), now.UnixNano(), "cart",
 		int64(2000), int64(2000), now.UnixNano(), now.UnixNano(), traceIDHex1, traceIDHex1, "0000000000000002",
@@ -160,20 +159,20 @@ func TestFindSpans_ExplicitOrder(t *testing.T) {
 // TestFindSpans_TimeRangeOnly snapshots the statement of a span query that carries no filter.
 func TestFindSpans_TimeRangeOnly(t *testing.T) {
 	conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	query := spanSearchQuery(5, "")
 	query.Filter = nil
 	names, token := findSpans(t, reader, query)
 	assert.Equal(t, []string{"a"}, names)
 	assert.Empty(t, token)
 	require.Len(t, conn.RecordedQueries, 1)
-	verifyQuerySnapshot(t, conn.RecordedQueries...)
+	clickhousetest.VerifyQuerySnapshot(t, conn.RecordedQueries...)
 	assert.Equal(t, []any{now.Add(-time.Hour).UnixNano(), now.UnixNano(), uint64(6)}, conn.RecordedArgs[0])
 }
 
 func TestFindSpans_PageSizeIsClamped(t *testing.T) {
 	conn, _ := spanSearchConn()
-	reader := NewReader(conn, testReaderConfig)
+	reader := NewReader(conn, NestedLayout{}, testReaderConfig)
 	query := spanSearchQuery(tracestore.MaxPageSize+1, "")
 	names, token := findSpans(t, reader, query)
 	assert.Empty(t, names)
@@ -274,7 +273,7 @@ func TestFindSpans_Refusals(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn, _ := spanSearchConn()
-			err := findSpansError(NewReader(conn, testReaderConfig), tt.query)
+			err := findSpansError(NewReader(conn, NestedLayout{}, testReaderConfig), tt.query)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.ErrorContains(t, err, tt.message)
 			assert.Empty(t, conn.RecordedQueries, "a refused query never reaches the database")
@@ -285,22 +284,22 @@ func TestFindSpans_Refusals(t *testing.T) {
 func TestFindSpans_Errors(t *testing.T) {
 	t.Run("query fails", func(t *testing.T) {
 		conn, _ := spanSearchConn()
-		conn.QueryResponses[sql.SelectSpansQuery].Err = errors.New("boom")
-		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
+		conn.QueryResponses[nestedSelectSpans].Err = errors.New("boom")
+		err := findSpansError(NewReader(conn, NestedLayout{}, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to query spans: boom")
 	})
 	t.Run("scan fails", func(t *testing.T) {
 		conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
-		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).ScanErr = errors.New("boom")
-		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
+		conn.QueryResponses[nestedSelectSpans].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).ScanErr = errors.New("boom")
+		err := findSpansError(NewReader(conn, NestedLayout{}, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to scan span row: boom")
 	})
 	// A full page reads the result set to its end, so an error the server reports after the
 	// last row, or on closing the rows, still fails the page.
 	t.Run("close fails after a full page", func(t *testing.T) {
 		conn, _ := spanSearchConn(spanSearchRow("a", "0000000000000001", now))
-		conn.QueryResponses[sql.SelectSpansQuery].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).CloseErr = errors.New("boom")
-		err := findSpansError(NewReader(conn, testReaderConfig), spanSearchQuery(1, ""))
+		conn.QueryResponses[nestedSelectSpans].Rows.(*clickhousetest.Rows[*dbmodel.SpanRow]).CloseErr = errors.New("boom")
+		err := findSpansError(NewReader(conn, NestedLayout{}, testReaderConfig), spanSearchQuery(1, ""))
 		require.ErrorContains(t, err, "failed to close rows: boom")
 	})
 }
@@ -322,7 +321,7 @@ func TestSpanSort_Continuation(t *testing.T) {
 		{column: columnSpanID},
 	}, sort)
 
-	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, testReaderConfig)
 	after := spanCursor{int64(1000), now.UnixNano(), traceIDHex1, "0000000000000001"}
 	query := spanSearchQuery(2, "")
 	query.Filter = nil
