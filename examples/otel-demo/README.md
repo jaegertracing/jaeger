@@ -90,7 +90,7 @@ kubectl get svc -n otel-demo
 ```
 
 
-## Automatic port-forward using scrpit
+## Automatic port-forward using script
  - OpenSearch Dashboards:
 ```bash path=null start=null
 ./start-port-forward.sh

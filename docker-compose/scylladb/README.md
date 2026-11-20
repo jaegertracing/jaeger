@@ -11,7 +11,7 @@ Setup Jaeger server to use Cassandra database and just replace conn string to Sc
 
 Jaeger server detects Cassandra protocol version automatically. At the date of the demo with specified versions server detects that it connected via protocol version 3 while it is actually 4. This leads to warn log in cassandra-schema container:
 ```
-WARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC will not work in cqlsh '6.0.0' connected to Cassandra '3.0.8', the version that you are connected to. DESCRIBE does not exist server side prior Cassandra 4.0.
+WARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESCRIBE|DESC will not work in cqlsh '6.0.0' connected to Cassandra '3.0.8', the version that you are connected to. DESCRIBE does not exist server side prior Cassandra 4.0.
 Cassandra version detected: 3
 ```
 
