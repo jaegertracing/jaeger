@@ -4,6 +4,7 @@
 package sqlquery
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -179,6 +180,23 @@ func TestCompileFilters(t *testing.T) {
 				p.Span().StatusMessage.Eq("exact (text)"),
 				p.Span().Attr("http.method").Matches(`(?i)^get$`),
 				p.Not(p.Span().Name.Matches(`(?i)^[\s\S]*Health[\s\S]*$`)),
+			),
+		},
+		{
+			name: "not like and not ilike on an attribute hold only where it is present",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['http.method'] NOT LIKE 'PO%'
+					AND attributes['http.route'] NOT ILIKE '%/health'
+					AND resource_attributes['env'] NOT LIKE 'prod'`,
+			want: p.And(
+				p.Span().Attr("http.method").Exists(),
+				p.Not(p.Span().Attr("http.method").Matches(`^PO[\s\S]*$`)),
+				p.Span().Attr("http.route").Exists(),
+				p.Not(p.Span().Attr("http.route").Matches(`(?i)^[\s\S]*/health$`)),
+				p.Resource().Attr("env").Ne("prod"),
 			),
 		},
 		{
@@ -715,6 +733,16 @@ func TestRefusals(t *testing.T) {
 				FROM spans
 				WHERE start_time >= 'a'
 					AND`,
+			at:   "",
+			want: "The statement did not parse as SQL",
+		},
+		{
+			name: "order by cut off after AS",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY duration AS`,
 			at:   "",
 			want: "The statement did not parse as SQL",
 		},
@@ -2572,6 +2600,28 @@ func TestRefusals(t *testing.T) {
 			assert.Equal(t, column, refusal.Column, err.Error())
 		})
 	}
+}
+
+func TestStatementLength(t *testing.T) {
+	nested := func(depth int) string {
+		return "SELECT DISTINCT trace_id FROM spans WHERE between(start_time, now() - '1h', now()) AND " +
+			strings.Repeat("(", depth) + "name = 'x'" + strings.Repeat(")", depth)
+	}
+
+	atLimit := nested(10)
+	atLimit += strings.Repeat(" ", maxStatementBytes-len(atLimit))
+	_, err := Compile(atLimit, now)
+	require.NoError(t, err)
+
+	tooLong := nested(maxStatementBytes)
+	_, err = Compile(tooLong, now)
+	var refusal *Error
+	require.ErrorAs(t, err, &refusal)
+	assert.Equal(t, fmt.Sprintf("the statement is %d bytes long", len(tooLong)), refusal.Message)
+	assert.Contains(t, refusal.Hint, "RFC 0019 §8")
+	line, column := lineColumn(tooLong, maxStatementBytes)
+	assert.Equal(t, line, refusal.Line)
+	assert.Equal(t, column, refusal.Column)
 }
 
 // lineColumn converts a byte offset into the 1-based line and column the error reports.

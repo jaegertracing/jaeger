@@ -69,4 +69,4 @@ SELECT
     scope_complex_attributes.value
 FROM
     spans s
- WHERE s.trace_id = ?
+WHERE s.trace_id = ?

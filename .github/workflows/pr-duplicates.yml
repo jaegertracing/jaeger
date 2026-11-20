@@ -18,22 +18,58 @@ on:
         required: false
         type: boolean
         default: false
+      pullRequestNumber:
+        description: 'Pull request whose event asked for this run; narrows the comment lookups'
+        required: false
+        type: string
+        default: ''
+      issueNumber:
+        description: 'Issue whose label event asked for this run; narrows the comment lookups'
+        required: false
+        type: string
+        default: ''
 
-permissions:
-  pull-requests: write
-  issues: write
+permissions: {}
 
 jobs:
-  label-duplicate-prs:
+  # The label-duplicate-prs job runs under a repository-wide concurrency group,
+  # and GitHub cancels a queued job of a group when a newer one arrives. This job
+  # keeps that cancellation off the pull request: it only dispatches the workflow,
+  # so the cancelled run belongs to the default branch, and the pull request's
+  # check reports only whether the dispatch succeeded.
+  dispatch-duplicate-labelling:
     # Only the persistent maintainer override label on issues is relevant here.
     if: >-
-      github.event_name != 'issues' ||
-      github.event.label.name == 'allow-multiple-prs'
-    # Skipped issue-label runs do not acquire this job-level concurrency group.
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issues' && github.event.label.name == 'allow-multiple-prs')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the duplicate labelling
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: >-
+          gh workflow run pr-duplicates.yml
+          --ref "$DEFAULT_BRANCH"
+          -f pullRequestNumber="$PR_NUMBER"
+          -f issueNumber="$ISSUE_NUMBER"
+
+  label-duplicate-prs:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    # A skipped job does not acquire this job-level concurrency group, so the runs
+    # that only dispatch do not cancel a queued run.
     concurrency:
       group: ${{ github.workflow }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -41,9 +77,9 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Label duplicate pull requests
-        uses: ./.github/actions/pr-quota-manager
+        uses: ./.github/actions/pr-duplicates
         with:
           token: ${{ github.token }}
-          per-issue-limit: 'true'
-          issue-number: ${{ github.event.issue.number }}
+          pull-request-number: ${{ inputs.pullRequestNumber }}
+          issue-number: ${{ inputs.issueNumber }}
           dry-run: ${{ inputs.dryRun || 'false' }}

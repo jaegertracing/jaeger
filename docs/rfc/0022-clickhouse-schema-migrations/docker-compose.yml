@@ -1,0 +1,28 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file defines the four ClickHouse nodes that run.sh starts for the
+# cluster tests of RFC 0022, Appendix A.
+x-ch: &ch
+  image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:26.3.57}
+  environment:
+    - CLICKHOUSE_SKIP_USER_SETUP=1
+services:
+  ch1:
+    <<: *ch
+    hostname: ch1
+    volumes:
+      - ./config/common.yaml:/etc/clickhouse-server/config.d/common.yaml:ro
+      - ./config/keeper.yaml:/etc/clickhouse-server/config.d/keeper.yaml:ro
+  ch2:
+    <<: *ch
+    hostname: ch2
+    volumes: [./config/common.yaml:/etc/clickhouse-server/config.d/common.yaml:ro]
+  ch3:
+    <<: *ch
+    hostname: ch3
+    volumes: [./config/common.yaml:/etc/clickhouse-server/config.d/common.yaml:ro]
+  ch4:
+    <<: *ch
+    hostname: ch4
+    volumes: [./config/common.yaml:/etc/clickhouse-server/config.d/common.yaml:ro]

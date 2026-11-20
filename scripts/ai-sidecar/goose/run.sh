@@ -69,7 +69,6 @@ if [ "$release" = 0 ]; then
 fi
 compose+=("$@")
 
-"${compose[@]}" build --quiet
 if [ "$ci" = 1 ]; then
   trap '"${compose[@]}" down' EXIT
 fi

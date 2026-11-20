@@ -64,8 +64,8 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 
 // Forfeit forfeits an existing lease around a given resource.
 func (l *Lock) Forfeit(resource string) (bool, error) {
-	var name, owner string
-	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&name, &owner)
+	var owner string
+	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&owner)
 	if err != nil {
 		return false, fmt.Errorf("failed to forfeit resource lock due to cassandra error: %w", err)
 	}
