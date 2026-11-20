@@ -189,7 +189,7 @@ The UI just needs to reflect that.
 
 Treat AI availability the same way the UI treats archive storage and
 metrics storage: it's a **capability** the backend advertises, not a
-configuration the UI re-declares. But unlike storage — which is wired into
+configuration the UI redeclares. But unlike storage — which is wired into
 the same process and either works or fails at boot — the AI gateway depends
 on an *external* sidecar that may or may not be running. The
 `jaeger_query.ai` block being present in the config tells us the

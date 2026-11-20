@@ -1021,7 +1021,7 @@ func TestFindSpans_PaginationSurvivesTheInterceptors(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	next.capabilities = filterCapableBackend()
 	next.capabilities.SpanSorting = true
-	order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+	order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}
 	qs := interceptedService(next, fakeInterceptor{
 		onSpanQuery: func(q queryinterceptor.SpanQuery) (queryinterceptor.SpanQuery, error) {
 			return q, nil

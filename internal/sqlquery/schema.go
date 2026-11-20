@@ -64,10 +64,6 @@ var linksColumns = map[string]column{
 	"attributes":      {Level: ast.LevelLink},
 }
 
-// tracesColumns are the RFC 0011 summary fields. They have no expression-level counterpart yet,
-// so a traces column may be selected but not filtered on (RFC 0019 §4.4).
-var tracesColumns = []string{"trace_id", "root_service", "root_name", "start_time", "duration", "span_count", "error_count"}
-
 // correlationColumns are the columns of events and links that tie a row to its span. They are
 // not predicates: the EXISTS shape of RFC 0019 §4.3 consumes them.
 var correlationColumns = []string{"span_id", "trace_id"}
@@ -98,10 +94,6 @@ func columnNames(rel relation) string {
 	default:
 		return "trace_id, root_service, root_name, start_time, duration, span_count, error_count"
 	}
-}
-
-func isTracesColumn(name string) bool {
-	return slices.Contains(tracesColumns, name)
 }
 
 func isCorrelationColumn(name string) bool {

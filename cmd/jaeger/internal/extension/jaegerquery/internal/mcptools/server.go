@@ -1,31 +1,26 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package mcptools provides the Jaeger telemetry MCP tools as a reusable
-// library. The tools wrap a *querysvc.QueryService. NewHandler returns a
-// closeable Handler serving them over streamable HTTP, so any component holding a
-// QueryService can expose the Jaeger telemetry tools over MCP without
-// re-implementing the handlers; a component that needs the server to dispatch more
-// than the built-in tools (e.g. the AI gateway's per-turn UI tools) layers its own
-// receiving middleware on with Handler.AddReceivingMiddleware.
+// Package mcptools serves the Jaeger telemetry tools over MCP. The tools query a
+// *querysvc.QueryService; NewHandler serves them over streamable HTTP, and
+// Handler.AddReceivingMiddleware lets the AI gateway add its per-turn UI tools to
+// the same server.
 package mcptools
 
 import (
 	"embed"
-	"errors"
-	"io"
 	"io/fs"
-	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+const findSpansToolName = "find_spans"
 
 //go:embed INSTRUCTIONS.md
 var serverInstructions string
@@ -37,8 +32,17 @@ var serverInstructions string
 //go:embed all:skills
 var skillsEmbedFS embed.FS
 
+// toolAnnotations marks every tool as read-only and closed-world, because each one
+// only queries Jaeger's own storage or serves a skill file. The MCP defaults for a
+// tool without annotations say that it may modify its environment and may reach
+// external systems.
+var toolAnnotations = &mcp.ToolAnnotations{
+	ReadOnlyHint:  true,
+	OpenWorldHint: new(false),
+}
+
 // newServer builds an *mcp.Server with the Jaeger telemetry tools and the
-// tracing/metrics middleware registered. It takes *querysvc.QueryService
+// tracing/metrics/recovery middleware registered. It takes *querysvc.QueryService
 // directly (rather than fetching it from the component host), which keeps it
 // dependency-free of the jaegerquery extension package and avoids the import
 // cycle a host-based lookup would create now that the tools live under
@@ -64,75 +68,18 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
+	mw = append(
+		mw,
+		// Inside tracing and metrics, so they record a recovered panic as a failed call.
+		// Middleware added later through Handler.AddReceivingMiddleware wraps this
+		// chain, so the Handler guards it with a recovery of its own.
+		createRecoveryMiddleware(telset.Logger),
+		// The filter runs inside the recovery, so a panic in its capability lookup fails
+		// only that request.
+		createFindSpansFilterMiddleware(queryAPI),
+	)
 	server.AddReceivingMiddleware(mw...)
 	return server
-}
-
-// Handler serves an *mcp.Server over HTTP and owns that server's teardown: Close
-// reaps the sessions still bound to it, so a mount gets its teardown from
-// construction instead of from whoever remembers to reach for the server. Mounting
-// one Handler at several paths — jaeger-query serves it at /api/ai/mcp/, and the AI
-// gateway serves it again under the turn-scoped routes — gives those paths one
-// server and one session map, so a session established through either resolves on
-// both.
-type Handler struct {
-	http.Handler
-	server *mcp.Server
-}
-
-var _ io.Closer = (*Handler)(nil)
-
-// Close reaps every session still bound to the server. The SDK reaps a session
-// only when it goes idle (see StreamableHTTPOptions.SessionTimeout), so without
-// this a live session would outlive the server. Sessions() yields a snapshot (it
-// clones under lock), so closing each one mid-iteration — which deregisters it —
-// is safe.
-func (h *Handler) Close() error {
-	var errs []error
-	for session := range h.server.Sessions() {
-		errs = append(errs, session.Close())
-	}
-	return errors.Join(errs...)
-}
-
-// AddReceivingMiddleware layers middleware onto the wrapped server after it has
-// been built, so a caller that did not construct the server can still extend what
-// it dispatches — the AI gateway uses this to add its per-turn UI tools to the
-// shared telemetry server. The HTTP shell captures the server by pointer, so
-// middleware added here applies to every later request; call it during startup,
-// before the HTTP server begins serving.
-func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
-	h.server.AddReceivingMiddleware(middleware...)
-}
-
-// NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed by the given QueryService — the shared endpoint at
-// jaeger-query's /api/ai/mcp/. One *mcp.Server is reused for every session. By
-// default the SDK builds one ServerSession per MCP session and reuses it for that
-// session's requests; with params.StreamableHTTP.Stateless it builds one per request and keeps
-// nothing between requests. It binds no listener of its own — the caller mounts
-// the returned handler on an existing mux and closes it at shutdown so its MCP
-// sessions are reaped.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, params ServerParams) *Handler {
-	server := newServer(telset, queryAPI, params)
-	streamable := mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return server },
-		&mcp.StreamableHTTPOptions{
-			JSONResponse:               params.StreamableHTTP.JSONResponse,
-			Stateless:                  params.StreamableHTTP.Stateless,
-			SessionTimeout:             mcpSessionTimeout,
-			DisableLocalhostProtection: params.StreamableHTTP.DisableLocalhostProtection,
-		},
-	)
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, streamable)
-	return &Handler{
-		Handler: otelhttp.NewHandler(
-			tenantHandler,
-			"jaeger_mcp",
-			otelhttp.WithTracerProvider(telset.TracerProvider),
-		),
-		server: server,
-	}
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
@@ -152,32 +99,49 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_services",
 		Description: "List service names known to Jaeger. Supports optional regex filtering via 'pattern'.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetServicesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_names",
 		Description: "List span/operation names for a given service, with their span kinds " +
 			"(SERVER, CLIENT, INTERNAL, etc.)",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name: "search_traces",
-		Description: "Search for traces matching filters, given as the structured inputs or as one " +
-			"SQL statement in 'sql'. Returns lightweight summaries " +
-			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI, s.params.MaxSearchResults))
+		Name: "find_traces",
+		Description: "Find traces matching one SQL statement in 'sql'. Returns lightweight summaries " +
+			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes. " +
+			"The statement is SELECT DISTINCT trace_id FROM spans WHERE ... or SELECT * FROM traces " +
+			"WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...), with both bounds on start_time. " +
+			types.NoColumnList,
+		Annotations: toolAnnotations,
+	}, handlers.NewFindTracesHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
 		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
 			"Returns verbose output per span.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: findSpansToolName,
+		Description: "Find spans matching one SQL statement in 'sql', across however many traces. " +
+			"Returns lightweight summaries (trace_id, span_id, service, span_name, duration, " +
+			"status) without attributes or events; use get_span_details for those. " +
+			"The statement is SELECT * FROM spans WHERE ... with both bounds on start_time. " +
+			types.NoColumnList,
+		Annotations: toolAnnotations,
+	}, handlers.NewFindSpansHandler(s.queryAPI, s.params.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
 		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -185,7 +149,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
+			"Results may be truncated to the server limit, keeping a depth-first prefix " +
+			"(later roots and sibling subtrees are omitted); " +
+			"compare total_span_count with the number of returned spans to detect truncation. " +
 			"Does NOT include attributes, events, or links.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.params.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -193,12 +161,14 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Identify the critical latency path through a trace: the chain of spans " +
 			"that determined end-to-end duration. " +
 			"Higher self_time_us values indicate where time is concentrated on the critical path.",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_service_dependencies",
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
+		Annotations: toolAnnotations,
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 
 	// error not possible because we embed /skills dir
@@ -208,5 +178,6 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, params S
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
+		Annotations: toolAnnotations,
 	}, handlers.NewReadSkillHandler(s.skillsFS, s.params.CustomSkillsFS, s.params.MaxReadFileSize))
 }

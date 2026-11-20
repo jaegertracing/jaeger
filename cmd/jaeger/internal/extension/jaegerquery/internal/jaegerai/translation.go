@@ -180,10 +180,10 @@ func collectTextParts(parts []any) string {
 
 // The helpers below cover the outbound direction: ACP / MCP session-update
 // shapes are mapped into the primitives required by AG-UI typed events.
-// Streaming lifecycle and ordering concerns live in streaming_client.go.
+// Streaming lifecycle and ordering concerns live in agui_run.go.
 
 // valueOrUnknown returns the string form of an ACP ToolCallStatus pointer,
-// or "unknown" when the sidecar omits a status. The streaming client uses
+// or "unknown" when the sidecar omits a status. The AG-UI run uses
 // this to decide whether a tool call has reached a terminal state and a
 // TOOL_CALL_END frame should be emitted.
 func valueOrUnknown(v *acp.ToolCallStatus) string {
@@ -206,7 +206,7 @@ func toolResultMessageID(toolCallID acp.ToolCallId) string {
 // Unprefixed names (telemetry tools) are returned unchanged.
 //
 // A name that is exactly UIToolPrefix would strip to "", which AG-UI tool-call
-// events reject and which would break SSE encoding. The streaming client
+// events reject and which would break SSE encoding. The ACP client
 // receives agent notifications directly, so it falls back to the original
 // (still non-empty) name rather than terminating the run over a malformed
 // upstream tool name.

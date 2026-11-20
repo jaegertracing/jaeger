@@ -451,11 +451,19 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 		if !ok {
 			return nil, c.pos.at(right, "the pattern of LIKE is a quoted string", "")
 		}
-		call := c.like(ref, unquote(pattern.Literal), strings.Contains(op, "ILIKE"))
-		if strings.HasPrefix(op, "NOT") {
+		text := unquote(pattern.Literal)
+		call := c.like(ref, text, strings.Contains(op, "ILIKE"))
+		if !strings.HasPrefix(op, "NOT") {
+			return call, nil
+		}
+		// Like x NOT IN and x <>, an infix NOT LIKE holds only where the attribute is present.
+		if _, isAttr := refExpr.(*ast.AttributeRef); !isAttr {
 			return builder.Not(call), nil
 		}
-		return call, nil
+		if call.Op == ast.OpEq {
+			return ref.Ne(likeLiteral(text)), nil
+		}
+		return builder.And(ref.Exists(), builder.Not(call)), nil
 	case "REGEXP":
 		pattern, ok := right.(*parser.StringLiteral)
 		if !ok {

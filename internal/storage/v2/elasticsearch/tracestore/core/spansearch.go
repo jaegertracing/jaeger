@@ -4,9 +4,7 @@
 package core
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -71,7 +69,7 @@ func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParam
 	if err != nil {
 		return dbmodel.SpanPage{}, err
 	}
-	after, err := decodeSpanCursor(query.Cursor, sort)
+	after, err := tracestore.DecodeSortKey(query.Cursor, sortKeyValueTypes(sort))
 	if err != nil {
 		return dbmodel.SpanPage{}, err
 	}
@@ -112,7 +110,7 @@ func (s *SpanReader) FindSpans(ctx context.Context, query dbmodel.SpanQueryParam
 			logErrorToSpan(span, err)
 			return dbmodel.SpanPage{}, err
 		}
-		if page.NextCursor, err = json.Marshal(last.Sort); err != nil {
+		if page.NextCursor, err = tracestore.EncodeSortKey(last.Sort); err != nil {
 			return dbmodel.SpanPage{}, err
 		}
 	}
@@ -181,7 +179,7 @@ func sortDirection(direction tracestore.SortDirection) esquery.SortDirection {
 func (s *SpanReader) buildSpanSearchRequest(
 	query dbmodel.SpanQueryParameters,
 	sort []esclient.SortOrder,
-	after []json.RawMessage,
+	after []any,
 	fetch int,
 ) (esclient.SearchRequest, error) {
 	// The millisecond range prunes shards; the microsecond range is the bound itself, since the
@@ -199,47 +197,26 @@ func (s *SpanReader) buildSpanSearchRequest(
 		}
 		boolQuery.Must(filterQuery)
 	}
-	req := esclient.SearchRequest{
-		Query: boolQuery,
-		Size:  fetch,
-		Sort:  sort,
-	}
-	for _, value := range after {
-		req.SearchAfter = append(req.SearchAfter, value)
-	}
-	return req, nil
+	return esclient.SearchRequest{
+		Query:       boolQuery,
+		Size:        fetch,
+		Sort:        sort,
+		SearchAfter: after,
+	}, nil
 }
 
-// decodeSpanCursor reads the cursor a token carried, or returns nil for none. A cursor is
-// refused unless it holds one value per sort clause, a number for a long field and a string
-// for a keyword or a metadata field, since the reader never returns one shaped otherwise and
-// the engine would reject the search_after built from it. The two refusals carry distinct
-// messages so that a test of one cannot pass by tripping the other.
-func decodeSpanCursor(raw []byte, sort []esclient.SortOrder) ([]json.RawMessage, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var values []json.RawMessage
-	if err := json.Unmarshal(raw, &values); err != nil {
-		return nil, fmt.Errorf("%w: page token does not carry a span position", tracestore.ErrPaginationInvalid)
-	}
-	if len(values) != len(sort) {
-		return nil, fmt.Errorf("%w: page token carries %d values for %d sort fields", tracestore.ErrPaginationInvalid, len(values), len(sort))
-	}
+// sortKeyValueTypes is the type of each sort clause's value in a cursor: a string for a
+// keyword or a metadata field, an integer for a long field. The engine would reject a
+// search_after built from a value of another type.
+func sortKeyValueTypes(sort []esclient.SortOrder) []tracestore.SortKeyValueType {
+	types := make([]tracestore.SortKeyValueType, len(sort))
 	for i, clause := range sort {
-		var want any
-		kind := "number"
 		switch clause.Field {
 		case traceIDField, spanIDField, indexField, idField:
-			want = new(string)
-			kind = "string"
+			types[i] = tracestore.SortKeyString
 		default:
-			want = new(json.Number)
-		}
-		// A JSON null decodes into either target without error, so it is refused on its own.
-		if err := json.Unmarshal(values[i], want); err != nil || bytes.Equal(bytes.TrimSpace(values[i]), []byte("null")) {
-			return nil, fmt.Errorf("%w: page token value %d is not a %s", tracestore.ErrPaginationInvalid, i, kind)
+			types[i] = tracestore.SortKeyInteger
 		}
 	}
-	return values, nil
+	return types
 }

@@ -42,14 +42,14 @@ func NewGetTraceTopologyHandler(
 
 // rawSpan holds the raw data for a single span before path computation.
 type rawSpan struct {
-	spanID     string
-	parentID   string // empty string if this is a root span
-	service    string
-	spanName   string
-	startTime  string
-	durationUs int64
-	status     string
-	startNano  int64 // used for sorting children by start time
+	spanID    string
+	parentID  string // empty string if this is a root span
+	startNano int64  // used for sorting children by start time
+	// pos and span reference the source span so the detail fields (service,
+	// name, timing, status) can be materialized lazily in toTopologySpan, only
+	// for the spans that survive the per-request cap rather than for every span.
+	pos  jptrace.SpanIterPos
+	span ptrace.Span
 }
 
 // handle processes the get_trace_topology tool request.
@@ -66,11 +66,13 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTracesWithLimit ensures a complete trace view while bounding server-side
-	// memory to maxSpanDetailsPerRequest spans, preventing unbounded work on large traces.
-	aggregatedIter := jptrace.AggregateTracesWithLimit(tracesIter, h.maxSpanDetailsPerRequest)
+	// AggregateTraces reassembles the full trace so TotalSpanCount counts every span and
+	// the tree is built from all of them. Capping here, in container order, would drop a
+	// root stored after its children and promote them to roots. The per-request cap is
+	// applied later in the DFS walk, which keeps a DFS prefix: later roots and later
+	// sibling subtrees are omitted, and TruncatedChildren only reports the depth cut.
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect all spans from the trace
 	var spans []rawSpan
 	traceFound := false
 
@@ -81,12 +83,8 @@ func (h *getTraceTopologyHandler) handle(
 
 		traceFound = true
 
-		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
 			spans = append(spans, extractRawSpan(pos, span))
-			if h.maxSpanDetailsPerRequest > 0 && len(spans) >= h.maxSpanDetailsPerRequest {
-				break
-			}
 		}
 	}
 
@@ -94,10 +92,13 @@ func (h *getTraceTopologyHandler) handle(
 		return nil, types.GetTraceTopologyOutput{}, errors.New("trace not found")
 	}
 
-	// Build the flat topology list from the collected spans
+	totalSpans := len(spans)
+	topology := h.buildFlatTopology(spans, input.Depth, h.maxSpanDetailsPerRequest)
+
 	output := types.GetTraceTopologyOutput{
-		TraceID: input.TraceID,
-		Spans:   h.buildFlatTopology(spans, input.Depth),
+		TraceID:        input.TraceID,
+		TotalSpanCount: totalSpans,
+		Spans:          topology,
 	}
 
 	return nil, output, nil
@@ -123,32 +124,41 @@ func (*getTraceTopologyHandler) buildQuery(input types.GetTraceTopologyInput) (q
 	}, nil
 }
 
-// extractRawSpan extracts minimal span information needed for topology.
+// extractRawSpan captures the structural fields needed to build the topology
+// tree and keeps a reference to the source span so its detail fields can be
+// materialized later, only for the spans that are actually emitted.
 func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
-	// Get service name from resource attributes
-	serviceName := ""
-	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
-		serviceName = svc.Str()
-	}
-
-	// Calculate duration
-	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime())
-
-	// Get parent span ID
 	parentSpanID := ""
 	if !span.ParentSpanID().IsEmpty() {
 		parentSpanID = span.ParentSpanID().String()
 	}
 
 	return rawSpan{
-		spanID:     span.SpanID().String(),
-		parentID:   parentSpanID,
-		service:    serviceName,
-		spanName:   span.Name(),
-		startTime:  span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		durationUs: duration.Microseconds(),
-		status:     span.Status().Code().String(),
-		startNano:  span.StartTimestamp().AsTime().UnixNano(),
+		spanID:    span.SpanID().String(),
+		parentID:  parentSpanID,
+		startNano: span.StartTimestamp().AsTime().UnixNano(),
+		pos:       pos,
+		span:      span,
+	}
+}
+
+// toTopologySpan materializes the detail fields for a span being emitted into
+// the topology output. This is deliberately deferred from extractRawSpan so the
+// work is only done for spans that survive the per-request cap.
+func toTopologySpan(rs *rawSpan, path string, truncatedChildren int) types.TopologySpan {
+	serviceName := ""
+	if svc, ok := rs.pos.Resource.Resource().Attributes().Get("service.name"); ok {
+		serviceName = svc.Str()
+	}
+	duration := rs.span.EndTimestamp().AsTime().Sub(rs.span.StartTimestamp().AsTime())
+	return types.TopologySpan{
+		Path:              path,
+		Service:           serviceName,
+		SpanName:          rs.span.Name(),
+		StartTime:         rs.span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
+		DurationUs:        duration.Microseconds(),
+		Status:            rs.span.Status().Code().String(),
+		TruncatedChildren: truncatedChildren,
 	}
 }
 
@@ -159,18 +169,24 @@ func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
 // prepended to the path so the caller can identify the attachment point.
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
-func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth int) []types.TopologySpan {
-	// Create a map of span ID to span pointer for quick lookup
+func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth, maxSpans int) []types.TopologySpan {
+	// Create a map of span ID to span pointer for quick lookup. Only the first span
+	// with a given ID is kept, so each kept span is the child of at most one other
+	// span and no cycle can be reached from a root.
 	byID := make(map[string]*rawSpan, len(spans))
+	unique := make([]*rawSpan, 0, len(spans))
 	for i := range spans {
+		if _, ok := byID[spans[i].spanID]; ok {
+			continue
+		}
 		byID[spans[i].spanID] = &spans[i]
+		unique = append(unique, &spans[i])
 	}
 
 	// Build parent-child relationships; collect roots (parent absent from trace)
 	childrenOf := make(map[string][]*rawSpan)
 	var roots []*rawSpan
-	for i := range spans {
-		s := &spans[i]
+	for _, s := range unique {
 		if s.parentID != "" && byID[s.parentID] != nil {
 			childrenOf[s.parentID] = append(childrenOf[s.parentID], s)
 		} else {
@@ -184,9 +200,18 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 		sortByStartNano(childrenOf[k])
 	}
 
-	// DFS from each root to produce the flat list
-	result := make([]types.TopologySpan, 0, len(spans))
+	// DFS from each root to produce the flat list. The output is capped at
+	// maxSpans, so do not preallocate for the whole trace when it is set.
+	capacity := len(unique)
+	if maxSpans > 0 && maxSpans < capacity {
+		capacity = maxSpans
+	}
+	result := make([]types.TopologySpan, 0, capacity)
+	visited := make(map[string]struct{}, len(unique))
 	for _, root := range roots {
+		if maxSpans > 0 && len(result) >= maxSpans {
+			break
+		}
 		// For orphans (has a parentID but parent not in trace), prepend the missing
 		// parent ID to the path so the caller can identify the attachment point.
 		var rootPath string
@@ -195,7 +220,7 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 		} else {
 			rootPath = root.spanID
 		}
-		h.dfs(root, rootPath, 1, maxDepth, childrenOf, &result)
+		h.dfs(root, rootPath, 1, maxDepth, maxSpans, childrenOf, visited, &result)
 	}
 	return result
 }
@@ -203,38 +228,45 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 // dfs appends the current span to result and then recurses into its children.
 // When maxDepth > 0 and the current span is at the depth limit, its children
 // are counted but not visited, and TruncatedChildren is set on the emitted span.
+// When maxSpans > 0, callers stop the walk once result holds that many spans, so the
+// output is a DFS prefix: later roots and later sibling subtrees are omitted, while
+// TruncatedChildren stays the depth signal.
+// A span ID already in visited is skipped, so a cycle in childrenOf cannot
+// make the walk loop.
 func (h *getTraceTopologyHandler) dfs(
 	span *rawSpan,
 	path string,
 	depth int,
 	maxDepth int,
+	maxSpans int,
 	childrenOf map[string][]*rawSpan,
+	visited map[string]struct{},
 	result *[]types.TopologySpan,
 ) {
 	if maxDepth > 0 && depth > maxDepth {
 		return
 	}
+	if _, ok := visited[span.spanID]; ok {
+		return
+	}
+	visited[span.spanID] = struct{}{}
 
-	// Count and remove children beyond maxDepth
+	// Count the children that will not be visited because of maxDepth, so the
+	// caller can tell a leaf from a subtree that was cut off here.
 	truncated := 0
 	if maxDepth > 0 && depth >= maxDepth {
 		truncated = len(childrenOf[span.spanID])
 	}
 
-	*result = append(*result, types.TopologySpan{
-		Path:              path,
-		Service:           span.service,
-		SpanName:          span.spanName,
-		StartTime:         span.startTime,
-		DurationUs:        span.durationUs,
-		Status:            span.status,
-		TruncatedChildren: truncated,
-	})
+	*result = append(*result, toTopologySpan(span, path, truncated))
 
 	// Recursively process children if above the depth limit
 	if truncated == 0 {
 		for _, child := range childrenOf[span.spanID] {
-			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, childrenOf, result)
+			if maxSpans > 0 && len(*result) >= maxSpans {
+				break
+			}
+			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, visited, result)
 		}
 	}
 }

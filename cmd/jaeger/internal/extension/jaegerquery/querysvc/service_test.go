@@ -520,6 +520,23 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 	require.Equal(t, ErrSpanSearchUnsupported, err)
 }
 
+// TestFindSpans_ProjectionUnsupported pins that a column list is refused before the backend is
+// consulted: the reader's capabilities are never asked for.
+func TestFindSpans_ProjectionUnsupported(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Projection:   []expression.Expression{p.Span().Duration.Term()},
+	}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrProjectionUnsupported)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	tqs.traceReader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
+}
+
 func TestFindTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -1782,12 +1799,12 @@ func TestFindSpansOrdering(t *testing.T) {
 			tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
 			query := SpanQueryParams{
 				StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-				OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}},
+				OrderBy: []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "")},
 			}
 			if supported {
 				expected := tracestore.SpanQueryParams{
 					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+					OrderBy:    []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortAscending)},
 					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
 				}
 				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
