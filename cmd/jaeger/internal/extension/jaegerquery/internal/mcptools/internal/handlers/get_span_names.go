@@ -91,16 +91,8 @@ func (h *getSpanNamesHandler) handle(
 		filteredOps = operations
 	}
 
-	// Sort by name, then span kind, for consistent results.
-	//
-	// A service commonly reports one operation name under several span kinds,
-	// and comparing on Name alone leaves those entries tied. slices.SortFunc is
-	// not stable, so tied entries come out in an order that depends on how
-	// storage happened to return them. Combined with the limit below, that
-	// decides which span kinds survive truncation: the same service can answer
-	// the same query differently across backends, or across calls. Breaking the
-	// tie on SpanKind makes the comparison a total order, leaving the result
-	// determined by the data rather than by the input ordering.
+	// Sort by name, then span kind, so that the limit below keeps the same
+	// entries whatever order storage returns them in.
 	slices.SortFunc(filteredOps, func(a, b tracestore.Operation) int {
 		return cmp.Or(
 			cmp.Compare(a.Name, b.Name),
