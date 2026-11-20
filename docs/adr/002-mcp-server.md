@@ -2,7 +2,7 @@
 
 * **Status**: Implemented ([#8423](https://github.com/jaegertracing/jaeger/pull/8423)); graduated from [RFC 0012](../rfc/0012-mcp-server-extension.md). Decisions 2 and 3 are superseded — see below
 * **Decided**: 2026-01-23
-* **Describes the implementation as of**: 2026-07-25
+* **Describes the implementation as of**: 2026-07-25, extended 2026-11-13 with the conditional listing of `find_spans`
 
 > **Graduation note:** The proposal behind this decision — the full tool specification, sample tool outputs, the configuration and directory layout, the phased roadmap and the testing strategy — lives in [RFC 0012](../rfc/0012-mcp-server-extension.md). This ADR records only the decisions and which of them still hold. [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) is the source of truth for how tool calls are routed today.
 
@@ -14,7 +14,7 @@ Jaeger holds the telemetry an LLM agent needs to diagnose a distributed system, 
 
 ### 1. Expose Jaeger telemetry to agents as MCP tools ✅ stands
 
-Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified; the registered set is what `tools/list` returns on the shared endpoint, and one tool, `read_skill`, serves built-in playbooks from an embedded filesystem instead of wrapping a query. The AI gateway's turn-scoped endpoint adds the browser's UI tools to that list, as [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) describes.
+Jaeger serves an MCP endpoint whose tools wrap the existing `QueryService`, rather than expecting agents to drive the HTTP query API directly. The tool set has grown past what [RFC 0012](../rfc/0012-mcp-server-extension.md) specified; the registered set is what `tools/list` returns on the shared endpoint, and one tool, `read_skill`, serves built-in playbooks from an embedded filesystem instead of wrapping a query. One registered tool is conditional: `tools/list` omits `find_spans` when the storage backend does not declare span search or cannot report its capabilities ([ADR-013](./013-storage-capability-declaration.md)), because the query service refuses a span search in both cases. A list made while a remote backend is unreachable therefore lacks the tool until the client lists again. The AI gateway's turn-scoped endpoint adds the browser's UI tools to that list, as [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) describes.
 
 A tool name is a verb and its direct object, and the verbs follow the storage API: `get_*` for a lookup by identity or a view derived from one, `find_*` for a search by predicate, so that `find_traces` sits next to `FindTraceSummaries` and `FindSpans`, and `read_*` for a document rather than telemetry. The tool was named `search_traces` until #10073; the rename cost nothing on the agent side, because an agent discovers tool names from `tools/list` on every session rather than compiling them in.
 

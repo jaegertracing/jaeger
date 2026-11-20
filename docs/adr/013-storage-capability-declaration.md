@@ -1,7 +1,7 @@
 # ADR-013: Storage Capability Declaration
 
 * **Status**: Implemented — graduated from [RFC 0013](../rfc/0013-optional-service-name-in-search.md)
-* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, 2026-09-28 with the two families of refusal under [Enforcement](#enforcement), and 2026-10-08 with the api_v3 `Capabilities` service under [Reporting](#reporting)
+* **Date**: 2026-08-08, extended 2026-08-16 with the [RFC 0005](../rfc/0005-structured-query-filters.md) filter capabilities, 2026-09-28 with the two families of refusal under [Enforcement](#enforcement), 2026-10-08 with the api_v3 `Capabilities` service under [Reporting](#reporting), and 2026-11-13 with the MCP endpoint as a consumer and the scope of Badger and Cassandra under [Consequences](#consequences)
 
 ## Context
 
@@ -66,9 +66,10 @@ Refusal is not the only answer a capability can produce, and which one applies i
 
 ### Reporting
 
-Three consumers read the declaration, and none of them captures it:
+These consumers read the declaration, and none of them captures it:
 
 * The query service asks the reader on every search that omits the service name.
+* The MCP endpoint asks on every `tools/list`, and leaves out `find_spans` when span search is not declared or the reader cannot report ([ADR-002](./002-mcp-server.md)).
 * The static handler asks on every SPA serve, to build the `JAEGER_BACKEND_CAPABILITIES` blob the UI reads.
 * The api_v3 `Capabilities` service (`GetCapabilities`, bound to `GET /api/v3/capabilities`) asks on every call and returns the declaration to any API client. Its messages mirror `jaeger.storage.v2.SearchCapabilities` field for field rather than importing it, so the storage boundary is not published as part of the public API. A reader that cannot report maps to `Unimplemented` / HTTP 501, as the remote-storage server does, and Jaeger's own e2e test client maps that back to `errors.ErrUnsupported`.
 
@@ -81,7 +82,7 @@ The storage integration suite gates capability-dependent tests on its own per-ba
 ## Consequences
 
 * Adding a capability is a two-line change to the struct plus one honest answer per backend, and the compiler lists the backends. The cost is that all of them must be touched.
-* A backend can be graduated later — Badger stays at `false` today, and applying tag and operation filters inside its time-range scan would flip it — without any caller changing.
+* A backend can start declaring a capability later without any caller changing. The project does not plan this for Badger or Cassandra. Both stay supported, and new search capabilities are implemented for ClickHouse, Elasticsearch/OpenSearch and memory. The obstacle differs by capability. A general predicate search over spans would need query evaluation written in Jaeger, because Badger's indexes stop at the trace ID ([ADR-005](./005-badger-storage-record-layouts.md)) and Cassandra cannot intersect its indexes on the server ([ADR-001](./001-cassandra-find-traces-duration.md)). The narrower searches the two could serve would need a finer declaration than this one ([RFC 0016 §9](../rfc/0016-span-search.md)), and pagination would need an ordering their indexes do not give ([RFC 0014 §11](../rfc/0014-search-result-pagination.md)). The api_v3 `Capabilities` service reports each declared capability the two lack.
 * API clients discover the search capabilities through the api_v3 `Capabilities` service. RFC 0013 §3.7 designed that service and set it aside while no client needed it; the client that does is the shared storage integration suite in e2e mode, which reaches the reader only through api_v3 and so could not read the declaration a direct suite reads from the reader. The response carries only `search`; archive, metrics and AI storage are deployment configuration rather than storage declarations and remain open as a separate addition.
 * Capabilities are assumed stable for the lifetime of a connection. A backend whose abilities change under a running jaeger-query would not be noticed until the connection is re-established.
 

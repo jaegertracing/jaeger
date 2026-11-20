@@ -132,6 +132,24 @@ testPrepareFailsWhenUITagMissing() {
   assertFalse "gh was called" "[ -s '$GH_LOG' ]"
 }
 
+testPrepareRefusesGateDueInRelease() {
+  setup_prepare_repos
+  printf 'featuregate.WithRegisterToVersion("v2.23.0"),\n' > "$T/seed/gate.go"
+  printf 'featuregate.WithRegisterToVersion("v2.23.0"),\n' > "$T/seed/gate_test.go"
+  git -C "$T/seed" add -A && git -C "$T/seed" commit -q -m due-gate
+  git -C "$T/seed" push -q "$T/github.com/jaegertracing/jaeger" main
+  out=$(run_prepare 2.23.0)
+  assertEquals 1 $?
+  assertContains "$out" "due for removal in v2.23.0"
+  assertContains "$out" "gate.go:1:"
+  assertNotContains "$out" "gate_test.go"
+  assertNull "branch was pushed" "$(pushed_branch)"
+  assertFalse "gh was called" "[ -s '$GH_LOG' ]"
+
+  out=$(run_prepare 2.23.1)
+  assertEquals "prepare.sh failed: $out" 0 $?
+}
+
 testPrepareCreatesPRInOfficialRepo() {
   setup_prepare_repos
   run_prepare 2.23.0 42 >/dev/null
@@ -195,6 +213,18 @@ testStartContinuesWithoutExistingIssue() {
   out=$(cd "$T" && EXISTING_ISSUE='' bash "$RELEASE_DIR/start.sh" -d <<< "2.23.0" 2>&1)
   assertContains "$out" "wget called"
   assertNotContains "$out" "already exists"
+}
+
+testFormatterOrdersSectionsAndFillsVersion() {
+  printf '<!-- BEGIN_CHECKLIST -->\n- ui step vX.Y.Z\n<!-- END_CHECKLIST -->\n' > "$T/ui.md"
+  printf '<!-- BEGIN_CHECKLIST -->\n- doc step\n<!-- END_CHECKLIST -->\n' > "$T/doc.md"
+  out=$(cd "$REPO_ROOT" && python3 scripts/release/formatter.py 2.99.0 "$T/ui.md" "$T/doc.md")
+  assertEquals 0 $?
+  headings=$(grep '^# ' <<< "$out" | tr '\n' '|')
+  assertEquals "# Preflight|# UI Release|# Backend Release|# Doc Release|# Wrap-up|" "$headings"
+  assertContains "$out" '* [ ] ui step v2.99.0'
+  assertContains "$out" "WithRegisterToVersion(\"v2.99.0\")"
+  assertNotContains "$out" 'X.Y.Z'
 }
 
 # shellcheck disable=SC1091

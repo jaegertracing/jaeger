@@ -13,6 +13,12 @@
           "callCount": 1,
           "child": "svcB",
           "parent": "svcA"
+        },
+        {
+          "callCount": 2,
+          "child": "svcB",
+          "parent": "svcA",
+          "source": "mesh"
         }
       ],
       "timestamp": "2020-01-02T03:04:05Z"

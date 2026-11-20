@@ -132,7 +132,7 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := NewReader(tt.driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
+			reader := NewReader(tt.driver, NestedLayout{}, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 			_, err := reader.getAttributeMetadata(t.Context(), attrs)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tt.expectedErr)
@@ -148,7 +148,7 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 
 	driver := &clickhousetest.Driver{}
 
-	reader := NewReader(driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
+	reader := NewReader(driver, NestedLayout{}, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata)
@@ -179,7 +179,7 @@ func makeTestDriverWithMetadata() *clickhousetest.Driver {
 
 func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 	d := makeTestDriverWithMetadata()
-	reader := NewReader(d, ReaderConfig{
+	reader := NewReader(d, NestedLayout{}, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
 	})
@@ -197,7 +197,7 @@ func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 
 func TestGetAttributeMetadata_CacheHit(t *testing.T) {
 	d := makeTestDriverWithMetadata()
-	reader := NewReader(d, ReaderConfig{
+	reader := NewReader(d, NestedLayout{}, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
 	})
@@ -222,7 +222,7 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d := makeTestDriverWithMetadata()
 		cacheTTL := 5 * time.Minute
-		reader := NewReader(d, ReaderConfig{
+		reader := NewReader(d, NestedLayout{}, ReaderConfig{
 			AttributeMetadataCacheTTL:     cacheTTL,
 			AttributeMetadataCacheMaxSize: 1000,
 		})
@@ -269,7 +269,7 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 			},
 		},
 	}
-	reader := NewReader(d, ReaderConfig{
+	reader := NewReader(d, NestedLayout{}, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
 	})
@@ -292,7 +292,7 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 
 func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
 	d := makeTestDriverWithMetadata()
-	reader := NewReader(d, ReaderConfig{
+	reader := NewReader(d, NestedLayout{}, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
 	})

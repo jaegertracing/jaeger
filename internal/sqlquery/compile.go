@@ -55,9 +55,18 @@ type Query struct {
 	Normalized string
 }
 
+// maxStatementBytes bounds the parser's recursion, whose stack overflow is fatal to the process
+// rather than a recoverable panic (RFC 0019 §8).
+const maxStatementBytes = 16 << 10
+
 // Compile parses and lowers one statement. now is the instant now() evaluates to, fixed once
 // per request by the caller so that the two bounds of a window agree.
 func Compile(sql string, now time.Time) (*Query, error) {
+	if len(sql) > maxStatementBytes {
+		return nil, newPositions(sql[:maxStatementBytes]).atOffset(maxStatementBytes,
+			fmt.Sprintf("the statement is %d bytes long", len(sql)),
+			fmt.Sprintf("A statement is limited to %d bytes (RFC 0019 §8)", maxStatementBytes))
+	}
 	c := &compiler{now: now, pos: newPositions(sql)}
 	stmts, err := c.parse(sql)
 	if err != nil {

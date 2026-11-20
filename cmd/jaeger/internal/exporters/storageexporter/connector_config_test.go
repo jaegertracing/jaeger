@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,4 +83,7 @@ func TestConnector_ReadmeExampleIsValid(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, cfg.QueueConfig.Get().WaitForResult)
 	assert.Equal(t, "some_storage", cfg.TraceStorage)
+	partition := cfg.QueueConfig.Get().Batch.Get().Partition
+	assert.Equal(t, 90*time.Second, partition.IdleTimeout)
+	assert.Equal(t, 10000, partition.CacheSize)
 }

@@ -8,8 +8,10 @@
 #   1. Update CHANGELOG.md with the new version and auto-generated release notes.
 #   2. Update the jaeger-ui submodule to the corresponding version
 #   3. Rotate the release managers table in RELEASE.md
-#   4. Create a PR with the 'changelog:skip' label
-#   5. Include exact tag commands in the PR description for post-merge execution.
+#   4. Create a PR against main with the 'changelog:skip' label
+#
+# It refuses to start while a feature gate on the official main still carries
+# WithRegisterToVersion("v<version>"), because that gate is due for removal.
 #
 # Use:
 #   bash scripts/release/prepare.sh <version> [issue]
@@ -23,7 +25,7 @@
 #   bash scripts/release/prepare.sh 2.14.0 1234
 #   make prepare-release VERSION=2.14.0 ISSUE=1234
 #
-# After the PR is merged, follow the tag commands in the PR description.
+# After the PR is merged, continue with the release tracking issue.
 
 set -euo pipefail
 
@@ -56,6 +58,23 @@ fetch_from_official_remote() {
 
     echo "Fetching from official repo: $official_remote"
     git fetch "$official_remote"
+}
+
+# A gate whose WithRegisterToVersion names this release must be removed before it ships
+verify_no_due_gates() {
+    local version=$1
+    local due rc=0
+    due=$(git grep -n -F "WithRegisterToVersion(\"v${version}\")" "${official_remote}/main" -- '*.go' ':!*_test.go') || rc=$?
+    if [ "$rc" -gt 1 ]; then
+        echo "Error: could not search ${official_remote}/main for feature gates due in v${version}"
+        exit 1
+    fi
+    if [ "$rc" -eq 0 ]; then
+        echo "Error: these feature gates are due for removal in v${version} but are still registered on ${official_remote}/main:"
+        echo "$due"
+        echo "Land their removal PRs first; see https://github.com/jaegertracing/jaeger/issues/9057"
+        exit 1
+    fi
 }
 
 # Create a new branch from the official main, not the local checkout
@@ -189,6 +208,7 @@ main() {
     check_prerequisites
     verify_clean_worktree
     fetch_from_official_remote
+    verify_no_due_gates "$version"
 
     local branch_name
     branch_name=$(create_release_branch "$version")
@@ -200,7 +220,7 @@ main() {
     push_branch "$branch_name"
     create_pull_request "$version" "$issue"
 
-    echo "Done. Review and merge the PR, then follow the instructions in the PR description."
+    echo "Done. Review and merge the PR, then continue with the release tracking issue."
 }
 
 main "$@"

@@ -29,8 +29,113 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
+
+type capabilitiesAnswer struct {
+	caps tracestore.SearchCapabilities
+	err  error
+}
+
+// stubCapabilitiesQueryService gives one answer per call, in order, so a test can tell a
+// middleware that asks on every request from one that remembers the first answer.
+type stubCapabilitiesQueryService struct {
+	answers []capabilitiesAnswer
+	calls   int
+}
+
+func (s *stubCapabilitiesQueryService) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	answer := s.answers[s.calls]
+	s.calls++
+	return answer.caps, answer.err
+}
+
+func TestFindSpansFilterMiddlewareAsksOnEveryToolsList(t *testing.T) {
+	withSpanSearch := tracestore.SearchCapabilities{SpanSearch: true}
+	steps := []struct {
+		name      string
+		answer    capabilitiesAnswer
+		wantTools []string
+	}{
+		{
+			name: "capabilities cannot be reported",
+			answer: capabilitiesAnswer{
+				caps: withSpanSearch,
+				err:  errors.ErrUnsupported,
+			},
+			wantTools: []string{"find_traces", "get_services"},
+		},
+		{
+			name:      "span search declared",
+			answer:    capabilitiesAnswer{caps: withSpanSearch},
+			wantTools: []string{"find_traces", findSpansToolName, "get_services"},
+		},
+		{
+			name:      "span search not declared",
+			answer:    capabilitiesAnswer{},
+			wantTools: []string{"find_traces", "get_services"},
+		},
+	}
+	queryAPI := &stubCapabilitiesQueryService{}
+	for _, step := range steps {
+		queryAPI.answers = append(queryAPI.answers, step.answer)
+	}
+	handler := createFindSpansFilterMiddleware(queryAPI)(
+		func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			return &mcp.ListToolsResult{
+				Tools: []*mcp.Tool{
+					{Name: "find_traces"},
+					{Name: findSpansToolName},
+					{Name: "get_services"},
+				},
+			}, nil
+		},
+	)
+	for _, step := range steps {
+		result, err := handler(context.Background(), "tools/list", nil)
+		require.NoError(t, err, step.name)
+		var names []string
+		for _, tool := range result.(*mcp.ListToolsResult).Tools {
+			names = append(names, tool.Name)
+		}
+		assert.Equal(t, step.wantTools, names, step.name)
+	}
+}
+
+func TestFindSpansFilterMiddlewarePassesOtherResultsThrough(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		result mcp.Result
+		err    error
+	}{
+		{
+			name:   "another method",
+			method: mcpMethodToolsCall,
+			result: &mcp.CallToolResult{},
+		},
+		{
+			name:   "failed tools/list",
+			method: "tools/list",
+			err:    errors.New("list failed"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queryAPI := &stubCapabilitiesQueryService{}
+			handler := createFindSpansFilterMiddleware(queryAPI)(
+				func(context.Context, string, mcp.Request) (mcp.Result, error) {
+					return test.result, test.err
+				},
+			)
+			result, err := handler(context.Background(), test.method, nil)
+			assert.Equal(t, test.result, result)
+			assert.Equal(t, test.err, err)
+			assert.Zero(t, queryAPI.calls)
+		})
+	}
+}
 
 func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 	capture := newTraceCapture(t)
