@@ -28,6 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
+// localTableSuffix is the suffix of the name of a storage table under the distributed layout.
+const localTableSuffix = "_local"
+
 var (
 	_ io.Closer                  = (*Factory)(nil)
 	_ depstore.Factory           = (*Factory)(nil)
@@ -121,7 +124,7 @@ func newSchemaBuilder(
 	}
 	suffix := ""
 	if cluster != nil {
-		suffix = "_local"
+		suffix = localTableSuffix
 	}
 	params := schemaTemplateParams{
 		layout:               layout,
