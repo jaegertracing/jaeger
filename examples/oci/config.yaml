@@ -13,7 +13,9 @@ service:
       exporters: [prometheus]
   telemetry:
     resource:
-      service.name: jaeger
+      attributes:
+        - name: service.name
+          value: jaeger
     metrics:
       level: detailed
       readers:
