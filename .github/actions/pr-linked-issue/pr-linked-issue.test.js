@@ -244,7 +244,9 @@ describe('which pull requests a run checks', () => {
   test.each([
     { name: 'every open pull request by default', options: undefined, flagged: [1, 2, 3] },
     { name: 'the named pull request', options: { pullRequestNumber: 3 }, flagged: [3] },
-    { name: 'nothing when the named pull request is closed', options: { pullRequestNumber: 4 }, flagged: [] }
+    { name: 'nothing when the named pull request is closed', options: { pullRequestNumber: 4 }, flagged: [] },
+    { name: 'the pull requests linked to the named issue of this repository', options: { issueNumber: 7 }, flagged: [1] },
+    { name: 'the named pull request when both numbers are given', options: { pullRequestNumber: 3, issueNumber: 7 }, flagged: [3] }
   ])('$name', async ({ options, flagged }) => {
     const result = await applyPolicy(makeOctokit(pullRequests), options);
 
@@ -310,7 +312,7 @@ describe('GitHub Actions handler', () => {
     const github = makeOctokit([makePR(1), makePR(2)]);
     const core = { info: jest.fn(), setFailed: jest.fn() };
 
-    await handler({ github, core, owner: 'owner', repo: 'repo', pullRequestNumber: '2' });
+    await handler({ github, core, owner: 'owner', repo: 'repo', pullRequestNumber: '2', issueNumber: '' });
 
     expect(github.rest.issues.addLabels).toHaveBeenCalledTimes(1);
     expect(core.info).toHaveBeenCalledWith('PRs that violate the policy: 2');
