@@ -21,10 +21,6 @@ const (
 	spanPaginationTest    = "Pagination/Spans"
 	summaryPaginationTest = "Pagination/TraceSummaries"
 
-	// attributeComparisonTest asserts the outcome the deployment declares through
-	// AttributeComparison; a backend that evaluates no ordered comparison on an attribute skips it.
-	attributeComparisonTest = "an_ordered_comparison_on_an_attribute"
-
 	// Filter cases on built-in fields that a backend's lowering does not map, which the levels and
 	// operators of its FilterCapabilities are too coarse to say. A case on a level or an operator
 	// needs no entry here: the battery reads the declaration and expects a refusal instead.
@@ -247,9 +243,6 @@ func clickHouseSkipList() []string {
 		// The trace searches do not page yet.
 		traceIDPaginationTest,
 		summaryPaginationTest,
-		// The lowering declares the ordered comparisons but evaluates them on built-in fields
-		// only, and refuses one on an attribute.
-		attributeComparisonTest,
 	}
 }
 
