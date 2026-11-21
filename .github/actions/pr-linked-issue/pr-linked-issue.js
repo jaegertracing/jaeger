@@ -5,14 +5,19 @@
  * Linked issue policy
  *
  * A pull request from an outside contributor must be linked to an open issue
- * that carries the `help wanted` label. This script adds the `missing-issue`
- * and `stale` labels to a pull request that has no such issue, and explains
- * the policy in a comment. The stale workflow closes a pull request that
- * keeps the `missing-issue` label.
+ * that carries the `help wanted` label. This script flags a pull request that
+ * has no such issue: it adds `stale` and one of the two flag labels,
+ * `missing-issue` or `unapproved-issue`, and explains the policy in a comment.
+ * The stale workflow closes a pull request that keeps a flag label.
  */
 
 const QUALIFYING_ISSUE_LABEL_NAME = 'help wanted';
+// The two flag labels separate what the pull request waits for. Under
+// `missing-issue` the author has to link an issue. Under `unapproved-issue` the
+// linked issue is open, and a maintainer decides whether it gets `help wanted`.
 const MISSING_ISSUE_LABEL_NAME = 'missing-issue';
+const UNAPPROVED_ISSUE_LABEL_NAME = 'unapproved-issue';
+const FLAG_LABEL_NAMES = [MISSING_ISSUE_LABEL_NAME, UNAPPROVED_ISSUE_LABEL_NAME];
 const EXEMPT_LABEL_NAME = 'no-issue-needed';
 const STALE_LABEL_NAME = 'stale';
 const POLICY_URL =
@@ -132,15 +137,30 @@ function linkedIssueProblems(pr, repository, owner) {
   return issues.map(issue => `${issueReference(issue, repository)} ${disqualification(issue, owner)}`);
 }
 
-function missingIssueComment(problems) {
+/**
+ * Choose the flag label of a pull request that violates the policy. Every
+ * linked issue of such a pull request is disqualified, so an open issue of
+ * this organization is one that lacks `help wanted`.
+ */
+function applicableFlagLabelName(pr, owner) {
+  const hasOpenOrganizationIssue = pr.closingIssuesReferences.nodes.some(issue =>
+    issue.repository.owner.login === owner && issue.state === 'OPEN'
+  );
+  return hasOpenOrganizationIssue ? UNAPPROVED_ISSUE_LABEL_NAME : MISSING_ISSUE_LABEL_NAME;
+}
+
+function policyViolatedComment(flagLabelName, problems) {
+  const resolution = flagLabelName === UNAPPROVED_ISSUE_LABEL_NAME
+    ? `To resolve this, ask on the linked issue whether the maintainers would accept a contribution. A maintainer who accepts it adds the \`${QUALIFYING_ISSUE_LABEL_NAME}\` label to the issue.`
+    : 'To resolve this, link the pull request to such an issue with a closing keyword in the description, for example `Fixes #123`.';
   return `${POLICY_COMMENT_MARKER}
-This pull request is labelled \`${MISSING_ISSUE_LABEL_NAME}\` because it is not linked to an open issue that carries the \`${QUALIFYING_ISSUE_LABEL_NAME}\` label:
+This pull request is labelled \`${flagLabelName}\` because it is not linked to an open issue that carries the \`${QUALIFYING_ISSUE_LABEL_NAME}\` label:
 
 ${problems.map(problem => `- ${problem}`).join('\n')}
 
-Jaeger accepts a pull request only for an issue that a maintainer has marked \`${QUALIFYING_ISSUE_LABEL_NAME}\`, as described in [Link each pull request to an issue](${POLICY_URL}). To resolve this, link the pull request to such an issue with a closing keyword in the description, for example \`Fixes #123\`. If the issue is not labelled \`${QUALIFYING_ISSUE_LABEL_NAME}\`, ask on the issue whether the maintainers would accept a contribution.
+Jaeger accepts a pull request only for an issue that a maintainer has marked \`${QUALIFYING_ISSUE_LABEL_NAME}\`, as described in [Link each pull request to an issue](${POLICY_URL}). ${resolution}
 
-The pull request is also labelled \`${STALE_LABEL_NAME}\` and is closed automatically after about a week without activity unless such an issue is linked. A maintainer can exempt the pull request with the \`${EXEMPT_LABEL_NAME}\` label.`;
+The pull request is also labelled \`${STALE_LABEL_NAME}\` and is closed automatically after about a week without activity unless it is linked to such an issue. A maintainer can exempt the pull request with the \`${EXEMPT_LABEL_NAME}\` label.`;
 }
 
 function policyMetComment() {
@@ -176,8 +196,8 @@ async function rewritePolicyComment(octokit, owner, repo, number, body) {
  * is given.
  *
  * @returns {Promise<{flaggedPullRequests: number[], unflaggedPullRequests: number[]}>}
- *   The pull requests that violate the policy, and the ones that carried the
- *   `missing-issue` label and no longer violate it.
+ *   The pull requests that violate the policy, and the ones that carried a
+ *   flag label and no longer violate it.
  */
 async function processLinkedIssuePolicy(
   octokit, owner, repo, { pullRequestNumber, issueNumber, dryRun = false } = {}, logger = console
@@ -202,7 +222,8 @@ async function processLinkedIssuePolicy(
     const number = pr.number;
     const login = pr.author?.login;
     const presentLabelNames = labelNames(pr.labels);
-    const isFlagged = presentLabelNames.includes(MISSING_ISSUE_LABEL_NAME);
+    const presentFlagLabelNames = FLAG_LABEL_NAMES.filter(name => presentLabelNames.includes(name));
+    const isFlagged = presentFlagLabelNames.length > 0;
     const problems = linkedIssueProblems(pr, repository, owner);
     const violatesPolicy = problems.length > 0 &&
       !presentLabelNames.includes(EXEMPT_LABEL_NAME) &&
@@ -210,35 +231,41 @@ async function processLinkedIssuePolicy(
       !(login && await authorHasWriteAccess(octokit, owner, repo, login, permissionsByLogin));
 
     if (violatesPolicy) {
+      const flagLabelName = applicableFlagLabelName(pr, owner);
       flaggedPullRequests.push(number);
-      logger.log(`PR #${number} by @${login}: ${problems.join('; ')}`);
+      logger.log(`PR #${number} by @${login}: ${flagLabelName}: ${problems.join('; ')}`);
       if (dryRun) continue;
-      const body = missingIssueComment(problems);
+      const body = policyViolatedComment(flagLabelName, problems);
       // A newly flagged pull request always gets a new comment, because GitHub
-      // notifies the author of a new comment and not of an edited one. The
-      // comment is written before the labels, so that the stale label is the
-      // last change and the stale workflow counts idle days from it.
+      // notifies the author of a new comment and not of an edited one. That
+      // comment is written before the labels, so that the stale workflow
+      // counts idle days from the stale label and not from the comment.
       if (isFlagged) {
         await rewritePolicyComment(octokit, owner, repo, number, body);
       } else {
         await octokit.rest.issues.createComment({ owner, repo, issue_number: number, body });
       }
-      const labels = [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+      const labels = [flagLabelName, STALE_LABEL_NAME]
         .filter(name => !presentLabelNames.includes(name));
       if (labels.length > 0) {
         await octokit.rest.issues.addLabels({ owner, repo, issue_number: number, labels });
       }
+      // The other flag label is removed after the new one is added, so that a
+      // run that fails in between still finds the pull request flagged.
+      for (const name of presentFlagLabelNames.filter(name => name !== flagLabelName)) {
+        await octokit.rest.issues.removeLabel({ owner, repo, issue_number: number, name });
+      }
     } else if (isFlagged) {
       unflaggedPullRequests.push(number);
-      logger.log(`PR #${number} by @${login}: meets the policy, removing ${MISSING_ISSUE_LABEL_NAME}`);
+      logger.log(`PR #${number} by @${login}: meets the policy, removing ${presentFlagLabelNames.join(', ')}`);
       if (dryRun) continue;
       await rewritePolicyComment(octokit, owner, repo, number, policyMetComment());
-      // missing-issue is removed last, so that a run that fails in between
+      // The flag labels are removed last, so that a run that fails in between
       // still finds the pull request flagged and finishes the work.
-      for (const name of [STALE_LABEL_NAME, MISSING_ISSUE_LABEL_NAME]) {
-        if (presentLabelNames.includes(name)) {
-          await octokit.rest.issues.removeLabel({ owner, repo, issue_number: number, name });
-        }
+      const labelNamesToRemove = [STALE_LABEL_NAME].filter(name => presentLabelNames.includes(name))
+        .concat(presentFlagLabelNames);
+      for (const name of labelNamesToRemove) {
+        await octokit.rest.issues.removeLabel({ owner, repo, issue_number: number, name });
       }
     }
   }
@@ -282,5 +309,6 @@ module.exports.parseOptionalNumber = parseOptionalNumber;
 module.exports.POLICY_COMMENT_MARKER = POLICY_COMMENT_MARKER;
 module.exports.QUALIFYING_ISSUE_LABEL_NAME = QUALIFYING_ISSUE_LABEL_NAME;
 module.exports.MISSING_ISSUE_LABEL_NAME = MISSING_ISSUE_LABEL_NAME;
+module.exports.UNAPPROVED_ISSUE_LABEL_NAME = UNAPPROVED_ISSUE_LABEL_NAME;
 module.exports.EXEMPT_LABEL_NAME = EXEMPT_LABEL_NAME;
 module.exports.STALE_LABEL_NAME = STALE_LABEL_NAME;

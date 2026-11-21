@@ -61,13 +61,16 @@ qualifies. If the issue you want to work on does not carry the label, ask on the
 issue before writing code, because the maintainers may not want the change or
 may already be working on it.
 
-A pull request that is not linked to such an issue is labelled `missing-issue`
-and `stale`, and receives a comment that points to this section. Adding a
-closing keyword for a qualifying issue to the description removes both labels.
+A pull request that is not linked to such an issue is labelled `stale`, and
+receives a comment that points to this section. It is also labelled
+`unapproved-issue` when it is linked to an open issue of the `jaegertracing`
+organization that does not carry `help wanted`, and `missing-issue` otherwise.
+Adding a closing keyword for a qualifying issue to the description removes
+`stale` and the `missing-issue` or `unapproved-issue` label.
 The pull request is checked again only when its description is edited, so edit
 the description after you link an issue through the sidebar, or after an issue
 in another repository that you already linked receives the `help wanted` label. A pull request that still carries
-`missing-issue` after about a week without activity is closed automatically, and
+`missing-issue` or `unapproved-issue` after about a week without activity is closed automatically, and
 can be reopened once it is linked. Pull requests from maintainers and from
 Dependabot and Renovate are exempt, and a maintainer may exempt any other pull request,
 such as a fix for a typo, by applying the `no-issue-needed` label to it.

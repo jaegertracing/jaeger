@@ -8,6 +8,7 @@ const {
   parseOptionalNumber,
   QUALIFYING_ISSUE_LABEL_NAME,
   MISSING_ISSUE_LABEL_NAME,
+  UNAPPROVED_ISSUE_LABEL_NAME,
   EXEMPT_LABEL_NAME,
   STALE_LABEL_NAME,
   POLICY_COMMENT_MARKER
@@ -105,20 +106,38 @@ describe('flagging a pull request', () => {
   });
 
   test.each([
-    { name: 'no issue is linked', issues: [], problems: ['no issue is linked'] },
-    { name: 'the issue lacks the label', issues: [makeIssue(7, { labels: ['bug'] })], problems: ['#7 is not labelled `help wanted`'] },
-    { name: 'the issue is closed', issues: [makeIssue(7, { state: 'CLOSED' })], problems: ['#7 is closed'] },
+    { name: 'no issue is linked', issues: [], problems: ['no issue is linked'], flagLabelName: MISSING_ISSUE_LABEL_NAME },
+    {
+      name: 'the issue lacks the label',
+      issues: [makeIssue(7, { labels: ['bug'] })],
+      problems: ['#7 is not labelled `help wanted`'],
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the issue is closed',
+      issues: [makeIssue(7, { state: 'CLOSED' })],
+      problems: ['#7 is closed'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the closed issue lacks the label',
+      issues: [makeIssue(7, { state: 'CLOSED', labels: [] })],
+      problems: ['#7 is closed'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
+    },
     {
       name: 'the issue belongs to another organization',
-      issues: [makeIssue(7, { repository: 'elsewhere/repo' })],
-      problems: ['elsewhere/repo#7 belongs to another organization']
+      issues: [makeIssue(7, { repository: 'elsewhere/repo', labels: [] })],
+      problems: ['elsewhere/repo#7 belongs to another organization'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
     },
     {
       name: 'several issues fail for different reasons',
       issues: [makeIssue(7, { state: 'CLOSED' }), makeIssue(8, { labels: [], repository: 'owner/other' })],
-      problems: ['#7 is closed', 'owner/other#8 is not labelled `help wanted`']
+      problems: ['#7 is closed', 'owner/other#8 is not labelled `help wanted`'],
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
     }
-  ])('the comment and the log say that $name', async ({ issues, problems }) => {
+  ])('the comment, the log and the flag label say that $name', async ({ issues, problems, flagLabelName }) => {
     const octokit = makeOctokit([makePR(1, { issues })]);
     const logger = { log: jest.fn() };
 
@@ -127,7 +146,26 @@ describe('flagging a pull request', () => {
     const { body } = octokit.rest.issues.createComment.mock.calls[0][0];
     expect(body).toContain(problems.map(problem => `- ${problem}`).join('\n'));
     expect(body).toContain('CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue');
-    expect(logger.log).toHaveBeenCalledWith(`PR #1 by @newcomer: ${problems.join('; ')}`);
+    expect(body).toContain(`labelled \`${flagLabelName}\``);
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(
+      expect.objectContaining({ labels: [flagLabelName, STALE_LABEL_NAME] })
+    );
+    expect(logger.log).toHaveBeenCalledWith(`PR #1 by @newcomer: ${flagLabelName}: ${problems.join('; ')}`);
+  });
+
+  test.each([
+    { flagLabelName: MISSING_ISSUE_LABEL_NAME, issues: [], resolution: 'link the pull request to such an issue' },
+    {
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME,
+      issues: [makeIssue(7, { labels: [] })],
+      resolution: 'ask on the linked issue'
+    }
+  ])('the comment for $flagLabelName names its remedy', async ({ issues, resolution }) => {
+    const octokit = makeOctokit([makePR(1, { issues })]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.createComment.mock.calls[0][0].body).toContain(`To resolve this, ${resolution}`);
   });
 
   test('posts a new comment when a pull request is flagged again', async () => {
@@ -142,7 +180,7 @@ describe('flagging a pull request', () => {
   test('rewrites the latest policy comment when the linked issues of a flagged pull request change', async () => {
     const pr = makePR(1, {
       issues: [makeIssue(7, { labels: [] })],
-      labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+      labels: [UNAPPROVED_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
     });
     const octokit = makeOctokit([pr], [policyComment(54, 'older'), policyComment(56, 'No issue is linked')]);
 
@@ -153,6 +191,45 @@ describe('flagging a pull request', () => {
     expect(body).toContain('- #7 is not labelled `help wanted`');
     expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
     expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'an unapproved issue is linked',
+      issues: [makeIssue(7, { labels: [] })],
+      presentFlagLabelName: MISSING_ISSUE_LABEL_NAME,
+      expectedFlagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the unapproved issue is closed',
+      issues: [makeIssue(7, { state: 'CLOSED', labels: [] })],
+      presentFlagLabelName: UNAPPROVED_ISSUE_LABEL_NAME,
+      expectedFlagLabelName: MISSING_ISSUE_LABEL_NAME
+    }
+  ])('adds the other flag label before removing the present one when $name', async ({
+    issues, presentFlagLabelName, expectedFlagLabelName
+  }) => {
+    const octokit = makeOctokit([makePR(1, { issues, labels: [presentFlagLabelName, STALE_LABEL_NAME] })]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.addLabels)
+      .toHaveBeenCalledWith(expect.objectContaining({ labels: [expectedFlagLabelName] }));
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name)).toEqual([presentFlagLabelName]);
+    expect(octokit.rest.issues.addLabels.mock.invocationCallOrder[0])
+      .toBeLessThan(octokit.rest.issues.removeLabel.mock.invocationCallOrder[0]);
+  });
+
+  test('removes the flag label that no longer applies from a pull request that carries both', async () => {
+    const octokit = makeOctokit([
+      makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME, UNAPPROVED_ISSUE_LABEL_NAME, STALE_LABEL_NAME] })
+    ]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name))
+      .toEqual([UNAPPROVED_ISSUE_LABEL_NAME]);
   });
 
   test('restores the stale label on a flagged pull request that lost it', async () => {
@@ -189,16 +266,20 @@ describe('flagging a pull request', () => {
 });
 
 describe('a pull request that meets the policy', () => {
-  test('loses both labels when it was flagged', async () => {
+  test.each([
+    { flagLabelNames: [MISSING_ISSUE_LABEL_NAME] },
+    { flagLabelNames: [UNAPPROVED_ISSUE_LABEL_NAME] },
+    { flagLabelNames: [MISSING_ISSUE_LABEL_NAME, UNAPPROVED_ISSUE_LABEL_NAME] }
+  ])('loses the stale label and then $flagLabelNames when it was flagged', async ({ flagLabelNames }) => {
     const octokit = makeOctokit([
-      makePR(1, { issues: [makeIssue(7)], labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME] })
+      makePR(1, { issues: [makeIssue(7)], labels: [...flagLabelNames, STALE_LABEL_NAME] })
     ]);
 
     const result = await applyPolicy(octokit);
 
     expect(result).toEqual({ flaggedPullRequests: [], unflaggedPullRequests: [1] });
     expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name))
-      .toEqual([STALE_LABEL_NAME, MISSING_ISSUE_LABEL_NAME]);
+      .toEqual([STALE_LABEL_NAME, ...flagLabelNames]);
   });
 
   test('has its policy comment rewritten to say so', async () => {
