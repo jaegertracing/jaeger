@@ -456,8 +456,8 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 		if !strings.HasPrefix(op, "NOT") {
 			return call, nil
 		}
-		// Like x NOT IN and x <>, an infix NOT LIKE holds only where the attribute is present.
-		if _, isAttr := refExpr.(*ast.AttributeRef); !isAttr {
+		// Like x NOT IN and x <>, an infix NOT LIKE holds only where x has a value.
+		if !mayBeAbsent(refExpr) {
 			return builder.Not(call), nil
 		}
 		if call.Op == ast.OpEq {
@@ -845,6 +845,28 @@ func likeHasWildcard(pattern string) bool {
 		}
 	}
 	return false
+}
+
+// mayBeAbsent reports whether a reference can have no value on a span: an attribute the span
+// does not carry, or a built-in field that OTLP leaves empty, such as the parent of a root span or
+// the trace state of a span that has none. A field that every span has is never absent.
+func mayBeAbsent(ref ast.Expression) bool {
+	field, ok := ref.(*ast.FieldRef)
+	if !ok {
+		_, isAttribute := ref.(*ast.AttributeRef)
+		return isAttribute
+	}
+	switch field.Level {
+	case ast.LevelSpan:
+		return field.Name == ast.SpanFieldParentSpanID || field.Name == ast.SpanFieldTraceState ||
+			field.Name == ast.SpanFieldStatusMessage
+	case ast.LevelScope:
+		return field.Name == ast.ScopeFieldName || field.Name == ast.ScopeFieldVersion
+	case ast.LevelLink:
+		return field.Name == ast.LinkFieldTraceState
+	default:
+		return false
+	}
 }
 
 // likeLiteral reads a LIKE pattern without wildcards as the text it matches, with its
