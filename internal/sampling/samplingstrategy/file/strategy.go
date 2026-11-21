@@ -18,8 +18,10 @@ type operationStrategy struct {
 
 // serviceStrategy defines a service specific sampling strategy.
 type serviceStrategy struct {
-	Service             string               `json:"service"`
-	OperationStrategies []*operationStrategy `json:"operation_strategies"`
+	Service                   string               `json:"service"`
+	OperationStrategies       []*operationStrategy `json:"operation_strategies"`
+	LowerBoundTracesPerSecond *float64             `json:"lower_bound_traces_per_second"`
+	UpperBoundTracesPerSecond *float64             `json:"upper_bound_traces_per_second"`
 	strategy
 }
 
