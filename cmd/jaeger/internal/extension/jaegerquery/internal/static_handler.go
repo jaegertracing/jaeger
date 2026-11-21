@@ -117,7 +117,7 @@ func newStaticAssetsHandler(
 	}
 	if archiveFiles > 0 {
 		logger.Info("Serving UI assets from archive",
-			zap.String("path", qOpts.UIConfig.AssetsPath), zap.Int("files", archiveFiles))
+			zap.String("path", filepath.Clean(qOpts.UIConfig.AssetsPath)), zap.Int("files", archiveFiles))
 	}
 	h := &staticAssetsHandler{
 		assetsFS:     assetsFS,
