@@ -39,11 +39,22 @@ const (
 	depsSelectStmtV1 = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
 	depsSelectStmtV2 = "SELECT ts, dependencies FROM dependencies_v2 WHERE ts_bucket IN ? AND ts >= ? AND ts < ?"
 
-	// TODO: Make this customizable.
-	tsBucket = 24 * time.Hour
+	defaultTsBucket = 24 * time.Hour
 )
 
 var errInvalidVersion = errors.New("invalid version")
+
+// Option is a function that sets some option on the DependencyStore.
+type Option func(*DependencyStore)
+
+// WithTimeBucket sets the time bucket duration for the V2 dependencies schema.
+func WithTimeBucket(tsBucket time.Duration) Option {
+	return func(s *DependencyStore) {
+		if tsBucket > 0 {
+			s.tsBucket = tsBucket
+		}
+	}
+}
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {
@@ -51,6 +62,7 @@ type DependencyStore struct {
 	dependenciesTableMetrics *casmetrics.Table
 	logger                   *zap.Logger
 	version                  Version
+	tsBucket                 time.Duration
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -59,16 +71,22 @@ func NewDependencyStore(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	version Version,
+	options ...Option,
 ) (*DependencyStore, error) {
 	if !version.IsValid() {
 		return nil, errInvalidVersion
 	}
-	return &DependencyStore{
+	s := &DependencyStore{
 		session:                  session,
 		dependenciesTableMetrics: casmetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		version:                  version,
-	}, nil
+		tsBucket:                 defaultTsBucket,
+	}
+	for _, opt := range options {
+		opt(s)
+	}
+	return s, nil
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
@@ -89,7 +107,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	case V1:
 		query = s.session.Query(depsInsertStmtV1, ts, ts, deps)
 	case V2:
-		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(tsBucket), deps)
+		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(s.tsBucket), deps)
 	default:
 		return fmt.Errorf("unsupported schema version: %v", s.version)
 	}
@@ -104,7 +122,7 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 	case V1:
 		query = s.session.Query(depsSelectStmtV1, startTs, endTs)
 	case V2:
-		query = s.session.Query(depsSelectStmtV2, getBuckets(startTs, endTs), startTs, endTs)
+		query = s.session.Query(depsSelectStmtV2, s.getBuckets(startTs, endTs), startTs, endTs)
 	default:
 		return nil, fmt.Errorf("unsupported schema version: %v", s.version)
 	}
@@ -133,10 +151,18 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 	return mDependency, nil
 }
 
-func getBuckets(startTs time.Time, endTs time.Time) []time.Time {
+func (s *DependencyStore) getBuckets(startTs time.Time, endTs time.Time) []time.Time {
+	return getBuckets(startTs, endTs, s.tsBucket)
+}
+
+func getBuckets(startTs time.Time, endTs time.Time, bucket ...time.Duration) []time.Time {
+	b := defaultTsBucket
+	if len(bucket) > 0 && bucket[0] > 0 {
+		b = bucket[0]
+	}
 	// TODO: Preallocate the array using some maths and maybe use a pool? This endpoint probably isn't used enough to warrant this.
 	var tsBuckets []time.Time
-	for ts := startTs.Truncate(tsBucket); ts.Before(endTs); ts = ts.Add(tsBucket) {
+	for ts := startTs.Truncate(b); ts.Before(endTs); ts = ts.Add(b) {
 		tsBuckets = append(tsBuckets, ts)
 	}
 	return tsBuckets

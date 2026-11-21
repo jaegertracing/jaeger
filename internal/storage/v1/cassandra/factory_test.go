@@ -7,12 +7,15 @@ package cassandra
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 )
@@ -101,4 +104,20 @@ func TestIsArchiveCapable(t *testing.T) {
 			require.Equal(t, test.expected, result)
 		})
 	}
+}
+
+func TestCreateDependencyReader(t *testing.T) {
+	f := NewFactory()
+	session := &mocks.Session{}
+	query := &mocks.Query{}
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
+	f.session = session
+	f.metricsFactory = metrics.NullFactory
+	f.logger = zap.NewNop()
+	f.config.Schema.DependenciesTimeBucket = 12 * time.Hour
+
+	reader, err := f.CreateDependencyReader()
+	require.NoError(t, err)
+	assert.NotNil(t, reader)
 }
