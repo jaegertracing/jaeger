@@ -19,14 +19,13 @@ import subprocess
 # extract the metrics by running the following command:
 # prom2json http://localhost:8888/metrics > V2_Metrics.json
 # it is first recomended to generate the differences for all-in-one.json by running the following command:
-# python3 compare_metrics.py --out md --is_storage F
+# python3 compare_metrics.py --v1 V1_Metrics.json --v2 V2_Metrics.json --out json --is_storage F
 # rename that file to all_in_one.json and use it to filter out the overlapping metrics by using the is_storage falg to T
 # 2. Run the script with the following command:
-#    python3 compare_metrics.py --out {json or md} --is_storage {T or F}
+#    python3 compare_metrics.py --v1 V1_Metrics.json --v2 V2_Metrics.json --out json --is_storage {T or F}
 # 3. The script will compare the metrics in V1_Metrics.json and V2_Metrics.json and output the differences to differences.json
-
-
 # Extract names and labels of the metrics
+
 def extract_metrics_with_labels(metrics, strip_prefix=None):
     result = {}
     for metric in metrics:
@@ -59,14 +58,18 @@ def main():
     parser.add_argument('--out', choices=['json', 'md'], default='json',
                         help='Output format: json (default) or md')
     parser.add_argument('--is_storage', choices=['T','F'],default='F', help='Remove overlapping storage metrics')
+    parser.add_argument('--v1', required=True, help='Path to the V1_Metrics.json file')
+    parser.add_argument('--v2', required=True, help='Path to the V2_Metrics.json file')
+    parser.add_argument('--all-in-one', help='Path to the all_in_one.json file')
     # Parse the arguments
     args = parser.parse_args()
+    if args.is_storage == 'T' and not args.all_in_one:
+        parser.error('--all-in-one is required when --is_storage T')
 
     # Call your existing compare logic here
     print("Running metric comparison...")
-    v1_metrics_path = "" #Add the path to the V1_Metrics.json file
-    v2_metrics_path = "" #Add the path to the V2_Metrics.json file
-
+    v1_metrics_path = args.v1
+    v2_metrics_path = args.v2
     with open(v1_metrics_path, 'r') as file:
        v1_metrics = json.load(file)
 
@@ -105,7 +108,7 @@ def main():
 
     print(f"Differences written to {differences_path}")
     if args.is_storage == 'T':
-        all_in_one_path = "" #Add the path to the all_in_one.json file
+        all_in_one_path = args.all_in_one
         with open(all_in_one_path, 'r') as file:
             all_in_one_data = json.load(file)
         with open(differences_path, 'r') as file:
@@ -125,6 +128,7 @@ def main():
     # If json output is requested or no output type is provided (default is json)
     else:
         print("Output in JSON format.")
+
 
 if __name__ == "__main__":
     main()
