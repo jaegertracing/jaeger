@@ -92,3 +92,5 @@ jobs:
       env:
         JAEGER_OLD_BINARY: ${{ runner.temp }}/jaeger-old
         JAEGER_OLD_CONFIG_DIR: ${{ github.workspace }}/.jaeger-old/cmd/jaeger
+        # A release tag or "main", so a scenario can skip a baseline that predates its storage format.
+        JAEGER_OLD_VERSION: ${{ matrix.baseline == 'latest-release' && steps.latest-release.outputs.tag || 'main' }}

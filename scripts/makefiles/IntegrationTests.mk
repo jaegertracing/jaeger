@@ -62,9 +62,10 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 
 # Runs only the backward-compatibility suites out of the jaeger-v2 storage tests. Those suites
 # write the corpus with a second Jaeger built from an earlier revision, so they need JAEGER_OLD_BINARY
-# and JAEGER_OLD_CONFIG_DIR to name that binary and that revision's cmd/jaeger directory. Without
-# them each suite skips itself, so the check below is what keeps a workflow that forgot to set them
-# from reporting success having tested nothing.
+# and JAEGER_OLD_CONFIG_DIR to name that binary and that revision's cmd/jaeger directory. Optional
+# JAEGER_OLD_VERSION (a release tag or "main") lets a scenario skip a baseline that predates its
+# storage format. Without the required variables each suite skips itself, so the check below is
+# what keeps a workflow that forgot to set them from reporting success having tested nothing.
 .PHONY: jaeger-v2-backward-compatibility-test
 jaeger-v2-backward-compatibility-test:
 ifndef JAEGER_OLD_BINARY
