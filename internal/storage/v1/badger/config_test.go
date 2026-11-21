@@ -22,6 +22,7 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 		{
 			name: "all fields are set",
 			cfg: &Config{
+				SpanEncoding: SpanEncodingJSON,
 				TTL: TTL{
 					Spans: time.Second,
 				},
@@ -44,4 +45,16 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestValidate_SpanEncoding(t *testing.T) {
+	for _, encoding := range []string{"", SpanEncodingProtobuf, SpanEncodingJSON} {
+		t.Run(encoding, func(t *testing.T) {
+			cfg := &Config{SpanEncoding: encoding}
+			require.NoError(t, cfg.Validate())
+		})
+	}
+
+	cfg := &Config{SpanEncoding: "yaml"}
+	require.ErrorContains(t, cfg.Validate(), "span_encoding")
 }

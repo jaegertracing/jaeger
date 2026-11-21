@@ -20,6 +20,7 @@ const (
 	suffixMaintenanceInterval = ".maintenance-interval"
 	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
 	suffixReadOnly            = ".read-only"
+	suffixSpanEncoding        = ".span-encoding"
 )
 
 // AddFlags adds flags for Config.
@@ -64,6 +65,11 @@ func (c *Config) AddFlags(flagSet *flag.FlagSet) {
 		c.ReadOnly,
 		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)
+	flagSet.String(
+		prefix+suffixSpanEncoding,
+		c.SpanEncoding,
+		"Encoding used for newly written spans (protobuf or json).",
+	)
 }
 
 // InitFromViper initializes Config with properties from viper.
@@ -80,4 +86,5 @@ func initFromViper(config *Config, v *viper.Viper, _ *zap.Logger) {
 	config.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
 	config.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
 	config.ReadOnly = v.GetBool(prefix + suffixReadOnly)
+	config.SpanEncoding = v.GetString(prefix + suffixSpanEncoding)
 }
