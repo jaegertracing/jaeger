@@ -533,7 +533,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
@@ -820,6 +820,18 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	assert.Equal(t, 1, got[0].ErrorSpanCount)
 	require.Len(t, got[0].Services, 1)
 	assert.Equal(t, "frontend", got[0].Services[0].Name)
+}
+
+func TestConvertSummaryBatch_ShortTraceIDGoesToLowHalf(t *testing.T) {
+	got := convertSummaryBatch([]*storage.TraceSummary{
+		{TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8}},
+	})
+	require.Len(t, got, 1)
+	assert.Equal(t,
+		pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
+		got[0].TraceID,
+		"an 8-byte summary ID carries the low 64 bits",
+	)
 }
 
 func TestTraceReader_FindTraceSummaries_GRPCClientError(t *testing.T) {
