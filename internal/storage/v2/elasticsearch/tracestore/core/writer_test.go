@@ -306,8 +306,8 @@ func rejecting(transient bool, extraIDs []string, positions ...int) func([]escli
 }
 
 func TestSpanWriter_RejectedSpansError(t *testing.T) {
-	spanA := dbmodel.Span{TraceID: "1", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
-	spanB := dbmodel.Span{TraceID: "2", SpanID: "b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	spanA := dbmodel.Span{TraceID: "00000000000000000000000000000001", SpanID: "000000000000000a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	spanB := dbmodel.Span{TraceID: "00000000000000000000000000000002", SpanID: "000000000000000b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
 	// Items: [service doc for svc/op, span A, span B]; the service doc is deduped.
 
 	t.Run("rejected span documents are attributed to their spans", func(t *testing.T) {

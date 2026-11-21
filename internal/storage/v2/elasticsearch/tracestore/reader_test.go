@@ -137,7 +137,7 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 				}
 				m.On(fxnName, mock.Anything, mock.Anything).Return(dbTraces, nil)
 			},
-			expectedErr: "encoding/hex: invalid byte: U+0077 'w'",
+			expectedErr: "trace ID from DB has unexpected length",
 		},
 	}
 	for _, tt := range tests {
@@ -226,7 +226,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 		{
 			name:                   "wrong trace id sent from core reader",
 			traceIdsFromCoreReader: []dbmodel.TraceID{"wrong-id"},
-			expectedErr:            "encoding/hex: invalid byte: U+0077 'w'",
+			expectedErr:            "trace ID from DB has unexpected length",
 		},
 	}
 	for _, test := range tests {

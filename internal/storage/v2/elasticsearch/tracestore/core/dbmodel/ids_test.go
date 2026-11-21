@@ -29,18 +29,14 @@ func TestTraceID_ToOTEL(t *testing.T) {
 			),
 		},
 		{
-			name:  "64-bit trace ID (16 hex chars) right-aligned",
-			input: "090a0b0c0d0e0f10",
-			expected: pcommon.TraceID(
-				[16]byte{
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-				},
-			),
+			name:     "64-bit trace ID (16 hex chars) is rejected, not padded",
+			input:    "090a0b0c0d0e0f10",
+			expected: pcommon.TraceID{},
+			errMsg:   "trace ID from DB has unexpected length",
 		},
 		{
-			name:     "invalid hex string",
-			input:    "xyz",
+			name:     "invalid hex string, correct length",
+			input:    "zz02030405060708090a0b0c0d0e0f10",
 			expected: pcommon.TraceID{},
 			errMsg:   "encoding/hex: invalid byte",
 		},
@@ -48,7 +44,7 @@ func TestTraceID_ToOTEL(t *testing.T) {
 			name:     "trace ID too long",
 			input:    "0102030405060708090a0b0c0d0e0f1011",
 			expected: pcommon.TraceID{},
-			errMsg:   "trace ID from DB is too long",
+			errMsg:   "trace ID from DB has unexpected length",
 		},
 	}
 
@@ -81,15 +77,14 @@ func TestSpanID_ToOTEL(t *testing.T) {
 			),
 		},
 		{
-			name:  "shorter span ID right-aligned",
-			input: "05060708",
-			expected: pcommon.SpanID(
-				[8]byte{0x00, 0x00, 0x00, 0x00, 0x05, 0x06, 0x07, 0x08},
-			),
+			name:     "shorter span ID is rejected, not padded",
+			input:    "05060708",
+			expected: pcommon.SpanID{},
+			errMsg:   "span ID from DB has unexpected length",
 		},
 		{
-			name:     "invalid hex string",
-			input:    "xyz",
+			name:     "invalid hex string, correct length",
+			input:    "zz02030405060708",
 			expected: pcommon.SpanID{},
 			errMsg:   "encoding/hex: invalid byte",
 		},
@@ -97,7 +92,7 @@ func TestSpanID_ToOTEL(t *testing.T) {
 			name:     "span ID too long",
 			input:    "010203040506070809",
 			expected: pcommon.SpanID{},
-			errMsg:   "span ID from DB is too long",
+			errMsg:   "span ID from DB has unexpected length",
 		},
 	}
 
