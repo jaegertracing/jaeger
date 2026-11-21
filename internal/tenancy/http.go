@@ -19,7 +19,17 @@ func ExtractTenantHTTPHandler(tc *Manager, h http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenant := r.Header.Get(tc.Header)
+		tenants := r.Header.Values(tc.Header)
+		if len(tenants) > 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("extra tenant header"))
+			return
+		}
+
+		tenant := ""
+		if len(tenants) == 1 {
+			tenant = tenants[0]
+		}
 		if tenant == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("missing tenant header"))
@@ -41,14 +51,16 @@ func ExtractTenantHTTPHandler(tc *Manager, h http.Handler) http.Handler {
 // via github.com/grpc-ecosystem/grpc-gateway/runtime.NewServeMux
 func (tc *Manager) MetadataAnnotator() func(context.Context, *http.Request) metadata.MD {
 	return func(_ context.Context, req *http.Request) metadata.MD {
-		tenant := req.Header.Get(tc.Header)
-		if tenant == "" {
-			// The HTTP request lacked the tenancy header.  Pass along
-			// empty metadata -- the gRPC query service will reject later.
+		tenants := req.Header.Values(tc.Header)
+		if len(tenants) != 1 {
+			// The HTTP request lacked the tenancy header, or carried it
+			// more than once.  Pass along empty metadata -- the gRPC
+			// query service will reject later, as it does for requests
+			// with extra tenant headers.
 			return metadata.Pairs()
 		}
 		return metadata.New(map[string]string{
-			tc.Header: tenant,
+			tc.Header: tenants[0],
 		})
 	}
 }
