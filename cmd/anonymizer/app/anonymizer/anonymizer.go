@@ -167,8 +167,8 @@ func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 
 	// when true, logs are hashed, when false, they are dropped
 	if a.options.HashLogs {
-		for _, log := range span.Logs {
-			log.Fields = hashTags(log.Fields)
+		for i := range span.Logs {
+			span.Logs[i].Fields = hashTags(span.Logs[i].Fields)
 		}
 	} else {
 		span.Logs = nil

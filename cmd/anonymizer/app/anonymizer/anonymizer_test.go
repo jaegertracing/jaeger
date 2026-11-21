@@ -231,3 +231,26 @@ func TestAnonymizer_MapOperationName(t *testing.T) {
 	actual := anonymizer.mapOperationName("api", "delete")
 	assert.Equal(t, "hashed_api_delete", actual)
 }
+
+func TestAnonymizer_AnonymizeSpan_HashLogsActuallyHashes(t *testing.T) {
+	a := &Anonymizer{
+		mapping: mapping{
+			Services:   make(map[string]string),
+			Operations: make(map[string]string),
+		},
+		options: Options{HashLogs: true},
+	}
+	span := &model.Span{
+		Process: &model.Process{ServiceName: "svc"},
+		Logs: []model.Log{{
+			Fields: []model.KeyValue{model.String("event", "secret-user-email@example.com")},
+		}},
+	}
+	out := a.AnonymizeSpan(span)
+
+	require.Len(t, out.Logs, 1)
+	for _, f := range out.Logs[0].Fields {
+		assert.NotEqual(t, "event", f.Key)
+		assert.NotContains(t, f.Value, "secret-user-email")
+	}
+}
