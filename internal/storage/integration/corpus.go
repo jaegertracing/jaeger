@@ -60,6 +60,9 @@ type Corpus struct {
 	// SpanOrdering holds alternating resources, tied sort fields and duplicate occurrences.
 	SpanOrdering []ptrace.Traces
 
+	// EmptyTraceID holds valid traces surrounding a malformed zero-ID trace.
+	EmptyTraceID []ptrace.Traces
+
 	// Queries are the search cases, and QueryTraces the traces they expect, by fixture name.
 	Queries     []*QueryFixtures
 	QueryTraces map[string]ptrace.Traces
@@ -147,6 +150,7 @@ func BuildCorpus(t *testing.T, suiteFixtures []*QueryFixtures, caps capabilities
 	c.QueryTraces["complete_search"] = buildCompleteSearchTrace()
 	c.Pagination = buildPaginationTraces()
 	c.SpanOrdering = buildSpanOrderingTraces()
+	c.EmptyTraceID = buildEmptyTraceIDTraces()
 
 	return c
 }
@@ -328,6 +332,7 @@ func (c *Corpus) All() []ptrace.Traces {
 	for _, name := range slices.Sorted(maps(c.Filter)) {
 		all = append(all, c.Filter[name])
 	}
+	all = append(all, c.EmptyTraceID...)
 	return all
 }
 
