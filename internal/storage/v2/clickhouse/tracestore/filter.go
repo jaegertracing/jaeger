@@ -36,8 +36,7 @@ var (
 // lowering, as the elasticsearch backend's is: an ordered comparison on span.kind or on
 // span.status, and a predicate on resource.schemaURL or scope.schemaURL, which have no
 // column, are refused in the lowering, not here, and so is a some operator inside another
-// one. The text-search operators are follow-up work; a filter naming one of them is refused
-// rather than approximated.
+// one.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -61,6 +60,8 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
+			expression.OpPhrase,
+			expression.OpFulltext,
 			expression.OpSome,
 		},
 	}
@@ -76,6 +77,22 @@ var sqlComparisonOperators = map[expression.Operator]string{
 	expression.OpGte:   ">=",
 	expression.OpLte:   "<=",
 	expression.OpRegex: "REGEXP",
+}
+
+// attributeComparisonSQL returns the SQL that compares valueSQL, the expression of one
+// attribute value, with one bound value. The phrase operator compares the array of the stored
+// words because hasPhrase does not exist on ClickHouse 26.3, and both text-search operators
+// fold the case of ASCII letters only, because ClickHouse and Go lowercase some other letters
+// differently and a word would then not match its own stored text.
+func attributeComparisonSQL(op expression.Operator, valueSQL string) string {
+	switch op {
+	case expression.OpFulltext:
+		return "hasAllTokens(lower(" + valueSQL + "), ?)"
+	case expression.OpPhrase:
+		return "hasSubstr(tokens(lower(" + valueSQL + ")), ?)"
+	default:
+		return valueSQL + " " + sqlComparisonOperators[op] + " ?"
+	}
 }
 
 // builtinFieldColumn is one built-in field's SQL column and the type its constant is read as.
@@ -330,6 +347,8 @@ func (q *sqlBuilder) buildFilterCondition(
 		return q.buildExistsCondition(indent, args, metadata, predicate)
 	case expression.OpIn, expression.OpNotIn:
 		return q.buildMembershipCondition(indent, args, metadata, predicate)
+	case expression.OpPhrase, expression.OpFulltext:
+		return q.buildTextSearchCondition(indent, args, predicate)
 	case expression.OpSome:
 		return q.buildSomeCondition(indent, args, metadata, predicate)
 	default:
@@ -992,6 +1011,48 @@ func (q *sqlBuilder) buildRegexCondition(indent int, args []any, predicate *expr
 		return nil, fmt.Errorf("%w: %q matches a field or an attribute against a pattern",
 			tracestore.ErrFilterInvalid, predicate.Op)
 	}
+}
+
+// buildTextSearchCondition lowers phrase and fulltext, which search the words of a string
+// attribute for the listed words (RFC 0005 §5.3). The listed words are bound as one array,
+// which ClickHouse compares with the stored words without splitting them, so a listed word
+// cannot carry search syntax.
+func (q *sqlBuilder) buildTextSearchCondition(indent int, args []any, predicate *expression.Call) ([]any, error) {
+	if len(predicate.Args) != 2 {
+		return nil, errArity(predicate)
+	}
+	ref, ok := predicate.Args[0].(*expression.AttributeRef)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q searches the words of an attribute", tracestore.ErrFilterInvalid, predicate.Op)
+	}
+	list, ok := predicate.Args[1].(*expression.List)
+	if !ok || list == nil || len(list.Values) == 0 {
+		return nil, fmt.Errorf("%w: %q takes a list with at least one word", tracestore.ErrFilterInvalid, predicate.Op)
+	}
+	if list.Type != "" && list.Type != expression.ValueTypeString {
+		return nil, fmt.Errorf("%w: %q takes a list of strings, not of %q", tracestore.ErrFilterInvalid, predicate.Op, list.Type)
+	}
+	levels, err := attributeLevelsToSearch(ref.Level)
+	if err != nil {
+		return nil, err
+	}
+	lowercaseWords := make([]string, 0, len(list.Values))
+	for _, word := range list.Values {
+		lowercaseWords = append(lowercaseWords, lowerASCII(word))
+	}
+	candidates := typedAttributeCandidates(ref.Key, levels, pcommon.ValueTypeStr, lowercaseWords)
+	return q.appendAttributeCandidates(indent, args, predicate.Op, candidates), nil
+}
+
+// lowerASCII lowercases the ASCII letters of word and leaves every other character as it is,
+// which is what the lower function of ClickHouse does to the stored value.
+func lowerASCII(word string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, word)
 }
 
 // hasDotExcludingNewline reports whether the pattern holds a dot that RE2 does not let match

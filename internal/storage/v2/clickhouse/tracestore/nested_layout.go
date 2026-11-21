@@ -50,7 +50,7 @@ func (NestedLayout) valueSQL(group AttributeGroup, key string) string {
 // value that satisfies the comparison, so it matches any value of a key that a span carries
 // more than once.
 func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression.Level, op expression.Operator, tav typedAttributeValue) []any {
-	entryMatches := "arrayExists((key, value) -> key = ? AND value " + sqlComparisonOperators[op] + " ?, "
+	entryMatches := "arrayExists((key, value) -> key = ? AND " + attributeComparisonSQL(op, "value") + ", "
 	group := attributeGroup(level, tav.valueType)
 	column := group.operandSQL()
 	if arrayColumn := q.arrayColumnToSearch(level); arrayColumn != "" {
