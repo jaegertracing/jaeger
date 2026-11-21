@@ -256,14 +256,16 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces, err := m.getTraces(traceIDs...)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-
-		for i := range traces {
-			if !yield([]ptrace.Traces{traces[i]}, nil) {
+		for _, traceID := range traceIDs {
+			traces, err := m.getTraces(traceID)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if len(traces) == 0 {
+				continue
+			}
+			if !yield(traces, nil) {
 				return
 			}
 		}
