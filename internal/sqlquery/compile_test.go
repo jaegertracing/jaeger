@@ -246,14 +246,14 @@ func TestCompileFilters(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND duration BETWEEN '1s' AND '2s'
 					AND attributes['retries'] NOT BETWEEN 1 AND 3`,
+			// NOT BETWEEN is the complement of the range, not a boolean `not` around it, so
+			// an attribute the range cannot compare does not match.
 			want: p.And(
 				p.Span().Duration.Gte("1s"),
 				p.Span().Duration.Lte("2s"),
-				p.Not(
-					p.And(
-						p.Span().Attr("retries").Gte("1"),
-						p.Span().Attr("retries").Lte("3"),
-					),
+				p.Or(
+					p.Span().Attr("retries").Lt("1"),
+					p.Span().Attr("retries").Gt("3"),
 				),
 			),
 		},
@@ -265,6 +265,8 @@ func TestCompileFilters(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND between(s.duration, '1s', '2s')
 					AND NOT between(attributes['retries'], 1, 3)`,
+			// A prefix NOT is a boolean negation of the positive range, unlike the
+			// NOT BETWEEN operator above.
 			want: p.And(
 				p.Span().Duration.Gte("1s"),
 				p.Span().Duration.Lte("2s"),
