@@ -22,7 +22,7 @@ type TraceSummary struct {
 	RootService  string   `json:"root_service" jsonschema:"Service name of the root span"`
 	RootSpanName string   `json:"root_span_name" jsonschema:"Span name of the root span"`
 	StartTime    string   `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
-	DurationUs   int64    `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
+	Duration     string   `json:"duration" jsonschema:"Total trace duration (e.g. 1.25s, 250ms)"`
 	SpanCount    int      `json:"span_count" jsonschema:"Total number of spans in the trace"`
 	ServiceCount int      `json:"service_count" jsonschema:"Number of unique services in the trace"`
 	Services     []string `json:"services" jsonschema:"Sorted list of unique service names participating in the trace"`

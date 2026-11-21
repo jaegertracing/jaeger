@@ -133,7 +133,7 @@ func buildSpanSummary(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanSumma
 		Service:      serviceName,
 		SpanName:     span.Name(),
 		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		DurationUs:   span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Microseconds(),
+		Duration:     span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).String(),
 		Status:       span.Status().Code().String(),
 	}
 }
