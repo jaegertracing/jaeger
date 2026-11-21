@@ -30,13 +30,14 @@ var (
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
 // natively: the boolean combinators; eq, ne, exists, in and not_in over every level's attributes
 // and over every built-in field that the spans table stores; the four ordered comparisons
-// on the attributes and on those fields, except span.kind and span.status; and regex over
-// string attributes and over the fields that hold text. The declaration is coarser than the
+// on the attributes and on those fields, except span.kind and span.status; regex over
+// string attributes and over the fields that hold text; and some over the events or the
+// links of a span. The declaration is coarser than the
 // lowering, as the elasticsearch backend's is: an ordered comparison on span.kind or on
 // span.status, and a predicate on resource.schemaURL or scope.schemaURL, which have no
-// column, are refused in the lowering, not here. The some operator and the text-search
-// operators are follow-up work; a filter naming any of them is refused rather than
-// approximated.
+// column, are refused in the lowering, not here, and so is a some operator inside another
+// one. The text-search operators are follow-up work; a filter naming one of them is refused
+// rather than approximated.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -60,6 +61,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
+			expression.OpSome,
 		},
 	}
 }
@@ -87,18 +89,19 @@ type builtinFieldColumn struct {
 	emptyMeansAbsent bool
 	// arrayColumn is the column that lookupBuiltinField fills in for a field of an event or a
 	// link, which has one value per event or link of the span. It is empty for a field with
-	// one value per span.
+	// one value per span, and for a field of the event or the link that a some operator has
+	// bound.
 	arrayColumn string
 }
 
 // lookupBuiltinField returns the column of a built-in field. Every level is indexed, so a
 // field with no entry is refused as an unsupported field, whichever level it belongs to.
-func lookupBuiltinField(ref expression.FieldRef) (builtinFieldColumn, error) {
+func (q *sqlBuilder) lookupBuiltinField(ref expression.FieldRef) (builtinFieldColumn, error) {
 	mapping, ok := builtinFieldColumns[ref.Level][ref.Name]
 	if !ok {
 		return builtinFieldColumn{}, errUnsupportedField(ref)
 	}
-	mapping.arrayColumn = AttributeGroup{Level: ref.Level}.arrayColumn()
+	mapping.arrayColumn = q.arrayColumnToSearch(ref.Level)
 	return mapping, nil
 }
 
@@ -112,7 +115,8 @@ func (c builtinFieldColumn) valueConditionSQL(comparisonSQL string) string {
 }
 
 // spanConditionSQL returns valueSQL, a condition on one value of the field, as a condition on
-// the span: a span with events or links passes when one of them does.
+// the span: a span with events or links passes when one of them does. For a field of the
+// event or the link that a some operator has bound, it returns valueSQL unchanged.
 func (c builtinFieldColumn) spanConditionSQL(valueSQL string) string {
 	if c.arrayColumn == "" {
 		return valueSQL
@@ -120,7 +124,8 @@ func (c builtinFieldColumn) spanConditionSQL(valueSQL string) string {
 	return "arrayExists(x -> " + valueSQL + ", s." + c.arrayColumn + ")"
 }
 
-// presenceSQL returns the condition that the span has a value of the field.
+// presenceSQL returns the condition that the span, or the event or the link that a some
+// operator has bound, has a value of the field.
 func (c builtinFieldColumn) presenceSQL() string {
 	if c.emptyMeansAbsent {
 		return c.spanConditionSQL(c.column + " != ''")
@@ -325,9 +330,60 @@ func (q *sqlBuilder) buildFilterCondition(
 		return q.buildExistsCondition(indent, args, metadata, predicate)
 	case expression.OpIn, expression.OpNotIn:
 		return q.buildMembershipCondition(indent, args, metadata, predicate)
+	case expression.OpSome:
+		return q.buildSomeCondition(indent, args, metadata, predicate)
 	default:
 		return nil, fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, predicate.Op)
 	}
+}
+
+// buildSomeCondition lowers some, which holds when one event or one link of the span
+// satisfies the whole predicate (RFC 0005 §5.5). The predicate is written inside one lambda,
+// so that every reference at that level reads the same event or link.
+func (q *sqlBuilder) buildSomeCondition(
+	indent int,
+	args []any,
+	metadata attributeMetadata,
+	predicate *expression.Call,
+) ([]any, error) {
+	if len(predicate.Args) != 2 {
+		return nil, errArity(predicate)
+	}
+	collection, ok := predicate.Args[0].(*expression.NestedRef)
+	if !ok || collection == nil {
+		return nil, fmt.Errorf("%w: %q quantifies over the events or the links of a span",
+			tracestore.ErrFilterInvalid, predicate.Op)
+	}
+	arrayColumn := AttributeGroup{Level: collection.Level}.arrayColumn()
+	if arrayColumn == "" {
+		return nil, fmt.Errorf("%w: %q quantifies over the events or the links of a span, not over the %q level",
+			tracestore.ErrFilterInvalid, predicate.Op, collection.Level)
+	}
+	child, ok := predicate.Args[1].(*expression.Call)
+	if !ok || child == nil {
+		return nil, fmt.Errorf("%w: %q quantifies a predicate, not a value", tracestore.ErrFilterInvalid, predicate.Op)
+	}
+	if q.boundLevel == collection.Level {
+		return nil, fmt.Errorf("%w: %q cannot be nested in another %q over the %q level",
+			tracestore.ErrFilterInvalid, predicate.Op, predicate.Op, collection.Level)
+	}
+	if q.boundLevel != "" {
+		// Both lambdas would bind x, so a reference of the inner predicate to the outer
+		// event or link would read the inner one.
+		return nil, fmt.Errorf("%w: it does not evaluate %q over the %q level inside %q over the %q level",
+			tracestore.ErrFilterUnsupported, predicate.Op, collection.Level, predicate.Op, q.boundLevel)
+	}
+	q.appendNewlineAndIndent(indent)
+	q.WriteString("arrayExists(x -> (")
+	q.boundLevel = collection.Level
+	args, err := q.buildFilterCondition(indent+1, args, metadata, child)
+	q.boundLevel = ""
+	if err != nil {
+		return nil, err
+	}
+	q.appendNewlineAndIndent(indent)
+	q.WriteString("), s." + arrayColumn + ")")
+	return args, nil
 }
 
 // buildBooleanCondition lowers and/or: each argument is itself a predicate, joined by the
@@ -410,7 +466,7 @@ func (q *sqlBuilder) buildFieldComparison(
 	ref expression.FieldRef,
 	valueExpr expression.Expression,
 ) ([]any, error) {
-	mapping, err := lookupBuiltinField(ref)
+	mapping, err := q.lookupBuiltinField(ref)
 	if err != nil {
 		return nil, err
 	}
@@ -702,7 +758,7 @@ func (q *sqlBuilder) appendAttributeCandidates(
 // condition on a cold cache.
 func collectMetadataKeys(predicate *expression.Call, keys pcommon.Map) {
 	switch predicate.Op {
-	case expression.OpAnd, expression.OpOr, expression.OpNot:
+	case expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpSome:
 		for _, arg := range predicate.Args {
 			if child, ok := arg.(*expression.Call); ok && child != nil {
 				collectMetadataKeys(child, keys)
@@ -848,7 +904,7 @@ func (q *sqlBuilder) appendNegatedAttributeCandidates(
 // buildExistsCondition lowers exists. An attribute exists when a typed group of its level
 // holds the key. A built-in field exists when the span has a value of it. That is always so
 // for a field of the span, the resource or the scope that cannot be absent; a field of an
-// event or a link needs the span to have one.
+// event or a link needs the span to have one, unless a some operator has bound it.
 func (q *sqlBuilder) buildExistsCondition(
 	indent int,
 	args []any,
@@ -860,7 +916,7 @@ func (q *sqlBuilder) buildExistsCondition(
 	}
 	switch ref := predicate.Args[0].(type) {
 	case *expression.FieldRef:
-		mapping, err := lookupBuiltinField(*ref)
+		mapping, err := q.lookupBuiltinField(*ref)
 		if err != nil {
 			return nil, err
 		}
@@ -909,7 +965,7 @@ func (q *sqlBuilder) buildRegexCondition(indent int, args []any, predicate *expr
 	}
 	switch ref := predicate.Args[0].(type) {
 	case *expression.FieldRef:
-		mapping, err := lookupBuiltinField(*ref)
+		mapping, err := q.lookupBuiltinField(*ref)
 		if err != nil {
 			return nil, err
 		}
@@ -1019,7 +1075,7 @@ func (q *sqlBuilder) buildFieldMembership(
 	ref expression.FieldRef,
 	list *expression.List,
 ) ([]any, error) {
-	mapping, err := lookupBuiltinField(ref)
+	mapping, err := q.lookupBuiltinField(ref)
 	if err != nil {
 		return nil, err
 	}

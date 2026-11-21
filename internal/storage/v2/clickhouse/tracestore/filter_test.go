@@ -53,7 +53,7 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.ElementsMatch(t, []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot, expression.OpEq,
 		expression.OpNe, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte,
-		expression.OpRegex, expression.OpExists, expression.OpIn, expression.OpNotIn,
+		expression.OpRegex, expression.OpExists, expression.OpIn, expression.OpNotIn, expression.OpSome,
 	}, caps.Operators)
 }
 
@@ -1648,4 +1648,139 @@ func TestBuildFilterCondition_Regex_Refusals(t *testing.T) {
 			require.ErrorIs(t, err, tt.err)
 		})
 	}
+}
+
+// TestBuildFilterCondition_Some snapshots, in one file per layout, the condition that each
+// filter below lowers to, after the values that it binds.
+func TestBuildFilterCondition_Some(t *testing.T) {
+	filters := []struct {
+		label  string
+		filter *expression.Call
+	}{
+		{
+			label: "two fields of one event",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Eq("exception"),
+				p.Event().TimeSinceStart.Gt(50*time.Microsecond),
+			)),
+		},
+		{
+			label: "a field and an attribute of one event",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Eq("exception"),
+				p.Event().Attr("exception.type").Eq(p.String("IOError")),
+			)),
+		},
+		{
+			label: "the bound level beside the level of the span",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Matches("^cache"),
+				p.Span().Name.Eq("GET /cart"),
+				p.Span().Attr("zone").Eq(p.String("us-east")),
+			)),
+		},
+		{
+			label: "exists, ne and not_in on one link",
+			filter: p.Some(p.Link(), p.And(
+				p.Link().TraceState.Exists(),
+				p.Link().TraceState.Ne("congo=t61rcWkgMzE"),
+				p.Link().Attr("zone").Exists(),
+				p.Link().Attr("zone").NotIn(p.List(expression.ValueTypeString, "us-east", "eu-west")),
+			)),
+		},
+		{
+			label: "an attribute of an event inside a predicate over one link searches every event",
+			filter: p.Some(p.Link(), p.And(
+				p.Link().TraceID.Eq("00000000000000000000000000000f01"),
+				p.Event().Attr("attempt").Gt(p.Int(1)),
+			)),
+		},
+		{
+			label:  "every event is named, by a negation around a negated predicate",
+			filter: p.Not(p.Some(p.Event(), p.Not(p.Event().Name.Exists()))),
+		},
+		{
+			label: "a level is bound only inside its own predicate",
+			filter: p.And(
+				p.Some(p.Event(), p.Event().Name.Eq("exception")),
+				p.Event().Name.Eq("retry"),
+			),
+		},
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			var snapshot strings.Builder
+			for _, filterCase := range filters {
+				// The test driver returns its metadata rows once, so each filter has a reader.
+				reader := newFilterMetadataReader(tt.layout)
+				// The query boundary reads each constant as the type of its field before the
+				// reader sees the filter.
+				filter, err := tracestore.ResolveFilterConstants(filterCase.filter)
+				require.NoError(t, err, filterCase.label)
+				appendFilterSnapshot(t, &snapshot, reader, filterCase.label, filter)
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+func TestBuildFilterCondition_Some_Refusals(t *testing.T) {
+	events := &expression.NestedRef{Level: expression.LevelEvent}
+	links := &expression.NestedRef{Level: expression.LevelLink}
+	eventNameIsException := call(expression.OpEq, fieldRef(expression.LevelEvent, expression.EventFieldName), str("exception"))
+	tests := []struct {
+		name   string
+		filter *expression.Call
+		err    error
+	}{
+		{
+			name:   "one operand",
+			filter: call(expression.OpSome, events),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a field in place of the collection",
+			filter: call(expression.OpSome, fieldRef(expression.LevelEvent, expression.EventFieldName), eventNameIsException),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a collection of a level with one value per span",
+			filter: call(expression.OpSome, &expression.NestedRef{Level: expression.LevelSpan}, eventNameIsException),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a value in place of the predicate",
+			filter: call(expression.OpSome, events, str("v")),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "nested over the same level",
+			filter: call(expression.OpSome, events, call(expression.OpSome, events, eventNameIsException)),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "nested over the other level",
+			filter: call(expression.OpSome, events, call(expression.OpSome, links, eventNameIsException)),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "a predicate that is refused",
+			filter: call(expression.OpSome, events, unsupportedPredicate()),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTestReader()
+			q := reader.newSQLBuilder()
+			_, err := lowerFilter(t, reader, q, tt.filter)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
+func TestCollectMetadataKeys_Some(t *testing.T) {
+	keys := pcommon.NewMap()
+	collectMetadataKeys(p.Some(p.Event(), p.Event().Attr("untyped").Eq("v")), keys)
+	assert.Equal(t, map[string]any{"untyped": ""}, keys.AsRaw())
 }
