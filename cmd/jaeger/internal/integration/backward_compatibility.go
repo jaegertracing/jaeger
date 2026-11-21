@@ -4,8 +4,11 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,11 +19,17 @@ import (
 
 // The backward-compatibility workflow checks out an earlier revision alongside the pull request,
 // builds ./cmd/jaeger from it, and points these two variables at the resulting binary and at that
-// revision's configuration files.
+// revision's configuration files. JAEGER_OLD_VERSION names that revision for MinWriterVersion
+// skips: a release tag such as v2.23.0, or "main".
 const (
 	oldBinaryEnvVar    = "JAEGER_OLD_BINARY"
 	oldConfigDirEnvVar = "JAEGER_OLD_CONFIG_DIR"
+	oldVersionEnvVar   = "JAEGER_OLD_VERSION"
 )
+
+// oldVersionMain is the JAEGER_OLD_VERSION value the workflow sets when the earlier revision is
+// main rather than a release tag.
+const oldVersionMain = "main"
 
 // compatScenario defines an explicit upgrade scenario for backward-compatibility testing.
 type compatScenario struct {
@@ -38,6 +47,16 @@ type compatScenario struct {
 	OldEnv       map[string]string
 	NewEnv       map[string]string
 	Capabilities capabilities.Capabilities
+	// MinWriterVersion is the earliest release tag whose binary can write this scenario's
+	// storage format (for example "v2.24.0"). When JAEGER_OLD_VERSION is an older release, the
+	// scenario is skipped. The main baseline is never skipped for this reason: it can write a
+	// format as soon as the option merges. Empty means every baseline can write the format.
+	MinWriterVersion string
+	// WriteConfigFile, when set, is the config file the earlier binary runs with instead of that
+	// revision's copy of suite.ConfigFile. Use it when the scenario's config is generated in the
+	// test and does not exist in the earlier checkout (for example ClickHouse attribute_layout:
+	// map).
+	WriteConfigFile string
 }
 
 // runBackwardCompatibilityTests writes the corpus with a Jaeger built from an earlier revision,
@@ -56,10 +75,16 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 		t.Skipf("This test requires %s and %s to point at a Jaeger built from an earlier revision",
 			oldBinaryEnvVar, oldConfigDirEnvVar)
 	}
+	oldVersion := os.Getenv(oldVersionEnvVar)
 
 	for i := range scenarios {
 		scenario := &scenarios[i]
 		t.Run(scenario.Name, func(t *testing.T) {
+			skip, reason := mustSkipForWriterVersion(t, oldVersion, scenario.MinWriterVersion)
+			if skip {
+				t.Skip(reason)
+			}
+
 			// Both phases share one corpus for this scenario, so that the reader compares against
 			// the timestamps the writer wrote: loading a fixture moves its dates to a recent day,
 			// and a corpus built twice would move them twice.
@@ -80,8 +105,10 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 				// The earlier binary runs that revision's copy of the same configuration file, because a
 				// file written for this revision may name settings it does not understand. It also runs
 				// without the storage cleaner, which belongs to the jaeger-e2e harness binary rather
-				// than to ./cmd/jaeger.
-				writePhase.ConfigFile = filepath.Join(oldConfigDir, filepath.Base(suite.ConfigFile))
+				// than to ./cmd/jaeger. A scenario whose config is generated in the test passes it
+				// through WriteConfigFile instead, so the write phase does not look for that file in
+				// the earlier checkout.
+				writePhase.ConfigFile = writeConfigFile(suite.ConfigFile, oldConfigDir, scenario.WriteConfigFile)
 				writePhase.FeatureGates = scenario.OldGates
 				writePhase.EnvVarOverrides = scenario.OldEnv
 				writePhase.Capabilities = scenario.Capabilities
@@ -105,4 +132,78 @@ func runBackwardCompatibilityTests(t *testing.T, storage string, suite E2EStorag
 			})
 		})
 	}
+}
+
+// writeConfigFile chooses the config the earlier binary runs with. A generated WriteConfigFile
+// wins; otherwise the earlier checkout's copy of suiteConfigFile is used.
+func writeConfigFile(suiteConfigFile, oldConfigDir, writeConfigFile string) string {
+	if writeConfigFile != "" {
+		return writeConfigFile
+	}
+	return filepath.Join(oldConfigDir, filepath.Base(suiteConfigFile))
+}
+
+// mustSkipForWriterVersion reports whether the scenario should skip because the earlier
+// revision predates minWriterVersion. An empty minWriterVersion never skips. The main baseline
+// never skips: it can write a format as soon as the option merges. A scenario that names a
+// minimum and runs without JAEGER_OLD_VERSION set is skipped, so a forgotten workflow variable
+// does not start a writer that cannot write the format. An unparseable version fails the test.
+func mustSkipForWriterVersion(t *testing.T, writerVersion, minWriterVersion string) (bool, string) {
+	t.Helper()
+	if minWriterVersion == "" {
+		return false, ""
+	}
+	if writerVersion == "" {
+		return true, fmt.Sprintf("scenario requires %s (minimum writer %s)", oldVersionEnvVar, minWriterVersion)
+	}
+	if writerVersion == oldVersionMain {
+		return false, ""
+	}
+	cmp, err := compareReleaseVersions(writerVersion, minWriterVersion)
+	require.NoError(t, err, "compare writer version %q to minimum %q", writerVersion, minWriterVersion)
+	if cmp < 0 {
+		return true, fmt.Sprintf("earlier revision %s predates minimum writer version %s", writerVersion, minWriterVersion)
+	}
+	return false, ""
+}
+
+// compareReleaseVersions compares two vMAJOR.MINOR.PATCH release tags. It returns -1 if a < b,
+// 0 if a == b, and +1 if a > b.
+func compareReleaseVersions(a, b string) (int, error) {
+	av, err := parseReleaseVersion(a)
+	if err != nil {
+		return 0, fmt.Errorf("left version: %w", err)
+	}
+	bv, err := parseReleaseVersion(b)
+	if err != nil {
+		return 0, fmt.Errorf("right version: %w", err)
+	}
+	for i := range av {
+		if av[i] < bv[i] {
+			return -1, nil
+		}
+		if av[i] > bv[i] {
+			return 1, nil
+		}
+	}
+	return 0, nil
+}
+
+func parseReleaseVersion(v string) ([3]int, error) {
+	var out [3]int
+	if !strings.HasPrefix(v, "v") {
+		return out, fmt.Errorf("%q is not a vMAJOR.MINOR.PATCH tag", v)
+	}
+	parts := strings.Split(strings.TrimPrefix(v, "v"), ".")
+	if len(parts) != 3 {
+		return out, fmt.Errorf("%q is not a vMAJOR.MINOR.PATCH tag", v)
+	}
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return out, fmt.Errorf("%q is not a vMAJOR.MINOR.PATCH tag", v)
+		}
+		out[i] = n
+	}
+	return out, nil
 }
