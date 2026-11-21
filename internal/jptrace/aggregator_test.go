@@ -5,6 +5,7 @@ package jptrace
 
 import (
 	"fmt"
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,53 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
+
+func TestAggregateTracesWithLimitAndMetadata(t *testing.T) {
+	// The first trace overflows across batches; the second exactly fits, but
+	// carries a stored truncation warning. Metadata must reset between traces.
+	traceID1 := pcommon.TraceID{1}
+	traceID2 := pcommon.TraceID{2}
+	makeTrace := func(id pcommon.TraceID, count int) ptrace.Traces {
+		trace := ptrace.NewTraces()
+		spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		for range count {
+			spans.AppendEmpty().SetTraceID(id)
+		}
+		return trace
+	}
+	stored := makeTrace(traceID2, 2)
+	for _, span := range SpanIter(stored) {
+		AddWarnings(span, "trace has more than 2 spans, showing first 2 spans only")
+	}
+	input := func(yield func([]ptrace.Traces, error) bool) {
+		if !yield([]ptrace.Traces{makeTrace(traceID1, 2)}, nil) {
+			return
+		}
+		yield([]ptrace.Traces{makeTrace(traceID1, 1), stored}, nil)
+	}
+	var results []AggregatedTrace
+	for result, err := range AggregateTracesWithLimitAndMetadata(input, 2) {
+		require.NoError(t, err)
+		results = append(results, result)
+	}
+	require.Len(t, results, 2)
+	assert.True(t, results[0].Truncated)
+	assert.False(t, results[1].Truncated)
+	assert.Equal(t, 2, results[0].Traces.SpanCount())
+	assert.Equal(t, 2, results[1].Traces.SpanCount())
+
+	for _, limit := range []int{0, -1, 1, 2} {
+		t.Run(fmt.Sprintf("limit_%d", limit), func(t *testing.T) {
+			seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTrace(traceID1, 2)}, nil)
+			})
+			for result, err := range AggregateTracesWithLimitAndMetadata(seq, limit) {
+				require.NoError(t, err)
+				assert.Equal(t, limit == 1, result.Truncated)
+			}
+		})
+	}
+}
 
 func TestAggregateTraces_AggregatesSpansWithSameTraceID(t *testing.T) {
 	trace1 := ptrace.NewTraces()
