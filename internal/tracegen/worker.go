@@ -6,6 +6,7 @@ package tracegen
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,9 +30,17 @@ type worker struct {
 	attrValNo int
 }
 
-const (
-	fakeSpanDuration = 123 * time.Microsecond
-)
+// spanDuration returns the duration to use for a single span.
+// When MinSpanDuration == MaxSpanDuration it always returns that fixed value.
+// When MinSpanDuration < MaxSpanDuration it returns a uniformly random value
+// in the range [MinSpanDuration, MaxSpanDuration].
+func (w *worker) spanDuration() time.Duration {
+	if w.MaxSpanDuration <= w.MinSpanDuration {
+		return w.MinSpanDuration
+	}
+	delta := w.MaxSpanDuration - w.MinSpanDuration
+	return w.MinSpanDuration + time.Duration(rand.Int63n(int64(delta)))
+}
 
 func (w *worker) simulateTraces() {
 	for atomic.LoadUint32(w.running) == 1 {
@@ -73,7 +82,7 @@ func (w *worker) simulateOneTrace(tracer trace.Tracer) {
 	if w.Pause != 0 {
 		parent.End()
 	} else {
-		totalDuration := time.Duration(w.ChildSpans) * fakeSpanDuration
+		totalDuration := time.Duration(w.ChildSpans) * w.spanDuration()
 		parent.End(
 			trace.WithTimestamp(start.Add(totalDuration)),
 		)
@@ -94,7 +103,8 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(attrs...),
 		}
-		childStart := start.Add(time.Duration(c) * fakeSpanDuration)
+		dur := w.spanDuration()
+		childStart := start.Add(time.Duration(c) * dur)
 		if w.Pause == 0 {
 			opts = append(opts, trace.WithTimestamp(childStart))
 		}
@@ -108,7 +118,7 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 			child.End()
 		} else {
 			child.End(
-				trace.WithTimestamp(childStart.Add(fakeSpanDuration)),
+				trace.WithTimestamp(childStart.Add(dur)),
 			)
 		}
 	}
