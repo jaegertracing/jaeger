@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func saveBuildVars(t *testing.T) {
@@ -54,4 +56,29 @@ func TestString(t *testing.T) {
 	}
 	expectedOutput := "git-commit=foobar, git-version=v1.2.3, build-date=2024-01-04"
 	assert.Equal(t, expectedOutput, test.String())
+}
+
+// TestNewInfoMetrics verifies that NewInfoMetrics properly initializes the
+// build_info Prometheus gauge with the current revision, version, and build date.
+func TestNewInfoMetrics(t *testing.T) {
+	saveBuildVars(t)
+
+	commitSHA = "abc1234"
+	latestVersion = "v1.50.0"
+	date = "2024-01-01"
+
+	mf := metricstest.NewFactory(0)
+
+	infoMetrics := NewInfoMetrics(mf)
+	assert.NotNil(t, infoMetrics)
+
+	mf.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name: "build_info",
+		Tags: map[string]string{
+			"revision":   "abc1234",
+			"version":    "v1.50.0",
+			"build_date": "2024-01-01",
+		},
+		Value: 1,
+	})
 }
