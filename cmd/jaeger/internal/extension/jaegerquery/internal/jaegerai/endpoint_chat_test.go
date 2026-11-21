@@ -38,10 +38,14 @@ type mockACPAgent struct {
 
 	mu sync.Mutex
 
-	initializeReq   *acp.InitializeRequest
-	newSessionReq   *acp.NewSessionRequest
-	promptReq       *acp.PromptRequest
-	closeSessionReq *acp.CloseSessionRequest
+	initializeReq    *acp.InitializeRequest
+	newSessionReq    *acp.NewSessionRequest
+	promptReq        *acp.PromptRequest
+	closeSessionReq  *acp.CloseSessionRequest
+	resumeSessionReq *acp.ResumeSessionRequest
+
+	newSessionCalls    int
+	resumeSessionCalls int
 
 	// agentCapabilities is what Initialize advertises back to the gateway.
 	// Default zero value (empty caps) matches the legacy sidecar contract;
@@ -55,10 +59,11 @@ type mockACPAgent struct {
 
 	promptStopReason acp.StopReason
 
-	initializeErr   error
-	newSessionErr   error
-	promptErr       error
-	closeSessionErr error
+	initializeErr    error
+	newSessionErr    error
+	promptErr        error
+	closeSessionErr  error
+	resumeSessionErr error
 
 	// promptHook is called during Prompt before returning, allowing tests to
 	// send SessionUpdate notifications via asc.
@@ -101,9 +106,22 @@ func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionReques
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.newSessionCalls++
 	cp := params
 	a.newSessionReq = &cp
 	return acp.NewSessionResponse{SessionId: "sess-test"}, nil
+}
+
+func (a *mockACPAgent) ResumeSession(_ context.Context, params acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.resumeSessionCalls++
+	cp := params
+	a.resumeSessionReq = &cp
+	if a.resumeSessionErr != nil {
+		return acp.ResumeSessionResponse{}, a.resumeSessionErr
+	}
+	return acp.ResumeSessionResponse{}, nil
 }
 
 func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
@@ -138,6 +156,12 @@ func (a *mockACPAgent) capturedCloseRequest() *acp.CloseSessionRequest {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.closeSessionReq
+}
+
+func (a *mockACPAgent) capturedResumeRequest() *acp.ResumeSessionRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.resumeSessionReq
 }
 
 func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, func()) {
@@ -972,4 +996,231 @@ func TestChatEndpointSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Nil(t, agent.capturedCloseRequest(), "session/close must not fire when agent does not advertise the capability")
+}
+
+func TestChatEndpointMultiTurnSessionReuse(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Resume: &acp.SessionResumeCapabilities{},
+				Close:  &acp.SessionCloseCapabilities{},
+			},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, nil, "", 1<<20)
+
+	// Turn 1
+	body1, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-abc",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "turn 1 question"},
+		},
+	})
+	require.NoError(t, err)
+
+	req1 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body1))
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	require.Equal(t, http.StatusOK, rr1.Code)
+	assert.Equal(t, 1, agent.newSessionCalls, "turn 1 must create a new session")
+	assert.Equal(t, 0, agent.resumeSessionCalls, "turn 1 must not call resume")
+	require.NotNil(t, agent.promptReq)
+	require.Len(t, agent.promptReq.Prompt, 1)
+	assert.Equal(t, acp.TextBlock("turn 1 question"), agent.promptReq.Prompt[0])
+	assert.Nil(t, agent.capturedCloseRequest(), "session should stay open for subsequent turns on thread")
+
+	// Turn 2
+	body2, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-abc",
+		RunID:    "run-2",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "turn 1 question"},
+			{Role: aguitypes.RoleAssistant, Content: "turn 1 reply"},
+			{Role: aguitypes.RoleUser, Content: "turn 2 follow-up"},
+		},
+	})
+	require.NoError(t, err)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body2))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	require.Equal(t, http.StatusOK, rr2.Code)
+	assert.Equal(t, 1, agent.newSessionCalls, "turn 2 must not create another new session")
+	assert.Equal(t, 1, agent.resumeSessionCalls, "turn 2 must resume the existing session")
+	require.NotNil(t, agent.capturedResumeRequest())
+	assert.Equal(t, acp.SessionId("sess-test"), agent.capturedResumeRequest().SessionId)
+	require.NotNil(t, agent.promptReq)
+	require.Len(t, agent.promptReq.Prompt, 1, "resumed session prompt must only carry latest user message, not duplicate replay")
+	assert.Equal(t, acp.TextBlock("turn 2 follow-up"), agent.promptReq.Prompt[0])
+	assert.Nil(t, agent.capturedCloseRequest(), "session should remain open across turns")
+}
+
+func TestChatEndpointMultiTurnReplayFallbackWithoutResumeCapability(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Close: &acp.SessionCloseCapabilities{},
+			},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, nil, "", 1<<20)
+
+	// Turn 1
+	body1, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-xyz",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "turn 1 question"},
+		},
+	})
+	require.NoError(t, err)
+
+	req1 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body1))
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	require.Equal(t, http.StatusOK, rr1.Code)
+	assert.Equal(t, 1, agent.newSessionCalls)
+
+	// Turn 2
+	body2, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-xyz",
+		RunID:    "run-2",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "turn 1 question"},
+			{Role: aguitypes.RoleAssistant, Content: "turn 1 answer"},
+			{Role: aguitypes.RoleUser, Content: "turn 2 question"},
+		},
+	})
+	require.NoError(t, err)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body2))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+	require.Equal(t, http.StatusOK, rr2.Code)
+	assert.Equal(t, 2, agent.newSessionCalls, "without resume capability, each turn creates new session")
+	assert.Equal(t, 0, agent.resumeSessionCalls)
+
+	require.NotNil(t, agent.promptReq)
+	require.Len(t, agent.promptReq.Prompt, 3, "replay fallback must prepend previous turns into prompt blocks")
+	assert.Equal(t, acp.TextBlock("[User]:\nturn 1 question"), agent.promptReq.Prompt[0])
+	assert.Equal(t, acp.TextBlock("[Assistant]:\nturn 1 answer"), agent.promptReq.Prompt[1])
+	assert.Equal(t, acp.TextBlock("turn 2 question"), agent.promptReq.Prompt[2])
+}
+
+func TestChatEndpointMultiTurnResumeFailureFallsBackToNewSessionWithReplay(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Resume: &acp.SessionResumeCapabilities{},
+				Close:  &acp.SessionCloseCapabilities{},
+			},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), newTurnRegistry(), wsURL, nil, "", 1<<20)
+
+	// Turn 1
+	body1, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-fail",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "first turn"},
+		},
+	})
+	require.NoError(t, err)
+
+	req1 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body1))
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	require.Equal(t, http.StatusOK, rr1.Code)
+	assert.Equal(t, 1, agent.newSessionCalls)
+
+	// Make resume fail for Turn 2
+	agent.resumeSessionErr = errors.New("session expired on agent backend")
+
+	body2, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-fail",
+		RunID:    "run-2",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "first turn"},
+			{Role: aguitypes.RoleAssistant, Content: "first reply"},
+			{Role: aguitypes.RoleUser, Content: "second turn"},
+		},
+	})
+	require.NoError(t, err)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body2))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+	require.Equal(t, http.StatusOK, rr2.Code)
+
+	assert.Equal(t, 1, agent.resumeSessionCalls, "resume was attempted")
+	assert.Equal(t, 2, agent.newSessionCalls, "fell back to new session when resume failed")
+	require.NotNil(t, agent.promptReq)
+	require.Len(t, agent.promptReq.Prompt, 3, "fallback must include replay history")
+	assert.Equal(t, acp.TextBlock("[User]:\nfirst turn"), agent.promptReq.Prompt[0])
+	assert.Equal(t, acp.TextBlock("[Assistant]:\nfirst reply"), agent.promptReq.Prompt[1])
+	assert.Equal(t, acp.TextBlock("second turn"), agent.promptReq.Prompt[2])
+}
+
+func TestNewChatEndpointWithSessionsDefaultsNilRegistry(t *testing.T) {
+	// Wiring paths that do not care about multi-turn reuse may pass a nil
+	// registry; the constructor must substitute a usable default rather than
+	// panic on the first sessions.get call in ServeHTTP.
+	h := newChatEndpointWithSessions(zap.NewNop(), newTurnRegistry(), nil, "ws://127.0.0.1:0", nil, "", 1<<20)
+	require.NotNil(t, h.sessions, "a nil session registry must be replaced with a default")
+}
+
+func TestChatEndpointMultiTurnPromptFailureEvictsSession(t *testing.T) {
+	// When the agent fails a turn on a thread with a registered session, the
+	// gateway must evict the mapping. Keeping it would pin every later turn on
+	// the thread to a session the agent may already have torn down, turning a
+	// recoverable failure into a permanent one.
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Resume: &acp.SessionResumeCapabilities{},
+			},
+		},
+		promptErr: errors.New("prompt failed"),
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	sessions := newSessionRegistry(0)
+	sessions.set("thread-abc", "sess-stale")
+	handler := newChatEndpointWithSessions(zap.NewNop(), newTurnRegistry(), sessions, wsURL, nil, "", 1<<20)
+
+	body, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-abc",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{
+			{Role: aguitypes.RoleUser, Content: "is the agent still there?"},
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 1, agent.resumeSessionCalls, "the registered session must be resumed before prompting")
+	assert.Equal(t, 0, agent.newSessionCalls, "a successfully resumed session must not be recreated")
+	assert.Equal(t, 0, sessions.count(), "a failed turn must evict the thread's session from the registry")
+	if _, ok := sessions.get("thread-abc"); ok {
+		t.Fatal("thread-abc must no longer map to the failed session")
+	}
+	require.Contains(t, eventTypes(parseSSEEvents(t, rr.Body.String())), "RUN_ERROR")
 }
