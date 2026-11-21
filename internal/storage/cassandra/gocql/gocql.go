@@ -5,6 +5,8 @@
 package gocql
 
 import (
+	"context"
+
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
@@ -55,6 +57,11 @@ func (q CQLQuery) ScanCAS(dest ...any) (bool, error) {
 // Iter delegates to gocql.Query#Iter and wraps the result as Iterator.
 func (q CQLQuery) Iter() cassandra.Iterator {
 	return WrapCQLIterator(q.query.Iter())
+}
+
+// IterContext executes the query with the caller's context.
+func (q CQLQuery) IterContext(ctx context.Context) cassandra.Iterator {
+	return WrapCQLIterator(q.query.IterContext(ctx))
 }
 
 // Bind delegates to gocql.Query#Bind and wraps the result as Query.
