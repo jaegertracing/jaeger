@@ -110,6 +110,27 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
+func TestTraceReader_GetTracesPassesTheTimeRange(t *testing.T) {
+	coreReader := &mocks.Reader{}
+	reader := TraceReader{spanReader: coreReader}
+	start := time.Date(2020, 1, 10, 5, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	traceID1 := pcommon.TraceID([16]byte{1})
+	traceID2 := pcommon.TraceID([16]byte{2})
+	coreReader.On("GetTraces", mock.Anything, []dbmodel.GetTraceParameters{
+		{TraceID: dbmodel.TraceID(traceID1.String()), StartTime: start, EndTime: end},
+		{TraceID: dbmodel.TraceID(traceID2.String())},
+	}).Return([]dbmodel.Trace{}, nil).Once()
+
+	for _, err := range reader.GetTraces(context.Background(),
+		tracestore.GetTraceParams{TraceID: traceID1, Start: start, End: end},
+		tracestore.GetTraceParams{TraceID: traceID2},
+	) {
+		require.NoError(t, err)
+	}
+	coreReader.AssertExpectations(t)
+}
+
 func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
 	tests := []struct {
 		name        string
