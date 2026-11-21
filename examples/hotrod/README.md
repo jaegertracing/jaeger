@@ -34,17 +34,22 @@ Alternatively, you can run each component separately as described below.
 
 ### Run everything in Kubernetes
 
-```bash
-kustomize build ./kubernetes | kubectl apply -f -
-kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
-# In another terminal
-kubectl port-forward -n example-hotrod service/jaeger 16686:frontend
+Jaeger and HotROD are deployed with the Jaeger Helm chart by the script in [examples/oci](../oci). See [kubernetes/README.md](./kubernetes/README.md) for the deploy modes.
 
-# To cleanup
-kustomize build ./kubernetes | kubectl delete -f -
+```bash
+cd examples/oci
+./deploy-all.sh clean
+kubectl port-forward svc/jaeger-hotrod 8080:80
+# In another terminal
+kubectl port-forward svc/jaeger-query 16686:16686
+
+# To cleanup (from examples/oci)
+helm uninstall jaeger prometheus
+kubectl delete -f load-generator/load-generator.yaml -f ingress.yaml -f prometheus-svc.yaml
+kubectl delete configmap trace-script
 ```
 
-Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
+Access Jaeger UI at http://localhost:16686/jaeger and HotROD app at http://localhost:8080/hotrod
 
 ### Run Jaeger backend
 
