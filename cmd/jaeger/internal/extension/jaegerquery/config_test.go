@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
 
 func Test_Validate(t *testing.T) {
@@ -77,6 +79,49 @@ func Test_Validate(t *testing.T) {
 				Storage:      Storage{TracesPrimary: "some-storage"},
 			},
 			expectedErr: "invalid base_path",
+		},
+		{
+			name: "ServiceCacheTTL enabled",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{ServiceCacheTTL: time.Minute},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "ServiceCacheTTL negative rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{ServiceCacheTTL: -time.Minute},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "invalid service_cache_ttl -1m0s: must not be negative",
+		},
+		{
+			name: "ServiceCacheTTL with bearer token propagation rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{ServiceCacheTTL: time.Minute, BearerTokenPropagation: true},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "service_cache_ttl cannot be used with bearer_token_propagation or header_forwarding",
+		},
+		{
+			name: "ServiceCacheTTL with header forwarding rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{
+					ServiceCacheTTL:  time.Minute,
+					HeaderForwarding: []headerforwarding.ForwardedHeader{{HTTPName: "X-User"}},
+				},
+				Storage: Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "service_cache_ttl cannot be used with bearer_token_propagation or header_forwarding",
+		},
+		{
+			name: "Bearer token propagation without ServiceCacheTTL allowed",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{BearerTokenPropagation: true},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "",
 		},
 	}
 

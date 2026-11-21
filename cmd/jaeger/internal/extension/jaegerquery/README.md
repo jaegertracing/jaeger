@@ -14,6 +14,27 @@ jaeger_query:
     metrics_store: prometheus_store
 ```
 
+## Caching service and operation names
+
+The UI loads the list of services, and the operations of the selected service, on every page
+load. If these lookups are expensive on your storage backend, you can cache them with
+`service_cache_ttl`:
+
+```yaml
+jaeger_query:
+    storage:
+      traces: some_store
+    service_cache_ttl: 1m
+```
+
+- Off by default (`0`).
+- Results are reused until they are older than `service_cache_ttl`, then the next request
+  reloads them. Other requests keep getting the cached results while the reload runs. If the
+  reload fails, the cached results are returned and the error is logged.
+- Results are cached per tenant. Empty results are not cached.
+- Can't be used with `bearer_token_propagation` or `header_forwarding`, because cached results
+  are shared by all users of a tenant.
+
 ## Authentication and data policy
 
 `jaeger-query` has no login of its own. The deployment pattern that gives it per-user

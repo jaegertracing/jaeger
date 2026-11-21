@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestorecache"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -84,6 +85,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	traceReader, err := tf.CreateTraceReader()
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
+	}
+	if s.config.ServiceCacheTTL > 0 {
+		traceReader = tracestorecache.NewReader(traceReader, s.config.ServiceCacheTTL, telset.Logger)
 	}
 
 	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
