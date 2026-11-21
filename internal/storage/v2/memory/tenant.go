@@ -57,10 +57,21 @@ type matchedTrace struct {
 }
 
 func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.Time) bool {
-	if endTime.IsZero() {
-		return t.startTime.After(startTime)
+	for _, resourceSpan := range t.trace.ResourceSpans().All() {
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			for _, span := range scopeSpan.Spans().All() {
+				spanStart := span.StartTimestamp().AsTime()
+				if endTime.IsZero() {
+					if spanStart.After(startTime) {
+						return true
+					}
+				} else if spanStart.After(startTime) && spanStart.Before(endTime) {
+					return true
+				}
+			}
+		}
 	}
-	return t.startTime.After(startTime) && t.endTime.Before(endTime)
+	return false
 }
 
 func newTenant(cfg *Configuration) *Tenant {
