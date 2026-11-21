@@ -19,6 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
+// latestProbabilitiesSearchSize is how many of the newest probabilities documents
+// GetLatestProbabilities reads. The index sorts timestamps at millisecond precision,
+// so it reads a few and picks the newest at full precision.
+const latestProbabilitiesSearchSize = 10
+
 // IndexExistenceChecker reports whether an index exists. It is the narrow
 // admin-plane capability the sampling store needs to find the latest sampling
 // index; the factory satisfies it with an esclient.IndicesClient.
@@ -126,7 +131,10 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
 	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
-		Size: s.maxDocCount,
+		Size: latestProbabilitiesSearchSize,
+		// unmapped_type keeps a new, still empty index (no timestamp mapping yet)
+		// from failing the search.
+		Sort: []esclient.SortOrder{{Field: "timestamp", Order: query.Descending, UnmappedType: "date"}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
