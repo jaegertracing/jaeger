@@ -504,58 +504,60 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 	assert.Equal(t, 0, iterLength)
 }
 
-func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
-	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
-		gotIter := store.FindTraces(context.Background(), params)
-		iterLength := 0
-		for traces, err := range gotIter {
-			iterLength++
-			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
-			assert.Nil(t, traces)
-		}
-		assert.Equal(t, 1, iterLength)
-	})
-}
-
-func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
-	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
-		gotIter := store.FindTraceIDs(context.Background(), params)
-		iterLength := 0
-		for chunk, err := range gotIter {
-			iterLength++
-			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
-			assert.Empty(t, chunk.Results)
-			assert.Empty(t, chunk.NextPageToken)
-		}
-		assert.Equal(t, 1, iterLength)
-	})
-}
-
-func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
-	tests := []struct {
-		name        string
-		searchDepth uint32
-	}{
-		{
-			name:        "zero search depth",
-			searchDepth: 0,
-		},
-		{
-			name:        "search depth greater than max traces",
-			searchDepth: 11,
-		},
+func TestFindTraces_ZeroSearchDepthErr(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	iterLength := 0
+	for traces, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
+		iterLength++
+		require.ErrorIs(t, err, errInvalidSearchDepth)
+		require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+		assert.Nil(t, traces)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store, err := NewStore(Configuration{
-				MaxTraces: 10,
-			})
+	assert.Equal(t, 1, iterLength)
+}
+
+func TestFindTraceIds_ZeroSearchDepthErr(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	iterLength := 0
+	for chunk, err := range store.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+		iterLength++
+		require.ErrorIs(t, err, errInvalidSearchDepth)
+		require.ErrorIs(t, err, tracestore.ErrInvalidQuery)
+		assert.Empty(t, chunk.Results)
+		assert.Empty(t, chunk.NextPageToken)
+	}
+	assert.Equal(t, 1, iterLength)
+}
+
+// A search depth above max_traces is clamped rather than rejected: the store
+// cannot hold more than MaxTraces traces, so the result is the same, and the
+// query service's default depth (100) must work with a small max_traces.
+func TestSearchDepthAboveMaxTracesIsClamped(t *testing.T) {
+	const maxTraces = 3
+	store, err := NewStore(Configuration{MaxTraces: maxTraces})
+	require.NoError(t, err)
+	for i := 1; i <= maxTraces; i++ {
+		td := ptrace.NewTraces()
+		span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, fmt.Sprintf("%032x", i)))
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+	for _, depth := range []uint32{maxTraces, maxTraces + 1, 100, tracestore.MaxSearchDepth} {
+		params := tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), SearchDepth: depth}
+		found := 0
+		for chunk, err := range store.FindTraceIDs(context.Background(), params) {
 			require.NoError(t, err)
-			params := tracestore.TraceQueryParams{
-				SearchDepth: test.searchDepth,
-			}
-			fxn(store, params)
-		})
+			found += len(chunk.Results)
+		}
+		assert.Equal(t, maxTraces, found, "FindTraceIDs depth=%d", depth)
+		found = 0
+		for traces, err := range store.FindTraces(context.Background(), params) {
+			require.NoError(t, err)
+			found += len(traces)
+		}
+		assert.Equal(t, maxTraces, found, "FindTraces depth=%d", depth)
 	}
 }
 

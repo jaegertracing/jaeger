@@ -5,7 +5,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"slices"
@@ -24,7 +23,7 @@ import (
 
 const errorAttribute = "error"
 
-var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+var errInvalidSearchDepth = tracestore.InvalidQuery("search depth must be greater than 0")
 
 // Store is an in-memory store of traces
 type Store struct {
