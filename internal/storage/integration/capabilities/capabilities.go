@@ -28,9 +28,11 @@ const (
 	// Filter cases on built-in fields that a backend's lowering does not map, which the levels and
 	// operators of its FilterCapabilities are too coarse to say. A case on a level or an operator
 	// needs no entry here: the battery reads the declaration and expects a refusal instead.
-	filterEventNameTest  = "the_name_of_one_of_the_span's_events"
-	filterSpanKindTest   = "the_span_kind"
-	filterSpanStatusTest = "the_span_status"
+	filterSpanKindTest            = "the_span_kind"
+	filterSpanStatusTest          = "the_span_status"
+	filterScopeNameTest           = "the_name_of_the_instrumentation_scope"
+	filterLinkTraceIDTest         = "the_trace_ID_of_one_of_the_span's_links"
+	filterEventTimeSinceStartTest = "the_time_of_an_event_since_the_start_of_its_span"
 )
 
 // AttributeComparison is the outcome a deployment produces for an ordered comparison on an
@@ -242,15 +244,11 @@ func clickHouseSkipList() []string {
 		// The span search orders by the built-in span fields only; no backend orders by an
 		// attribute yet.
 		spanAttributeOrderingTest,
-		// The lowering maps five built-in fields; span.startTime is not among them yet.
-		"SpanOrdering/Basic/TimestampFilter",
 		// The trace searches do not page yet.
 		traceIDPaginationTest,
 		summaryPaginationTest,
-		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
-		filterEventNameTest,
-		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
-		// refuses one on an attribute inside the lowering (RFC 0005 M3, first increment).
+		// The lowering declares the ordered comparisons but evaluates them on built-in fields
+		// only, and refuses one on an attribute.
 		attributeComparisonTest,
 	}
 }
@@ -261,8 +259,6 @@ func ClickHouse() Capabilities {
 		// The span ID is the span search's tie-breaker and is not unique in the spans table,
 		// so the search loses the later copies of a span stored twice at a page boundary.
 		pagingDropsTiedSpans: true,
-		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
-		traceStateRefused: true,
 		skipList: append(
 			clickHouseSkipList(),
 			// Trace summaries not supported; jaeger-query falls back to FindTraces for the e2e suite.
@@ -279,7 +275,6 @@ func ClickHouse() Capabilities {
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
 		pagingDropsTiedSpans: true,
-		traceStateRefused:    true,
 		skipList:             clickHouseSkipList(),
 	}
 }
@@ -331,6 +326,11 @@ func Elasticsearch() Capabilities {
 			// not map; the levels and operators of its FilterCapabilities are too coarse to say so.
 			filterSpanKindTest,
 			filterSpanStatusTest,
+			// The lowering maps no built-in field of the scope or of a link, and no time of an
+			// event.
+			filterScopeNameTest,
+			filterLinkTraceIDTest,
+			filterEventTimeSinceStartTest,
 		},
 	}
 }
