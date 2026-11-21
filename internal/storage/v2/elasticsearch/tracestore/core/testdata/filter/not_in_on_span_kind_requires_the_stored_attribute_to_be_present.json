@@ -1,0 +1,95 @@
+{
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          {
+            "exists": {
+              "field": "tag.span@kind"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "term": {
+                  "tags.key": "span.kind"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "bool": {
+              "should": [
+                {
+                  "term": {
+                    "tag.span@kind": "server"
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "tags",
+                    "query": {
+                      "bool": {
+                        "must": [
+                          {
+                            "term": {
+                              "tags.key": "span.kind"
+                            }
+                          },
+                          {
+                            "term": {
+                              "tags.value": "server"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "bool": {
+              "should": [
+                {
+                  "term": {
+                    "tag.span@kind": "client"
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "tags",
+                    "query": {
+                      "bool": {
+                        "must": [
+                          {
+                            "term": {
+                              "tags.key": "span.kind"
+                            }
+                          },
+                          {
+                            "term": {
+                              "tags.value": "client"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
