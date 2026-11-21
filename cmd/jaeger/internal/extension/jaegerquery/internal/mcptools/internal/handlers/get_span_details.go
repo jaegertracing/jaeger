@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -243,7 +244,17 @@ func convertAttributeValue(v pcommon.Value) any {
 	case pcommon.ValueTypeInt:
 		return v.Int()
 	case pcommon.ValueTypeDouble:
-		return v.Double()
+		value := v.Double()
+		switch {
+		case math.IsNaN(value):
+			return "NaN"
+		case math.IsInf(value, 1):
+			return "Infinity"
+		case math.IsInf(value, -1):
+			return "-Infinity"
+		default:
+			return value
+		}
 	case pcommon.ValueTypeBool:
 		return v.Bool()
 	case pcommon.ValueTypeBytes:
