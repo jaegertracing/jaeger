@@ -75,6 +75,9 @@ jobs:
           # labelled unapproved-issue by hand.
           days-before-issue-stale: -1
           days-before-issue-close: -1
+          # Both stale steps skip a pull request that carries do-not-expire. Such
+          # a pull request stays open and keeps its stale label.
+          exempt-pr-labels: 'do-not-expire'
           # Activity on the pull request removes the stale label. Zero days puts
           # the label back on the next run for as long as either label remains.
           days-before-pr-stale: 0

@@ -73,7 +73,9 @@ in another repository that you already linked receives the `help wanted` label. 
 `missing-issue` or `unapproved-issue` after about a week without activity is closed automatically, and
 can be reopened once it is linked. Pull requests from maintainers and from
 Dependabot and Renovate are exempt, and a maintainer may exempt any other pull request,
-such as a fix for a typo, by applying the `no-issue-needed` label to it.
+such as a fix for a typo, by applying the `no-issue-needed` label to it. A
+maintainer may also keep a flagged pull request open with the `do-not-expire`
+label.
 
 Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
 count. If another active PR is already linked, coordinate with its author and

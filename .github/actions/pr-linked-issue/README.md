@@ -42,7 +42,7 @@ After a complete run a flagged pull request carries one flag label. When the lin
 
 A pull request is exempt when its author has write access to the repository, when it comes from Dependabot or Renovate, or when a maintainer applied the `no-issue-needed` label to it.
 
-The action closes no pull request. The step of `.github/workflows/stale.yml` that is restricted to the two flag labels closes the pull request after about a week without activity, and a repository that calls this action needs the same step. The `do-not-expire` label does not protect a pull request from that step; `no-issue-needed` is the exemption for this policy. When the pull request later meets the policy, the action removes its flag label and `stale`.
+The action closes no pull request. The step of `.github/workflows/stale.yml` that is restricted to the two flag labels closes the pull request after about a week without activity, and a repository that calls this action needs the same step. The `do-not-expire` label protects a pull request from that step, as it does from the rest of the stale workflow: the pull request keeps its flag label and `stale`, and stays open. The policy comment does not account for `do-not-expire` and still announces the closing. The `no-issue-needed` label exempts the pull request from the policy itself; the action then removes the flag label and `stale`. When the pull request later meets the policy, the action removes its flag label and `stale`.
 
 ## When the action runs
 
