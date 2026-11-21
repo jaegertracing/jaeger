@@ -354,3 +354,89 @@ func TestSpanHash_ErrorInMarshaler(t *testing.T) {
 	assert.Contains(t, warnings[0], "failed to compute hash code")
 	assert.Contains(t, warnings[0], assert.AnError.Error())
 }
+
+func TestSpanHash_DuplicateSpansDifferentScopeNameAndVersion(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	input := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().SetName("scope-a")
+		ss.Scope().SetVersion("v1")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.Scope().SetName("scope-b")
+		ss2.Scope().SetVersion("v2")
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := input()
+	adjuster.Adjust(i)
+	assert.Equal(t, input(), i)
+}
+
+func TestSpanHash_DuplicateSpansDifferentSchemaURL(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	input := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.SetSchemaUrl("https://opentelemetry.io/schemas/1.6.1")
+
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.SetSchemaUrl("https://opentelemetry.io/schemas/1.7.0")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.SetSchemaUrl("https://opentelemetry.io/schemas/1.8.0")
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := input()
+	adjuster.Adjust(i)
+	assert.Equal(t, input(), i)
+}
+
+func TestSpanHash_ScopeAttributesDoNotLeakBetweenScopes(t *testing.T) {
+	adjuster := DeduplicateSpans()
+	input := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("key", "value")
+		span1 := ss.Spans().AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		span2 := ss2.Spans().AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := input()
+	adjuster.Adjust(i)
+	assert.Equal(t, input(), i)
+}
