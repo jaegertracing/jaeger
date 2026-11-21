@@ -43,6 +43,11 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
+	// esclient.NewClient does not validate its input, so run the shared checks
+	// here, e.g. that at most one auth method is configured.
+	if err := esCfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
 	// NewClient resolves the backend version at construction.
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
