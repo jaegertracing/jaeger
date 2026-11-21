@@ -130,7 +130,7 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 					{
 						Spans: []dbmodel.Span{
 							{
-								TraceID: "wrong-trace-id",
+								TraceID: "wrong-trace-id000000000000000000",
 							},
 						},
 					},
@@ -225,7 +225,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 		},
 		{
 			name:                   "wrong trace id sent from core reader",
-			traceIdsFromCoreReader: []dbmodel.TraceID{"wrong-id"},
+			traceIdsFromCoreReader: []dbmodel.TraceID{"wrong-id000000000000000000000000"},
 			expectedErr:            "encoding/hex: invalid byte: U+0077 'w'",
 		},
 	}
