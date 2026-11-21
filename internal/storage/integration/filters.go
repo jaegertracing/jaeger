@@ -102,6 +102,11 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"checkout", "search"},
 		},
 		{
+			caption:  "the service name outside a list of names",
+			filter:   p.Resource().Service.NotIn("filter-cart", "filter-worker", "filter-text-search"),
+			expected: []string{"checkout", "search"},
+		},
+		{
 			caption:  "the operation name",
 			filter:   p.Span().Name.Eq("GET /cart"),
 			expected: []string{"cart_get"},
@@ -206,6 +211,35 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			caption:  "an attribute inequality leaves out a span that lacks the attribute",
 			filter:   p.Span().Attr("http.status_code").Ne("200"),
 			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "an attribute against a list of values",
+			filter:   p.Span().Attr("http.status_code").In("500", "404"),
+			expected: []string{"cart_post"},
+		},
+		{
+			// Like an inequality, not_in asks for the spans that hold the attribute, so the
+			// traces that carry no http.status_code are not among them.
+			caption:  "an attribute outside a list leaves out a span that lacks the attribute",
+			filter:   p.Span().Attr("http.status_code").NotIn("200", "404"),
+			expected: []string{"cart_post"},
+		},
+		{
+			caption:  "an attribute exists on one of the span's events",
+			filter:   p.Event().Attr("zone").Exists(),
+			expected: []string{"search"},
+		},
+		{
+			caption:  "an inequality on an attribute of the span's links",
+			filter:   p.Link().Attr("zone").Ne("us-east"),
+			expected: []string{"worker"},
+		},
+		{
+			// The only link attribute in the corpus holds this value, so a backend that
+			// answered the inequality with the attribute's presence would find worker.
+			caption:  "an inequality on a link attribute leaves out the span that holds the value",
+			filter:   p.Link().Attr("zone").Ne("eu-west"),
+			expected: nil,
 		},
 		{
 			caption:  "an untyped constant matches an attribute stored as a number",

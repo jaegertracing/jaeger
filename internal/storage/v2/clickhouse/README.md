@@ -96,6 +96,21 @@ Three properties of the setting matter to an operator:
 - Every backend entry that opens the database states the layout. A ClickHouse entry under `metric_backends` reads the same `spans` table and runs the same check, so it needs the same `attribute_layout` as the entry under `backends`.
 - If a span carries the same key twice in one typed group, which OTLP forbids, a search in the `map` layout compares the first value only, and a search in the `nested` layout matches either value. Both layouts store and return both values.
 
+### Attribute metadata
+
+The backend keeps a list of the attribute keys that spans were inserted with. For each key the list holds the type of the values, such as string or int, and the level where the key appears: resource, scope, span, event or link. The list is the `attribute_metadata` table. ClickHouse adds rows to it on every insert through three materialized views: `attribute_metadata_mv`, `event_attribute_metadata_mv` and `link_attribute_metadata_mv`. The views see only the spans that are inserted after the views are created, so the list holds no key from older spans.
+
+The `spans` table stores the values of each type in a separate typed group, so a search for a key must know which typed groups to search. A structured filter looks the key up in the list. It then searches the typed groups of the types that the list holds for the key, at the levels that the filter names. If the list holds no type for the key at those levels, the filter has no typed group to search, and the condition on that key matches no span. A filter that negates the condition with `not` then matches every span.
+
+`exists`, `ne` and `not_in` always depend on the list. Every other comparison depends on it only when its value is given without a type. When the value states its type, such as `eq` with an int, the filter takes the typed group from the type.
+
+A key, or one type or level of a key, is missing from the list in two situations:
+
+- The deployment sets `create_schema: false`, and the schema that it manages has the table but not the three views. The list then stays empty. A schema without the table itself fails differently: every search that looks a key up in the list returns an error.
+- Only spans older than the views store the key with that type at that level.
+
+The tag search also looks the key up in the list, but it treats a missing key differently. For a key that the list does not hold, or whose listed types cannot parse the value, the tag search compares the value with the string group at every level. It therefore finds an older span only when the span stores the attribute as a string. For a key that the list holds, the tag search searches the listed types and levels, as the structured filter does.
+
 ### Hoisted attributes
 
 A deployment can copy attributes that it searches often into dedicated columns of the `spans` table. The backend calls such an attribute "hoisted". Each entry of `hoisted_attributes` names one attribute by its key, level and stored type, and the column that receives the copy:

@@ -64,6 +64,11 @@ func (NestedLayout) appendComparison(q *sqlBuilder, args []any, level expression
 	return append(args, tav.key, tav.value)
 }
 
+func (NestedLayout) appendHasKey(q *sqlBuilder, args []any, group AttributeGroup, key string) []any {
+	q.WriteString("has(" + group.operandSQL() + ".key, ?)")
+	return append(args, key)
+}
+
 func (NestedLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		attributes.BoolKeys,
