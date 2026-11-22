@@ -1,6 +1,6 @@
 # PR Linked Issue
 
-This action requires a pull request from an outside contributor to be linked to an open issue that carries the `help wanted` label. It adds the `missing-issue` and `stale` labels to a pull request that has no such issue, and explains the policy in a comment. It is a composite action so that another Jaeger repository can call it at a pinned commit.
+This action requires a pull request from an outside contributor to be linked to an open issue that carries the `help wanted` label. It flags a pull request that has no such issue: it adds `stale` and one of the two flag labels, `missing-issue` or `unapproved-issue`, and explains the policy in a comment. It is a composite action so that another Jaeger repository can call it at a pinned commit.
 
 The logic lives in [`pr-linked-issue.js`](pr-linked-issue.js), next to its tests, which run through `npm test` in [`.github/scripts`](../../scripts).
 
@@ -31,9 +31,18 @@ Without `pull-request-number` and `issue-number` the action checks every open pu
 
 A pull request meets the policy when one of the first 20 issues that it closes is open, carries `help wanted`, and belongs to a repository of the same organization. The action does not check who applied `help wanted`, because GitHub lets only a user with triage permission or higher label an issue.
 
+The flag label says what the pull request waits for:
+
+| Label | The pull request | What it waits for |
+|---|---|---|
+| `unapproved-issue` | is linked to an open issue of the organization that does not carry `help wanted` | the author asks on the issue, and a maintainer decides whether the issue gets `help wanted` |
+| `missing-issue` | is linked to no issue, or only to closed issues and issues of another organization | the author links an issue |
+
+After a complete run a flagged pull request carries one flag label. When the linked issues of the pull request change, the action adds the label that now applies before it removes the other.
+
 A pull request is exempt when its author has write access to the repository, when it comes from Dependabot or Renovate, or when a maintainer applied the `no-issue-needed` label to it.
 
-The action closes no pull request. The step of `.github/workflows/stale.yml` that is restricted to `missing-issue` closes the pull request after about a week without activity, and a repository that calls this action needs the same step. The `do-not-expire` label does not protect a pull request from that step; `no-issue-needed` is the exemption for this policy. When the pull request later meets the policy, the action removes both labels.
+The action closes no pull request. The step of `.github/workflows/stale.yml` that is restricted to the two flag labels closes the pull request after about a week without activity, and a repository that calls this action needs the same step. The `do-not-expire` label protects a pull request from that step, as it does from the rest of the stale workflow: the pull request keeps its flag label and `stale`, and stays open. The policy comment does not account for `do-not-expire` and still announces the closing. The `no-issue-needed` label exempts the pull request from the policy itself; the action then removes the flag label and `stale`. When the pull request later meets the policy, the action removes its flag label and `stale`.
 
 ## When the action runs
 
