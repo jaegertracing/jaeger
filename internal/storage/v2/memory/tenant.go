@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -57,18 +58,14 @@ type matchedTrace struct {
 }
 
 func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.Time) bool {
-	for _, resourceSpan := range t.trace.ResourceSpans().All() {
-		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-			for _, span := range scopeSpan.Spans().All() {
-				spanStart := span.StartTimestamp().AsTime()
-				if endTime.IsZero() {
-					if spanStart.After(startTime) {
-						return true
-					}
-				} else if spanStart.After(startTime) && spanStart.Before(endTime) {
-					return true
-				}
+	for _, span := range jptrace.SpanIter(t.trace) {
+		spanStart := span.StartTimestamp().AsTime()
+		if endTime.IsZero() {
+			if spanStart.After(startTime) {
+				return true
 			}
+		} else if spanStart.After(startTime) && spanStart.Before(endTime) {
+			return true
 		}
 	}
 	return false
