@@ -53,42 +53,8 @@ jobs:
             it if you need more time. We really appreciate your contribution and we are sorry
             that this has not been completed.
           stale-pr-label: 'stale'
-          # The next step closes the pull requests that carry missing-issue or
-          # unapproved-issue.
-          exempt-pr-labels: 'do-not-expire,missing-issue,unapproved-issue'
+          exempt-pr-labels: 'do-not-expire'
 
           # General configuration
-          operations-per-run: 100
-          remove-stale-when-updated: true
-
-      # The Linked Issue workflow adds stale and either missing-issue or
-      # unapproved-issue to a pull request that has no linked help wanted issue.
-      # This step gives such a pull request a shorter time to close.
-      #
-      # Both steps keep their progress in one cache entry of the stale action.
-      # A step that runs out of operations makes the other step skip the items
-      # it visited, until one of the steps completes a full pass.
-      - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e
-        with:
-          any-of-labels: 'missing-issue,unapproved-issue'
-          # This step never marks an issue, including one that a person
-          # labelled unapproved-issue by hand.
-          days-before-issue-stale: -1
-          days-before-issue-close: -1
-          # Both stale steps skip a pull request that carries do-not-expire. Such
-          # a pull request stays open and keeps its stale label.
-          exempt-pr-labels: 'do-not-expire'
-          # Activity on the pull request removes the stale label. Zero days puts
-          # the label back on the next run for as long as either label remains.
-          days-before-pr-stale: 0
-          days-before-pr-close: 7
-          # The Linked Issue workflow has already explained the label.
-          stale-pr-message: ''
-          close-pr-message: >
-            This pull request has been automatically closed because it is not linked
-            to an open issue that carries the `help wanted` label. See
-            https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue.
-            You may re-open it once it is linked to such an issue.
-          stale-pr-label: 'stale'
           operations-per-run: 100
           remove-stale-when-updated: true
