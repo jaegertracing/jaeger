@@ -13,6 +13,10 @@
 const DUPLICATE_LABEL_NAME = 'duplicate';
 const OVERRIDE_LABEL_NAME = 'allow-multiple-prs';
 const STALE_LABEL_NAME = 'stale';
+// A pull request with a flag label of the linked issue policy does not count
+// as the active pull request of its issue, because that policy closes it
+// unless it carries `do-not-expire`.
+const INACTIVE_LABEL_NAMES = [STALE_LABEL_NAME, 'missing-issue', 'unapproved-issue'];
 const COMMENT_REQUEST_CONCURRENCY = 10;
 
 const openPullRequestsQuery = `
@@ -57,7 +61,8 @@ function labelNames(labels) {
 }
 
 function isActivePR(pr) {
-  return (!pr.state || pr.state === 'OPEN') && !labelNames(pr.labels).includes(STALE_LABEL_NAME);
+  return (!pr.state || pr.state === 'OPEN') &&
+    !labelNames(pr.labels).some(name => INACTIVE_LABEL_NAMES.includes(name));
 }
 
 function primaryPR(pullRequests) {

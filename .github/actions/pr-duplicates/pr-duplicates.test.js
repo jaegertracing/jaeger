@@ -110,11 +110,13 @@ describe('processIssueLimitForPullRequest', () => {
     expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ issue_number: 20 }));
   });
 
-  test('does not let a stale PR block an active PR and clears its bot marker', async () => {
+  test.each([
+    'stale', 'missing-issue', 'unapproved-issue'
+  ])('does not let a PR labelled %s block an active PR and clears its bot marker', async inactiveLabelName => {
     const marker = issueLimitComment([{ issueNumber: 99, primaryNumber: 10 }]);
     const octokit = issueLimitOctokit({
       issues: [
-        makePR(10, '2026-01-01T00:00:00Z', ['stale']),
+        makePR(10, '2026-01-01T00:00:00Z', [inactiveLabelName]),
         makePR(20, '2026-01-02T00:00:00Z', ['duplicate'])
       ],
       comments: { 20: [{ id: 7, body: marker }] }

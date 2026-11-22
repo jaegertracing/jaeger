@@ -5,15 +5,19 @@
 
 /**
  * Apply the linked issue policy to the open pull requests of a repository
- * from a local machine. The workflow checks a pull request only when an event
+ * from a local machine. The workflow flags a pull request only when an event
  * touches it, so this script is how the policy reaches the pull requests that
  * were open before the workflow existed.
  *
- * The script reports what it would label and writes nothing unless --apply
- * is given.
+ * With --close-expired-pull-requests the script does what the scheduled run
+ * of the workflow does: it checks only the flagged pull requests and closes
+ * the ones that have been flagged for a week.
+ *
+ * The script reports what it would do and writes nothing unless --apply is
+ * given.
  *
  * Usage:
- *   GITHUB_TOKEN=$(gh auth token) node apply-pr-linked-issue-policy.js [--apply] [--pr <number>] [owner] [repo]
+ *   GITHUB_TOKEN=$(gh auth token) node apply-pr-linked-issue-policy.js [--apply] [--close-expired-pull-requests] [--pr <number>] [owner] [repo]
  */
 
 const { parseArgs } = require('node:util');
@@ -23,6 +27,7 @@ async function main() {
   const { values, positionals } = parseArgs({
     options: {
       apply: { type: 'boolean', default: false },
+      'close-expired-pull-requests': { type: 'boolean', default: false },
       pr: { type: 'string' }
     },
     allowPositionals: true
@@ -48,10 +53,12 @@ async function main() {
   console.log(`${dryRun ? 'Dry run of' : 'Applying'} the linked issue policy on ${owner}/${repo}\n`);
   const result = await processLinkedIssuePolicy(octokit, owner, repo, {
     pullRequestNumber: parseOptionalNumber(values.pr, '--pr'),
+    closeExpiredPullRequests: values['close-expired-pull-requests'],
     dryRun
   });
   console.log(`\nPRs that violate the policy: ${result.flaggedPullRequests.length}`);
   console.log(`PRs that now meet the policy: ${result.unflaggedPullRequests.length}`);
+  console.log(`PRs closed: ${result.closedPullRequests.length}`);
 }
 
 main().catch(error => {

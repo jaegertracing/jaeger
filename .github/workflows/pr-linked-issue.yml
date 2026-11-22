@@ -10,6 +10,10 @@ on:
     types: [opened, edited, reopened, labeled, unlabeled]
   issues:
     types: [labeled, unlabeled, closed, reopened]
+  schedule:
+    # Every day at 2:30 AM UTC, to close the pull requests that have been
+    # flagged for a week.
+    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       pullRequestNumber:
@@ -113,3 +117,23 @@ jobs:
           token: ${{ github.token }}
           pull-request-number: ${{ inputs.pullRequestNumber }}
           dry-run: ${{ inputs.dryRun || 'false' }}
+
+  # This job does not share the concurrency group of a pull request. A check
+  # that an event starts while this job runs can therefore write to the same
+  # pull request, and each of the two acts on the labels it read at its start.
+  close-expired-pull-requests:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      # A scheduled run checks out the default branch.
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Close the pull requests that have been flagged for a week
+        uses: ./.github/actions/pr-linked-issue
+        with:
+          token: ${{ github.token }}
+          close-expired-pull-requests: 'true'
