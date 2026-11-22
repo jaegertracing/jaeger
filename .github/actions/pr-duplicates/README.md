@@ -40,10 +40,7 @@ the workflow on the default branch, for the reason stated in the workflow file.
 The action reads GitHub's
 canonical `closingIssuesReferences` relationship and considers only linked issues
 in the same repository. An open PR with the `stale` label is inactive, matching
-the stale workflow's policy. So is an open PR with the `missing-issue` or
-`unapproved-issue` label, which the linked issue policy closes unless the PR
-carries `do-not-expire`. Drafts and PRs
-from maintainers remain active.
+the stale workflow's policy; drafts and PRs from maintainers remain active.
 
 For each linked issue, the oldest active PR (with PR number as the tie-breaker)
 is primary. Draft and reopened PRs keep their original creation time, so either
