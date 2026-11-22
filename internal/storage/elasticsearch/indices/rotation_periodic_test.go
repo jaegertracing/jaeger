@@ -69,6 +69,82 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 	}
 }
 
+func TestPeriodicRotation_MonthlyLayout(t *testing.T) {
+	r := NewPeriodicRotation(config.SpanIndexName, "2006-01", 24*time.Hour)
+	date := time.Date(2026, time.November, 15, 10, 0, 0, 0, time.UTC)
+	assert.Equal(t, "jaeger-span-2026-11", r.WriteTarget(date))
+
+	tests := []struct {
+		name     string
+		start    time.Time
+		end      time.Time
+		expected []string
+	}{
+		{
+			name:     "same month",
+			start:    time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC),
+			end:      date,
+			expected: []string{"jaeger-span-2026-11"},
+		},
+		{
+			name:  "spans a month boundary",
+			start: time.Date(2026, time.October, 20, 0, 0, 0, 0, time.UTC),
+			end:   date,
+			expected: []string{
+				"jaeger-span-2026-11",
+				"jaeger-span-2026-10",
+			},
+		},
+		{
+			name:  "spans several months",
+			start: time.Date(2026, time.August, 20, 10, 0, 0, 0, time.UTC),
+			end:   date,
+			expected: []string{
+				"jaeger-span-2026-11",
+				"jaeger-span-2026-10",
+				"jaeger-span-2026-09",
+				"jaeger-span-2026-08",
+			},
+		},
+		{
+			name:  "spans a year boundary",
+			start: time.Date(2025, time.December, 31, 23, 0, 0, 0, time.UTC),
+			end:   time.Date(2026, time.January, 1, 1, 0, 0, 0, time.UTC),
+			expected: []string{
+				"jaeger-span-2026-01",
+				"jaeger-span-2025-12",
+			},
+		},
+		{
+			name:  "does not skip a short month",
+			start: time.Date(2026, time.January, 31, 12, 0, 0, 0, time.UTC),
+			end:   time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC),
+			expected: []string{
+				"jaeger-span-2026-03",
+				"jaeger-span-2026-02",
+				"jaeger-span-2026-01",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, r.ReadTargets(tt.start, tt.end))
+		})
+	}
+}
+
+func TestPeriodicRotation_YearlyLayout(t *testing.T) {
+	r := NewPeriodicRotation(config.SpanIndexName, "2006", 24*time.Hour)
+	date := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t, "jaeger-span-2026", r.WriteTarget(date))
+
+	start := time.Date(2024, time.November, 30, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t,
+		[]string{"jaeger-span-2026", "jaeger-span-2025", "jaeger-span-2024"},
+		r.ReadTargets(start, date),
+	)
+}
+
 func TestPeriodicRotation_WriteOpType(t *testing.T) {
 	r := NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour)
 	assert.Equal(t, es.WriteOpIndex, r.WriteOpType())

@@ -1112,6 +1112,24 @@ func TestValidateRotationConfig_PeriodicFrequency(t *testing.T) {
 			}},
 		},
 		{
+			name: "monthly layout with default frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01"}),
+			}},
+		},
+		{
+			name: "yearly layout with default frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006"}),
+			}},
+		},
+		{
+			name: "monthly layout with hour frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01", RolloverFrequency: "hour"}),
+			}},
+		},
+		{
 			name: "hourly layout with hour frequency",
 			opts: IndexOptions{Rotation: RotationConfig{
 				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15", RolloverFrequency: "hour"}),
