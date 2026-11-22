@@ -71,10 +71,12 @@ jobs:
       - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e
         with:
           any-of-labels: 'missing-issue,unapproved-issue'
-          # This step never marks an issue, including one that a person
-          # labelled unapproved-issue by hand.
+          # unapproved-issue reads as a description of an issue, so a person may
+          # apply it to one by hand. This step does not mark or close such an
+          # issue, and does not remove its stale label.
           days-before-issue-stale: -1
           days-before-issue-close: -1
+          remove-issue-stale-when-updated: false
           # Both stale steps skip a pull request that carries do-not-expire. Such
           # a pull request stays open and keeps its stale label.
           exempt-pr-labels: 'do-not-expire'
