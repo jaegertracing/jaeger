@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
@@ -112,6 +113,28 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
+			name: "monthly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006-01",
+					RolloverFrequency: "month",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006",
+					RolloverFrequency: "year",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
 			name: "data stream derives its name from the index prefix",
 			rc: config.RotationConfig{
 				DataStream: configoptional.Some(config.DataStreamRotation{}),
@@ -135,6 +158,68 @@ func TestBuildRotation(t *testing.T) {
 			r := BuildRotation(tt.indexPrefix, config.SpanIndexName, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
+		})
+	}
+}
+
+func TestBuildRotationPeriodicReadsEveryIndexOfTheRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		rotation  config.PeriodicRotation
+		start     time.Time
+		end       time.Time
+		wantStep  time.Duration
+		wantReads []string
+	}{
+		{
+			name:     "monthly indices across February of a common year",
+			rotation: config.PeriodicRotation{DateLayout: "2006-01", RolloverFrequency: "month"},
+			start:    time.Date(2023, time.January, 31, 12, 0, 0, 0, time.UTC),
+			end:      time.Date(2023, time.March, 31, 12, 0, 0, 0, time.UTC),
+			wantStep: 28 * 24 * time.Hour,
+			wantReads: []string{
+				"jaeger-span-2023-03",
+				"jaeger-span-2023-02",
+				"jaeger-span-2023-01",
+			},
+		},
+		{
+			name:     "monthly indices across a year boundary",
+			rotation: config.PeriodicRotation{DateLayout: "2006-01", RolloverFrequency: "month"},
+			start:    time.Date(2023, time.November, 1, 0, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, time.February, 29, 23, 0, 0, 0, time.UTC),
+			wantStep: 28 * 24 * time.Hour,
+			wantReads: []string{
+				"jaeger-span-2024-02",
+				"jaeger-span-2024-01",
+				"jaeger-span-2023-12",
+				"jaeger-span-2023-11",
+			},
+		},
+		{
+			name:     "yearly indices across leap years",
+			rotation: config.PeriodicRotation{DateLayout: "2006", RolloverFrequency: "year"},
+			start:    time.Date(2020, time.December, 31, 23, 0, 0, 0, time.UTC),
+			end:      time.Date(2024, time.January, 1, 1, 0, 0, 0, time.UTC),
+			wantStep: 365 * 24 * time.Hour,
+			wantReads: []string{
+				"jaeger-span-2024",
+				"jaeger-span-2023",
+				"jaeger-span-2022",
+				"jaeger-span-2021",
+				"jaeger-span-2020",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := config.RotationConfig{Periodic: configoptional.Some(tt.rotation)}
+			r := BuildRotation("", config.SpanIndexName, rc, nil, zap.NewNop())
+			assert.Equal(t, tt.wantReads, r.ReadTargets(tt.start, tt.end))
+
+			periodic, ok := r.(*PeriodicRotation)
+			require.True(t, ok)
+			assert.Equal(t, -tt.wantStep, periodic.rolloverFrequency)
 		})
 	}
 }
