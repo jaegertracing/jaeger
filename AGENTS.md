@@ -19,7 +19,7 @@ Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in
 
 ## Pull Requests
 
-- **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work. Speculative refactors and unsolicited feature work are not accepted.
+- **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work and carries the `help wanted` label. A PR without one is labelled `missing-issue` or `unapproved-issue` and closed automatically (see [Link each pull request to an issue](./CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue)). Speculative refactors and unsolicited feature work are not accepted.
 - **Stay inside the issue's scope:** Implement only what the issue describes. If you discover related problems, mention them in the PR description or open a separate issue rather than fixing them in the same PR.
 - **One issue, one PR:** Do not bundle multiple issues into a single PR.
 - **No PR for chores already handled by automation:** Dependency bumps managed by Dependabot and similar housekeeping are handled automatically. Do not open PRs that duplicate that work.

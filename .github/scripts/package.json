@@ -42,6 +42,7 @@
     "collectCoverageFrom": [
       "actions/pr-quota-manager/pr-quota-manager.js",
       "actions/pr-duplicates/pr-duplicates.js",
+      "actions/pr-linked-issue/pr-linked-issue.js",
       "scripts/ci-summary-report-publish.js"
     ]
   }

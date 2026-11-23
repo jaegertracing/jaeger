@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"text/template"
 	"time"
 
@@ -27,6 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
+// localTableSuffix is the suffix of the name of a storage table under the distributed layout.
+const localTableSuffix = "_local"
+
 var (
 	_ io.Closer                  = (*Factory)(nil)
 	_ depstore.Factory           = (*Factory)(nil)
@@ -35,7 +39,8 @@ var (
 	_ storage.Purger             = (*Factory)(nil)
 )
 
-// schemaTemplateParams is what the CREATE TABLE templates under sql/ are rendered with.
+// schemaTemplateParams is what the CREATE TABLE and materialized-view templates under
+// sql/ are rendered with.
 type schemaTemplateParams struct {
 	// TTLSeconds is the retention of spans and trace_id_timestamps; zero renders no TTL clause.
 	TTLSeconds int64
@@ -46,6 +51,10 @@ type schemaTemplateParams struct {
 	AggregatingMergeTree string
 	// HoistedColumns holds the column definitions of the hoisted attributes of the spans table.
 	HoistedColumns []string
+	// LocalTableSuffix is "_local" under the distributed layout (table_engine.cluster
+	// set), "" otherwise. The tables and the views take it in every table name, so that
+	// the views attach to the storage tables.
+	LocalTableSuffix string
 	// layout is the layout of the typed attribute groups of the spans table. The templates
 	// reach it through the methods below.
 	layout chtracestore.AttributeLayout
@@ -70,6 +79,21 @@ func (p schemaTemplateParams) KeysFn(level expression.Level, attributeType chtra
 	return p.layout.KeysSQL(group), nil
 }
 
+// distributedTableParams is what create_distributed_table.sql is rendered with, once per
+// public name in the schema, under the distributed layout.
+type distributedTableParams struct {
+	// Table is the public name.
+	Table string
+	// LocalTable is the storage table that Table forwards to, Table with the schema's
+	// "_local" suffix.
+	LocalTable string
+	// Cluster is table_engine.cluster.name.
+	Cluster string
+	// ShardingKey is the expression Distributed(...) shards inserts by, or "" for a table
+	// whose rows don't belong to one trace or one point in time, which needs none.
+	ShardingKey string
+}
+
 type schemaStatement struct {
 	name  string
 	query string
@@ -80,7 +104,7 @@ type schemaBuilder struct {
 }
 
 // newSchemaBuilder renders the statements that create the schema, for the attribute layout
-// and the hoisted columns that the factory resolved from cfg.
+// and the hoisted columns that the factory resolved from cfg, and cfg's own TableEngine.
 func newSchemaBuilder(
 	cfg Configuration,
 	layout chtracestore.AttributeLayout,
@@ -94,11 +118,20 @@ func newSchemaBuilder(
 	if err != nil {
 		return nil, err
 	}
+	cluster, err := cfg.TableEngine.clusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	suffix := ""
+	if cluster != nil {
+		suffix = localTableSuffix
+	}
 	params := schemaTemplateParams{
 		layout:               layout,
 		TTLSeconds:           int64(cfg.TTL / time.Second),
 		MergeTree:            mergeTree,
 		AggregatingMergeTree: aggregatingMergeTree,
+		LocalTableSuffix:     suffix,
 	}
 	for _, column := range hoistedColumns {
 		params.HoistedColumns = append(params.HoistedColumns, column.Definition())
@@ -106,22 +139,30 @@ func newSchemaBuilder(
 	// Every statement is rendered as a template, and one without template actions renders
 	// to itself. The materialized views carry no engine of their own, because each writes
 	// TO its target table.
+	//
+	// publicName is the name that the reader and the writers use for a table, such as
+	// spans; it is empty for a materialized view. When TableEngine.Cluster is set, query
+	// creates the storage table as <publicName>_local, and a Distributed table named
+	// publicName is created after it. shardingKey is set only for a table whose rows belong to one trace
+	// or one point in time.
 	schema := []struct {
-		name  string
-		query string
+		name        string
+		query       string
+		publicName  string
+		shardingKey string
 	}{
-		{"spans table", sql.CreateSpansTable},
-		{"services table", sql.CreateServicesTable},
-		{"services materialized view", sql.CreateServicesMaterializedView},
-		{"operations table", sql.CreateOperationsTable},
-		{"operations materialized view", sql.CreateOperationsMaterializedView},
-		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
-		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
-		{"attribute metadata table", sql.CreateAttributeMetadataTable},
-		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
-		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
-		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
-		{"dependencies table", sql.CreateDependenciesTable},
+		{"spans table", sql.CreateSpansTable, "spans", "cityHash64(trace_id)"},
+		{"services table", sql.CreateServicesTable, "services", ""},
+		{"services materialized view", sql.CreateServicesMaterializedView, "", ""},
+		{"operations table", sql.CreateOperationsTable, "operations", ""},
+		{"operations materialized view", sql.CreateOperationsMaterializedView, "", ""},
+		{"trace id timestamps table", sql.CreateTraceIDTimestampsTable, "trace_id_timestamps", "cityHash64(trace_id)"},
+		{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView, "", ""},
+		{"attribute metadata table", sql.CreateAttributeMetadataTable, "attribute_metadata", ""},
+		{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView, "", ""},
+		{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView, "", ""},
+		{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView, "", ""},
+		{"dependencies table", sql.CreateDependenciesTable, "dependencies", "cityHash64(timestamp)"},
 	}
 	builder := &schemaBuilder{}
 	for _, s := range schema {
@@ -130,6 +171,19 @@ func newSchemaBuilder(
 			return nil, err
 		}
 		builder.statements = append(builder.statements, schemaStatement{name: s.name, query: query})
+		if cluster != nil && s.publicName != "" {
+			name := strings.TrimSuffix(s.name, "table") + "distributed table"
+			distributedQuery, err := loadTemplate(name, sql.CreateDistributedTable, distributedTableParams{
+				Table:       s.publicName,
+				LocalTable:  s.publicName + suffix,
+				Cluster:     cluster.Name,
+				ShardingKey: s.shardingKey,
+			})
+			if err != nil {
+				return nil, err
+			}
+			builder.statements = append(builder.statements, schemaStatement{name: name, query: distributedQuery})
+		}
 	}
 	return builder, nil
 }
@@ -166,6 +220,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	}
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
+		if cfg.TableEngine.Cluster.HasValue() && cfg.TableEngine.MergeTree.HasValue() {
+			telset.Logger.Warn("table_engine.cluster is set with merge_tree: the data has no second copy, " +
+				"and a node that is down affects every shard, not only its own (RFC 0022 §6.8)")
+		}
 		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
 		if err != nil {
 			return nil, err

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -170,8 +171,9 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.extraSelector can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
-				requestParams.Quantile,
+				// Keep the quantile unrounded: %.2f turns 0.999 into 1.00.
+				`histogram_quantile(%s, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
+				strconv.FormatFloat(requestParams.Quantile, 'f', -1, 64),
 				m.latencyMetricName,
 				p.serviceFilter,
 				p.extraSelector,

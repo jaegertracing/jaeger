@@ -4,6 +4,7 @@
 package sqlquery
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -179,6 +180,70 @@ func TestCompileFilters(t *testing.T) {
 				p.Span().StatusMessage.Eq("exact (text)"),
 				p.Span().Attr("http.method").Matches(`(?i)^get$`),
 				p.Not(p.Span().Name.Matches(`(?i)^[\s\S]*Health[\s\S]*$`)),
+			),
+		},
+		{
+			name: "not like on a built-in field that can be absent holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND parent_span_id NOT LIKE 'abc%'
+					AND trace_state NOT ILIKE 'k=%'
+					AND status_message NOT LIKE 'ok'
+					AND scope_name NOT LIKE 'io.%'
+					AND scope_version NOT LIKE '1.%'
+					AND name NOT LIKE '%health'
+					AND service NOT LIKE 'probe%'`,
+			want: p.And(
+				p.Span().ParentSpanID.Exists(),
+				p.Not(p.Span().ParentSpanID.Matches(`^abc[\s\S]*$`)),
+				p.Span().TraceState.Exists(),
+				p.Not(p.Span().TraceState.Matches(`(?i)^k=[\s\S]*$`)),
+				p.Span().StatusMessage.Ne("ok"),
+				p.Scope().Name.Exists(),
+				p.Not(p.Scope().Name.Matches(`^io\.[\s\S]*$`)),
+				p.Scope().Version.Exists(),
+				p.Not(p.Scope().Version.Matches(`^1\.[\s\S]*$`)),
+				p.Not(p.Span().Name.Matches(`^[\s\S]*health$`)),
+				p.Not(p.Resource().Service.Matches(`^probe[\s\S]*$`)),
+			),
+		},
+		{
+			name: "not like on the trace state of a link holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.trace_state NOT LIKE 'k=%'
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.And(
+					p.Link().TraceState.Exists(),
+					p.Not(p.Link().TraceState.Matches(`^k=[\s\S]*$`)),
+				),
+			),
+		},
+		{
+			name: "not like and not ilike on an attribute hold only where it is present",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['http.method'] NOT LIKE 'PO%'
+					AND attributes['http.route'] NOT ILIKE '%/health'
+					AND resource_attributes['env'] NOT LIKE 'prod'`,
+			want: p.And(
+				p.Span().Attr("http.method").Exists(),
+				p.Not(p.Span().Attr("http.method").Matches(`^PO[\s\S]*$`)),
+				p.Span().Attr("http.route").Exists(),
+				p.Not(p.Span().Attr("http.route").Matches(`(?i)^[\s\S]*/health$`)),
+				p.Resource().Attr("env").Ne("prod"),
 			),
 		},
 		{
@@ -715,6 +780,16 @@ func TestRefusals(t *testing.T) {
 				FROM spans
 				WHERE start_time >= 'a'
 					AND`,
+			at:   "",
+			want: "The statement did not parse as SQL",
+		},
+		{
+			name: "order by cut off after AS",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY duration AS`,
 			at:   "",
 			want: "The statement did not parse as SQL",
 		},
@@ -2572,6 +2647,28 @@ func TestRefusals(t *testing.T) {
 			assert.Equal(t, column, refusal.Column, err.Error())
 		})
 	}
+}
+
+func TestStatementLength(t *testing.T) {
+	nested := func(depth int) string {
+		return "SELECT DISTINCT trace_id FROM spans WHERE between(start_time, now() - '1h', now()) AND " +
+			strings.Repeat("(", depth) + "name = 'x'" + strings.Repeat(")", depth)
+	}
+
+	atLimit := nested(10)
+	atLimit += strings.Repeat(" ", maxStatementBytes-len(atLimit))
+	_, err := Compile(atLimit, now)
+	require.NoError(t, err)
+
+	tooLong := nested(maxStatementBytes)
+	_, err = Compile(tooLong, now)
+	var refusal *Error
+	require.ErrorAs(t, err, &refusal)
+	assert.Equal(t, fmt.Sprintf("the statement is %d bytes long", len(tooLong)), refusal.Message)
+	assert.Contains(t, refusal.Hint, "RFC 0019 §8")
+	line, column := lineColumn(tooLong, maxStatementBytes)
+	assert.Equal(t, line, refusal.Line)
+	assert.Equal(t, column, refusal.Column)
 }
 
 // lineColumn converts a byte offset into the 1-based line and column the error reports.
