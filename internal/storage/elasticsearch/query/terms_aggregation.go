@@ -3,15 +3,32 @@
 
 package query
 
+// ExecutionHint selects the term-lookup strategy a terms aggregation uses.
+// It renders to the "execution_hint" string Elasticsearch/OpenSearch expect.
+type ExecutionHint string
+
+const (
+	// ExecutionHintGlobalOrdinals is the default: the aggregation builds global
+	// ordinals for the field, which is fast for repeated aggregations over a
+	// stable index but has to rebuild them whenever the index opens a new
+	// reader.
+	ExecutionHintGlobalOrdinals ExecutionHint = "global_ordinals"
+	// ExecutionHintMap builds a term map instead of global ordinals. It costs
+	// more per aggregation but never touches the global ordinals cache, so it
+	// avoids the rebuild cost on indices that refresh often.
+	ExecutionHintMap ExecutionHint = "map"
+)
+
 // TermsAggregation buckets documents by the distinct values of a field. It
 // renders to {"terms": {"field": field, ...}} — optionally with a bucket "order"
 // and sibling "aggregations" (sub-aggregations) — matching the shape the storage
 // layer previously produced.
 type TermsAggregation struct {
-	field   string
-	size    uint64
-	order   []map[string]string
-	subAggs map[string]Aggregation
+	field         string
+	size          uint64
+	order         []map[string]string
+	executionHint ExecutionHint
+	subAggs       map[string]Aggregation
 }
 
 // NewTermsAggregation creates a TermsAggregation on the given field.
@@ -30,6 +47,14 @@ func (a *TermsAggregation) Size(size uint64) *TermsAggregation {
 // as an array.
 func (a *TermsAggregation) Order(name string, direction SortDirection) *TermsAggregation {
 	a.order = append(a.order, map[string]string{name: string(direction)})
+	return a
+}
+
+// ExecutionHint selects the term-lookup strategy for this aggregation. When
+// unset the aggregation leaves the field unset, which lets Elasticsearch or
+// OpenSearch apply its own default.
+func (a *TermsAggregation) ExecutionHint(hint ExecutionHint) *TermsAggregation {
+	a.executionHint = hint
 	return a
 }
 
@@ -53,6 +78,9 @@ func (a *TermsAggregation) Source() (any, error) {
 			order[i] = o
 		}
 		terms["order"] = order
+	}
+	if a.executionHint != "" {
+		terms["execution_hint"] = string(a.executionHint)
 	}
 	result := map[string]any{"terms": terms}
 	aggs, err := subAggregationsSource(a.subAggs)

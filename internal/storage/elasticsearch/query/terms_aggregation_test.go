@@ -26,3 +26,32 @@ func TestTermsAggregationOmitsUnsetSize(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"terms":{"field":"operationName"}}`, string(b))
 }
+
+func TestTermsAggregationExecutionHint(t *testing.T) {
+	src, err := NewTermsAggregation("traceID").
+		Size(10).
+		ExecutionHint(ExecutionHintMap).
+		Source()
+	require.NoError(t, err)
+	b, err := json.Marshal(src)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"terms":{"field":"traceID","size":10,"execution_hint":"map"}}`, string(b))
+}
+
+func TestTermsAggregationExecutionHintGlobalOrdinals(t *testing.T) {
+	src, err := NewTermsAggregation("traceID").
+		ExecutionHint(ExecutionHintGlobalOrdinals).
+		Source()
+	require.NoError(t, err)
+	b, err := json.Marshal(src)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"terms":{"field":"traceID","execution_hint":"global_ordinals"}}`, string(b))
+}
+
+func TestTermsAggregationOmitsUnsetExecutionHint(t *testing.T) {
+	src, err := NewTermsAggregation("traceID").Source()
+	require.NoError(t, err)
+	b, err := json.Marshal(src)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"terms":{"field":"traceID"}}`, string(b))
+}
