@@ -876,11 +876,45 @@ func TestGetDependencies(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, newDeps2, 2)
 	emptyDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
-		StartTime: span1StartTime.Add(-4 * time.Second),
-		EndTime:   span1StartTime.Add(5 * time.Second),
+		StartTime: span1StartTime.Add(-3 * time.Second),
+		EndTime:   span1StartTime.Add(4 * time.Second),
 	})
 	require.NoError(t, err)
 	assert.Empty(t, emptyDeps)
+}
+
+func TestGetDependencies_InclusiveBounds(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traceId := fromString(t, "00000000000000010000000000000000")
+	start := time.Now()
+	end := start.Add(5 * time.Second)
+	td := ptrace.NewTraces()
+	parentRS := td.ResourceSpans().AppendEmpty()
+	parentRS.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "service-parent")
+	parent := parentRS.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	parent.SetTraceID(traceId)
+	parent.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	parent.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	parent.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+	childRS := td.ResourceSpans().AppendEmpty()
+	childRS.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "service-child")
+	child := childRS.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	child.SetTraceID(traceId)
+	child.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	child.SetParentSpanID(spanIdFromString(t, "0000000000000001"))
+	child.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	child.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+
+	want := []model.DependencyLink{{Parent: "service-parent", Child: "service-child", CallCount: 1}}
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{StartTime: start, EndTime: end})
+	require.NoError(t, err)
+	assert.Equal(t, want, deps)
+
+	deps, err = store.GetDependencies(context.Background(), depstore.QueryParameters{StartTime: start})
+	require.NoError(t, err)
+	assert.Equal(t, want, deps)
 }
 
 func TestGetDependencies_SameService(t *testing.T) {
