@@ -154,9 +154,41 @@ SELECT mutation_id, parts_to_do, is_done FROM system.mutations WHERE database = 
 
 The backend never starts this mutation itself.
 
+#### Hoisted attributes in the Distributed layout
+
+With a `table_engine.cluster` block, `spans` is a `Distributed` table and the rows are stored in `spans_local` on each shard. A search on a hoisted attribute goes to the `Distributed` table, which forwards it to `spans_local`, so both tables need the column on every node. The statements above name only `spans`. If only `spans` has the column, every search on the attribute fails on the shards with `UNKNOWN_IDENTIFIER` (code 47).
+
+When `spans` is a `Distributed` table, the startup check therefore reads the column from both `spans_local` and `spans`, and its error gives an `ALTER TABLE` statement for each table that lacks the column. The check reads both tables on the server it connects to, not on every shard. The check finds the storage table by the name `spans_local` on that server. If the server has no table of that name, because an operator created the storage table under another name or the server holds only the `Distributed` table, the check reads `spans` alone. In both cases the check cannot see the storage table, so a storage table without the column lets the backend start, and every search on the attribute fails.
+
+The operator adds the column to both tables with the same definition:
+
+```sql
+ALTER TABLE spans_local ADD COLUMN IF NOT EXISTS input_tokens Nullable(Int64)
+    MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'),
+                    int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')],
+                    NULL)
+    CODEC(ZSTD(3));
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_tokens Nullable(Int64)
+    MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'),
+                    int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')],
+                    NULL)
+    CODEC(ZSTD(3));
+```
+
+How a statement reaches every node depends on the database. A `Replicated` database executes a statement that one node receives on all of its nodes, and it rejects `ON CLUSTER` (code 80), so the operator sends each statement as written to one node. An `Atomic` database delivers nothing, so the operator adds `ON CLUSTER my_cluster` after the table name, which executes the statement on every node of the cluster.
+
+The mutation that stores the column in existing parts runs on `spans_local` only, because a `Distributed` table stores no parts and rejects a mutation with `NOT_IMPLEMENTED` (code 48). It reaches the nodes the same way as the statements above. Each node records its own mutation, so the progress query reads `system.mutations` on all of them:
+
+```sql
+ALTER TABLE spans_local MATERIALIZE COLUMN input_tokens;
+SELECT hostName(), mutation_id, parts_to_do, is_done FROM clusterAllReplicas('my_cluster', system.mutations) WHERE database = currentDatabase() AND table = 'spans_local' AND NOT is_done;
+```
+
 #### Removing or changing a hoisted attribute
 
 Removing an entry from the configuration makes searches use the typed groups again. The column stays in the table until the operator drops it, and the drop comes after every Jaeger instance whose configuration lists the entry has restarted without it. An instance checks its columns only at startup, so one that still runs with the entry keeps searching the column, and its searches for that attribute fail once the column is gone.
+
+In the Distributed layout the operator drops the column from both `spans` and `spans_local`.
 
 Changing the key, level, type or codec of an entry is a schema change, and the startup check refuses a column that does not match its entry. A running instance does not repeat the check, so the steps go in this order:
 

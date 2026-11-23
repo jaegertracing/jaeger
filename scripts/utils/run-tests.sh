@@ -15,6 +15,7 @@ TEST_FILES=(
     "$REPO_ROOT/scripts/release/release.test.sh"
     "$REPO_ROOT/scripts/release/verify-published.test.sh"
     "$REPO_ROOT/scripts/ai-sidecar/goose/goose-without-extensions.test.sh"
+    "$REPO_ROOT/examples/hotrod/kubernetes/deploy.test.sh"
     "$REPO_ROOT/examples/otel-demo/deploy-all.test.sh"
     "$REPO_ROOT/examples/otel-demo/jaeger-values.test.sh"
     "$REPO_ROOT/examples/otel-demo/opensearch-expand-volume.test.sh"

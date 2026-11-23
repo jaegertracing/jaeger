@@ -614,8 +614,9 @@ func TestNewFactory_SpansTableMissing(t *testing.T) {
 	require.ErrorContains(t, err, "the spans table does not exist")
 }
 
-// hoistedColumnServer is a test server whose spans table declares every hoisted column as
-// state, and which records the queries it receives.
+// hoistedColumnServer is a test server that has a spans table and no spans_local table. Its
+// spans table declares every hoisted column as state, and the server records the queries it
+// receives.
 func hoistedColumnServer(t *testing.T, state hoistedColumnState) (srv *httptest.Server, queries *[]string) {
 	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(fakeServer.Close)
@@ -623,18 +624,24 @@ func hoistedColumnServer(t *testing.T, state hoistedColumnState) (srv *httptest.
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		*queries = append(*queries, string(body))
-		if !strings.Contains(string(body), "same_expression") {
+		block := chproto.NewBlock()
+		switch {
+		case strings.Contains(string(body), "same_expression"):
+			block.AddColumn("type", "String")
+			block.AddColumn("default_kind", "String")
+			block.AddColumn("default_expression", "String")
+			block.AddColumn("compression_codec", "String")
+			block.AddColumn("same_expression", "UInt8")
+			block.Append(state.Type, state.Kind, state.Expression, state.Codec, state.SameExpression)
+		case strings.Contains(string(body), "FROM system.tables"):
+			block.AddColumn("name", "String")
+			block.AddColumn("engine", "String")
+			block.Append("spans", "MergeTree")
+		default:
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			fakeServer.Config.Handler.ServeHTTP(w, r)
 			return
 		}
-		block := chproto.NewBlock()
-		block.AddColumn("type", "String")
-		block.AddColumn("default_kind", "String")
-		block.AddColumn("default_expression", "String")
-		block.AddColumn("compression_codec", "String")
-		block.AddColumn("same_expression", "UInt8")
-		block.Append(state.Type, state.Kind, state.Expression, state.Codec, state.SameExpression)
 		var buf proto.Buffer
 		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
 		w.Header().Set("Content-Type", "application/octet-stream")

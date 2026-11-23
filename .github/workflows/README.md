@@ -150,6 +150,7 @@ The following workflows operate independently and are **not** part of the orches
 - **pr-changelog-label.yml** - Requires a `changelog:` label on every PR
 - **pr-author-quota.yml** - Labels the PRs that exceed their author's limit of open PRs
 - **pr-duplicates.yml** - Labels the PRs that duplicate an older PR linked to the same issue. Pull request and issue events dispatch the workflow on the default branch, and the dispatched run labels the duplicates
+- **pr-linked-issue.yml** - Adds either `missing-issue` or `unapproved-issue` to a PR from an outside contributor that has no linked open `help wanted` issue, and comments with the policy. Pull request and issue events dispatch the workflow on the default branch, once for each pull request to check. A daily run closes the PRs that still carry one of the two labels a week after that comment
 - **pr-waiting-for-author.yml** - Adds the `waiting-for-author` label when a maintainer comments in the PR conversation, and removes it when the author replies there or pushes anything other than a merge from the base branch
 - **dco_merge_group.yml** - DCO verification for merge groups
 
