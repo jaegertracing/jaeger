@@ -476,6 +476,31 @@ func TestFindSpans_Pagination(t *testing.T) {
 		require.ErrorIs(t, err, ErrPaginationDisabled)
 	})
 
+	t.Run("token from the reader withheld while the gate is disabled", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(paginating, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, mock.Anything).Return(spanPageWithToken("next-page"))
+		chunks, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(),
+			SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}))
+		require.NoError(t, err)
+		require.Len(t, chunks, 1)
+		assert.Equal(t, 1, chunks[0].Results.SpanCount(), "the spans still come back")
+		assert.Empty(t, chunks[0].NextPageToken, "the next request would refuse this token")
+	})
+
+	t.Run("token from the reader returned while the gate is enabled", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(paginating, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, mock.Anything).Return(spanPageWithToken("next-page"))
+		chunks, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(),
+			SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}))
+		require.NoError(t, err)
+		require.Len(t, chunks, 1)
+		assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
+	})
+
 	t.Run("token refused when the reader cannot paginate", func(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
@@ -492,6 +517,14 @@ func TestFindSpans_Pagination(t *testing.T) {
 		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: "opaque-cursor"})))
 		tqs.traceReader.AssertExpectations(t)
 	})
+}
+
+func spanPageWithToken(token tracestore.PageToken) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	traces := ptrace.NewTraces()
+	traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: traces, NextPageToken: token}, nil)
+	}
 }
 
 func emptySpanPage() iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {

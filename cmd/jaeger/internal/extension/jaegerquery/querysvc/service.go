@@ -215,7 +215,17 @@ func (qs QueryService) FindSpans(
 		}
 		spans := qs.traceReader.FindSpans(ctx, readerQuery)
 		spansIter := qs.interceptSpanResults(ctx, spans)
-		spansIter(yield)
+		if PaginationGate.IsEnabled() {
+			spansIter(yield)
+			return
+		}
+		// With the gate disabled, the next request would refuse the token, so none is returned.
+		for chunk, err := range spansIter {
+			chunk.NextPageToken = ""
+			if !yield(chunk, err) {
+				return
+			}
+		}
 	}
 }
 

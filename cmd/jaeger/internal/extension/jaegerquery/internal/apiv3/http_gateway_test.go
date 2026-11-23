@@ -794,6 +794,7 @@ func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
 }
 
 func TestHTTPGatewayFindSpans(t *testing.T) {
+	enablePagination(t)
 	q, qp := mockFindSpansQuery()
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil

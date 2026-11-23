@@ -656,6 +656,7 @@ func TestFindSpans(t *testing.T) {
 // TestFindSpansPreservesNextPageToken pins that the page token on the final chunk reaches the
 // caller unchanged; the handler does not read or interpret it.
 func TestFindSpansPreservesNextPageToken(t *testing.T) {
+	enablePagination(t)
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
 	reader.On("FindSpans", mock.Anything, mock.Anything).
@@ -958,6 +959,17 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 // held; a test needs it only when it dispatches far enough to reach that check.
 func enableStructuredFilters(t *testing.T) {
 	gate := querysvc.StructuredFiltersGate
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+}
+
+// enablePagination turns the pagination feature gate on for one test and restores it afterwards.
+// The query service returns a reader's continuation token only while the gate is enabled.
+func enablePagination(t *testing.T) {
+	gate := querysvc.PaginationGate
 	original := gate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
 	t.Cleanup(func() {
