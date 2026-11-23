@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // ReferenceType is the reference type of one span to another
@@ -168,11 +169,32 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	SearchDepth   int
+	SearchDepth   uint32
 	// Filter is the structured query filter (RFC 0005), which carries the same kinds of
 	// predicate as the fields above and is mutually exclusive with them. It is the storage
 	// API's own expression tree rather than a translation of it, because the tree is what the
 	// reader lowers into the Elasticsearch query and a second encoding of it would earn
 	// nothing.
 	Filter *expression.Call
+}
+
+// SpanQueryParameters contains parameters of a span search (RFC 0016). Filter and OrderBy are
+// the entities from the storage API that the reader lowers into the Elasticsearch query.
+// OrderBy holds the terms the caller asked the results to be ordered by in priority order.
+// Cursor is a continuation the reader returned in SpanPage.NextCursor; nil starts from the beginning.
+type SpanQueryParameters struct {
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	Filter       *expression.Call
+	OrderBy      []tracestore.SpanSortOrder
+	PageSize     int
+	Cursor       []byte
+}
+
+// SpanPage is one page of a span search.
+// NextCursor is a cursor that can be used to request additional pages of results when they exist,
+// and is empty when the page is the last one.
+type SpanPage struct {
+	Spans      []Span
+	NextCursor []byte
 }

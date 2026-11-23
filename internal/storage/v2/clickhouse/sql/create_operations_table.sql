@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS
-    operations (
+    operations{{ .LocalTableSuffix }} (
         service_name String,
         name String,
         span_kind String
-    ) ENGINE = AggregatingMergeTree
+    ) ENGINE = {{ .AggregatingMergeTree }}
 ORDER BY
     (service_name, span_kind);

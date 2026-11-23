@@ -21,7 +21,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -75,18 +74,21 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
-// structuredFilterGates names the RFC 0005 filter gate. It is beta and on by default, and it is
-// still passed explicitly so that the suites whose searches carry a filter, the filter battery and the
-// rewrite test, do not depend on the default and keep working against a binary that pins it off.
-var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+var paginationGates = []string{querysvc.PaginationGate.ID()}
 
-// elasticsearchFilterGates are the gates the Elasticsearch and OpenSearch e2e suites run with:
-// the structured filter, plus typed attribute indexing (RFC 0015), which adds the numeric sub-field
-// that the battery's ordering case ranges over.
-var elasticsearchFilterGates = []string{
-	querysvc.StructuredFiltersGate.ID(),
-	esclient.TypedAttributeIndexingGate.ID(),
-}
+// numericAttributesEnvVar is the environment variable the Elasticsearch and OpenSearch e2e
+// configuration files read indices.spans.numeric_attributes from. It defaults to on there, so
+// the ordinary suites range over the numeric sub-field; the backward-compatibility scenarios set
+// it to describe the deployment each one stands for.
+const numericAttributesEnvVar = "ES_NUMERIC_ATTRIBUTES"
+
+// searchGates enables the RFC 0005 filter gate and the RFC 0014 pagination gate, for a suite
+// whose backend declares both the filter and pagination capabilities. The filter gate is beta
+// and on by default, and it is still passed explicitly so that the suites whose searches carry a
+// filter, the filter battery and the rewrite test, do not depend on the default and keep working
+// against a binary that pins it off. The pagination gate is off by default, and the pagination
+// and span ordering tests need it on, because they send page tokens through the query service.
+var searchGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything
@@ -127,6 +129,8 @@ func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool))
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	// API v3 has no FindTraceIDs endpoint.
+	s.Capabilities = s.Capabilities.WithoutTraceIDPagination()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"

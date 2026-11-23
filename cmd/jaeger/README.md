@@ -12,3 +12,10 @@ Read the [blog post](https://medium.com/jaegertracing/towards-jaeger-v2-moar-ope
   * `JAEGER_VERSION=2.0.0 HOTROD_VERSION=1.63.0 docker compose -f docker-compose.yml up`
 * Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
 * Shutdown / cleanup with `docker compose -f docker-compose.yml down`
+
+## Deploying with MCP
+
+The embedded all-in-one configuration serves an MCP endpoint for AI agents on
+the query HTTP port, without TLS or authentication. Secure it before exposing
+it to remote clients, or leave the `mcp` block out of the configuration; see
+the [MCP server page](https://www.jaegertracing.io/docs/latest/ai/mcp-server/).

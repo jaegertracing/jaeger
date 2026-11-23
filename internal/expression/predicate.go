@@ -29,6 +29,7 @@ package expression
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -103,6 +104,14 @@ func (Predicate) Link() LinkLevel {
 	}
 }
 
+// RefOf wraps a reference term the caller already holds, for a compiler from another syntax
+// that resolves a name to a FieldRef or AttributeRef first and chooses the operator after. A
+// term that is not a reference builds a tree ValidateFilter refuses, which is the same answer
+// a hand-written tree gets.
+func (Predicate) RefOf(term ast.Expression) Ref {
+	return Ref{term}
+}
+
 // Attr names an attribute without saying which level it lives in, which a backend looks for at
 // the span and resource levels. It is the filter counterpart of the legacy attributes map.
 func (Predicate) Attr(name string) Ref {
@@ -157,10 +166,31 @@ func (Predicate) Compare(op ast.Operator, ref Ref, value any) *ast.Call {
 	return ref.compare(op, value)
 }
 
-// Text builds a constant to be matched as text, for the comparison that has to narrow the match
-// to the string-typed value where a Go string leaves the type open (RFC 0005 §5.4).
-func (Predicate) Text(value string) *ast.StringValue {
+// String builds a constant matched only against a string, for the comparison that has to narrow
+// the match where a Go string leaves the type open (RFC 0005 §5.4). Int, Double, Bool and Duration
+// narrow the match to the other scalar types the same way.
+func (Predicate) String(value string) *ast.StringValue {
 	return &ast.StringValue{Value: value}
+}
+
+// Int builds a constant matched only against an integer.
+func (Predicate) Int(value int64) *ast.IntValue {
+	return &ast.IntValue{Value: value}
+}
+
+// Double builds a constant matched only against a floating-point number.
+func (Predicate) Double(value float64) *ast.DoubleValue {
+	return &ast.DoubleValue{Value: value}
+}
+
+// Bool builds a constant matched only against a boolean.
+func (Predicate) Bool(value bool) *ast.BoolValue {
+	return &ast.BoolValue{Value: value}
+}
+
+// Duration builds a constant matched only against a duration.
+func (Predicate) Duration(value time.Duration) *ast.DurationValue {
+	return &ast.DurationValue{Value: value}
 }
 
 // List builds a list constant whose elements are all of a declared type, to pass to In or
@@ -250,12 +280,16 @@ func (l level) Field(name string) Ref {
 // The right-hand operand is any rather than a type parameter because Go does not allow type
 // parameters on methods, and a generic function would give up the chained form these methods
 // exist for. It is a real union in any case: a Go scalar, another Ref to compare two references,
-// or a term already built by Text or List. constant decides which node a Go value becomes, and
-// what a backend does with a value it cannot read is RFC 0005's question, not this package's —
-// nothing here type checks the query.
+// or a term already built by a typed constructor such as String or by List. constant decides
+// which node a Go value becomes, and what a backend does with a value it cannot read is RFC
+// 0005's question, not this package's — nothing here type checks the query.
 type Ref struct {
 	ref ast.Expression
 }
+
+// Term returns the reference itself, for a clause that lists references rather than predicates:
+// the projection of a span query, or an ordering.
+func (r Ref) Term() ast.Expression { return r.ref }
 
 func (r Ref) Eq(value any) *ast.Call  { return r.compare(ast.OpEq, value) }
 func (r Ref) Ne(value any) *ast.Call  { return r.compare(ast.OpNe, value) }
@@ -268,6 +302,14 @@ func (r Ref) Lte(value any) *ast.Call { return r.compare(ast.OpLte, value) }
 func (r Ref) Matches(pattern string) *ast.Call {
 	return r.compare(ast.OpRegex, pattern)
 }
+
+// Phrase builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning defined by the IDL for ast.OpPhrase.
+func (r Ref) Phrase(words ...string) *ast.Call { return r.textSearch(ast.OpPhrase, words) }
+
+// Fulltext builds a text search for the words in the attribute's value, one listed word per
+// argument, with the meaning defined by the IDL for ast.OpFulltext.
+func (r Ref) Fulltext(words ...string) *ast.Call { return r.textSearch(ast.OpFulltext, words) }
 
 // Exists builds a test that the reference has a value at all.
 func (r Ref) Exists() *ast.Call {
@@ -286,6 +328,10 @@ func (r Ref) compare(op ast.Operator, value any) *ast.Call {
 
 func (r Ref) member(op ast.Operator, values []any) *ast.Call {
 	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, listOf(values)}}
+}
+
+func (r Ref) textSearch(op ast.Operator, words []string) *ast.Call {
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, &ast.List{Values: words}}}
 }
 
 func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
@@ -307,7 +353,7 @@ func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
 }
 
 // operand reads the right-hand side of a comparison. Another reference or an already-built term is
-// compared as it stands, which is what lets a query compare two references and what Text uses to
+// compared as it stands, which is what lets a query compare two references and what String uses to
 // narrow a match to text.
 //
 // Everything else becomes an untyped constant, whatever its Go type. A declared type is
@@ -358,10 +404,23 @@ func render(value any) string {
 	case time.Time:
 		return term.Format(time.RFC3339Nano)
 	case float32:
-		return strconv.FormatFloat(float64(term), 'g', -1, 32)
+		return renderFloat(float64(term), 32)
 	case float64:
-		return strconv.FormatFloat(term, 'g', -1, 64)
+		return renderFloat(term, 64)
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+// renderFloat spells a non-finite number as the OTLP/JSON token — Infinity, -Infinity — that the
+// rest of the system uses on the wire and that a backend storing the value as text keeps, rather
+// than the +Inf and -Inf of strconv, which no backend stores. NaN is already spelled the same.
+func renderFloat(value float64, bitSize int) string {
+	if math.IsInf(value, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(value, -1) {
+		return "-Infinity"
+	}
+	return strconv.FormatFloat(value, 'g', -1, bitSize)
 }

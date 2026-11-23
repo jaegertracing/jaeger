@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 func TestValidate(t *testing.T) {
@@ -19,6 +20,15 @@ func TestValidate(t *testing.T) {
 		mutate  func(cfg *Configuration)
 		wantErr string
 	}{
+		{
+			name:   "map attribute layout",
+			mutate: func(cfg *Configuration) { cfg.AttributeLayout = "map" },
+		},
+		{
+			name:    "unknown attribute layout",
+			mutate:  func(cfg *Configuration) { cfg.AttributeLayout = "json" },
+			wantErr: `attribute_layout must be nested or map, not "json"`,
+		},
 		{
 			name:   "defaults with native protocol",
 			mutate: func(cfg *Configuration) { cfg.Protocol = "native" },
@@ -45,6 +55,13 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid hoisted attribute",
+			mutate: func(cfg *Configuration) {
+				cfg.HoistedAttributes = []HoistedAttribute{{Key: "k"}}
+			},
+			wantErr: "hoisted_attributes[0]",
+		},
+		{
 			name:    "unsupported protocol",
 			mutate:  func(cfg *Configuration) { cfg.Protocol = "grpc" },
 			wantErr: "Protocol",
@@ -65,9 +82,33 @@ func TestValidate(t *testing.T) {
 			wantErr: "default_search_depth must be a positive number",
 		},
 		{
-			name:    "negative max search depth",
-			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = -1 },
+			name:    "zero max search depth",
+			mutate:  func(cfg *Configuration) { cfg.MaxSearchDepth = 0 },
 			wantErr: "max_search_depth must be a positive number",
+		},
+		{
+			name: "default search depth exceeds max search depth",
+			mutate: func(cfg *Configuration) {
+				cfg.DefaultSearchDepth = 15000
+				cfg.MaxSearchDepth = 10000
+			},
+			wantErr: "default_search_depth cannot exceed max_search_depth",
+		},
+		{
+			name: "default search depth equals max search depth",
+			mutate: func(cfg *Configuration) {
+				cfg.DefaultSearchDepth = 10000
+				cfg.MaxSearchDepth = 10000
+			},
+		},
+		{
+			name:    "negative dial timeout",
+			mutate:  func(cfg *Configuration) { cfg.DialTimeout = -time.Second },
+			wantErr: "dial_timeout must be a non-negative duration",
+		},
+		{
+			name:   "positive dial timeout",
+			mutate: func(cfg *Configuration) { cfg.DialTimeout = 5 * time.Second },
 		},
 		{
 			name:    "negative attribute metadata cache TTL",
@@ -75,9 +116,151 @@ func TestValidate(t *testing.T) {
 			wantErr: "attribute_metadata_cache_ttl must be a non-negative duration",
 		},
 		{
+			name: "create_schema without table_engine",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+			},
+			wantErr: "`create_schema` requires `table_engine` with exactly one of `merge_tree` or `replicated`",
+		},
+		{
+			name: "create_schema with merge_tree",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			name: "create_schema with replicated and server defaults",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+			},
+		},
+		{
+			name: "create_schema with replicated keeper path and replica name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+					ReplicaName: "{replica}",
+				})
+			},
+		},
+		{
+			name: "table_engine not validated without create_schema",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = false
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{KeeperPath: "it's"})
+			},
+		},
+		{
+			name: "both table_engine variants",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+			},
+			wantErr: "`table_engine` must set only one of `merge_tree` or `replicated`",
+		},
+		{
+			name: "replicated keeper path without replica name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath: "/clickhouse/tables/{shard}/{database}/{table}",
+				})
+			},
+			wantErr: "`keeper_path` and `replica_name` together or neither",
+		},
+		{
+			name: "replicated keeper path with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/it's",
+					ReplicaName: "{replica}",
+				})
+			},
+			wantErr: "must not contain a single quote or a backslash",
+		},
+		{
+			name: "replicated replica name with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{
+					KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+					ReplicaName: `{replica}\`,
+				})
+			},
+			wantErr: "must not contain a single quote or a backslash",
+		},
+		{
 			name:    "negative attribute metadata cache size",
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
 			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
+		},
+		{
+			name: "replicated with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "merge_tree with cluster is accepted",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "cluster without a name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{})
+			},
+			wantErr: "`table_engine.cluster.name` is required when `table_engine.cluster` is set",
+		},
+		{
+			name: "cluster name with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "it's"})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "cluster name with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: `my\cluster`})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "database with a quote is fine without cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			// database is never quoted in a Distributed(...) statement: it renders as
+			// currentDatabase(), a constant expression ClickHouse resolves server-side.
+			name: "database with a quote is fine with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
 		},
 	}
 
@@ -97,13 +280,107 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestHoistedAttributes_Unmarshal(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"hoisted_attributes": []any{
+			map[string]any{
+				"key":    "gen_ai.usage.input_tokens",
+				"level":  "span",
+				"type":   "int",
+				"column": "input_tokens",
+				"codec":  "ZSTD(3)",
+			},
+		},
+	})
+	cfg := DefaultConfiguration()
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Equal(t, []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+			Codec:  "ZSTD(3)",
+		},
+	}, cfg.HoistedAttributes)
+}
+
+// TestTableEngine_Unmarshal checks that each variant is selected by its key the way the
+// collector's confmap unmarshals an optional block, including the empty merge_tree: {},
+// and that the two likely mistakes, an empty block and a misspelled key, are rejected.
+func TestTableEngine_Unmarshal(t *testing.T) {
+	tests := []struct {
+		name             string
+		yaml             map[string]any
+		want             TableEngine
+		wantUnmarshalErr string
+		wantValidateErr  string
+	}{
+		{
+			name: "merge_tree",
+			yaml: map[string]any{"merge_tree": map[string]any{}},
+			want: TableEngine{MergeTree: configoptional.Some(MergeTreeEngine{})},
+		},
+		{
+			name: "replicated with server defaults",
+			yaml: map[string]any{"replicated": map[string]any{}},
+			want: TableEngine{Replicated: configoptional.Some(ReplicatedEngine{})},
+		},
+		{
+			name: "replicated with arguments",
+			yaml: map[string]any{"replicated": map[string]any{
+				"keeper_path":  "/clickhouse/tables/{shard}/{database}/{table}",
+				"replica_name": "{replica}",
+			}},
+			want: TableEngine{Replicated: configoptional.Some(ReplicatedEngine{
+				KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+				ReplicaName: "{replica}",
+			})},
+		},
+		{
+			name:            "empty block",
+			yaml:            map[string]any{},
+			wantValidateErr: "`create_schema` requires `table_engine`",
+		},
+		{
+			name:             "unknown variant",
+			yaml:             map[string]any{"mergetree": map[string]any{}},
+			wantUnmarshalErr: "mergetree",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfiguration()
+			conf := confmap.NewFromStringMap(map[string]any{
+				"addresses":     []any{"localhost:9000"},
+				"create_schema": true,
+				"table_engine":  tt.yaml,
+			})
+			err := conf.Unmarshal(&cfg)
+			if tt.wantUnmarshalErr != "" {
+				require.ErrorContains(t, err, tt.wantUnmarshalErr)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, cfg.CreateSchema)
+			require.Equal(t, tt.want, cfg.TableEngine)
+			err = cfg.Validate()
+			if tt.wantValidateErr != "" {
+				require.ErrorContains(t, err, tt.wantValidateErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestDefaultConfiguration(t *testing.T) {
 	cfg := DefaultConfiguration()
 
 	require.Equal(t, defaultProtocol, cfg.Protocol)
 	require.Equal(t, defaultDatabase, cfg.Database)
-	require.Equal(t, defaultSearchDepth, cfg.DefaultSearchDepth)
-	require.Equal(t, defaultMaxSearchDepth, cfg.MaxSearchDepth)
+	require.EqualValues(t, defaultSearchDepth, cfg.DefaultSearchDepth)
+	require.EqualValues(t, defaultMaxSearchDepth, cfg.MaxSearchDepth)
 	require.Equal(t, defaultAttributeMetadataCacheTTL, cfg.AttributeMetadataCacheTTL)
 	require.Equal(t, defaultAttributeMetadataCacheMaxSize, cfg.AttributeMetadataCacheMaxSize)
 }

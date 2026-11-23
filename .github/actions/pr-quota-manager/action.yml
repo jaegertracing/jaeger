@@ -28,20 +28,14 @@ runs:
   steps:
     - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       env:
-        # The script stays in .github/scripts, where its dependencies, tests and
-        # manual-execution guide live. When this action is consumed from another
-        # repository the runner unpacks the whole repo tarball under
-        # github.action_path's parent, so the sibling path resolves there too.
-        QUOTA_SCRIPT: ${{ github.action_path }}/../../scripts/pr-quota-manager.js
-        # Passed through the environment rather than interpolated into the script
+        # Inputs pass through the environment rather than being interpolated into the script
         # body, so an author-controlled username cannot inject JavaScript.
         QUOTA_USERNAME: ${{ inputs.username }}
         QUOTA_DRY_RUN: ${{ inputs.dry-run }}
       with:
         github-token: ${{ inputs.token }}
         script: |
-          const handler = require(process.env.QUOTA_SCRIPT)
-          // For pull request events, use the PR author; a manual run passes the name in.
+          const handler = require('${{ github.action_path }}/pr-quota-manager.js')
           const username = context.payload.pull_request?.user?.login || process.env.QUOTA_USERNAME
           if (!username) {
             core.setFailed('Unable to determine username for quota processing. Aborting.')

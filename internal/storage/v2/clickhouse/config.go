@@ -5,12 +5,16 @@ package clickhouse
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
 const (
@@ -20,6 +24,7 @@ const (
 	defaultMaxSearchDepth                = 10000
 	defaultAttributeMetadataCacheTTL     = time.Hour
 	defaultAttributeMetadataCacheMaxSize = 1000
+	defaultAttributeLayout               = "nested"
 )
 
 type Configuration struct {
@@ -37,14 +42,19 @@ type Configuration struct {
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
+	// It requires TableEngine to name the engine family the tables are created with.
 	CreateSchema bool `mapstructure:"create_schema"`
+	// TableEngine selects the engine family for every table CreateSchema creates.
+	// Exactly one of its variants must be set when CreateSchema is true; the block is
+	// ignored otherwise, because the operator then owns the tables.
+	TableEngine TableEngine `mapstructure:"table_engine"`
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
-	DefaultSearchDepth int `mapstructure:"default_search_depth"`
+	DefaultSearchDepth uint32 `mapstructure:"default_search_depth"`
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
-	MaxSearchDepth int `mapstructure:"max_search_depth"`
+	MaxSearchDepth uint32 `mapstructure:"max_search_depth"`
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
@@ -56,10 +66,156 @@ type Configuration struct {
 	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
 	TTL time.Duration `mapstructure:"ttl"`
+	// HoistedAttributes lists the attributes that the spans table copies into dedicated
+	// MATERIALIZED columns. CreateSchema adds the columns to a table it creates; an existing
+	// table is not altered, so the operator adds the columns to it. An empty list leaves the
+	// schema as it is.
+	HoistedAttributes []HoistedAttribute `mapstructure:"hoisted_attributes"`
+	// AttributeLayout is how the spans table stores each typed attribute group: "nested", as
+	// Nested(key, value), or "map", as Map(String, T). The default is "nested". CreateSchema
+	// creates a table in this layout; an existing table is not converted, and the backend
+	// does not start on a table in the other layout.
+	AttributeLayout string `mapstructure:"attribute_layout"`
+}
+
+// attributeLayout returns the layout that AttributeLayout names. An empty value is the
+// default layout, as in a Configuration that was not built from DefaultConfiguration.
+func (cfg *Configuration) attributeLayout() (chtracestore.AttributeLayout, error) {
+	name := cfg.AttributeLayout
+	if name == "" {
+		name = defaultAttributeLayout
+	}
+	return chtracestore.AttributeLayoutByName(name)
+}
+
+// HoistedAttribute selects one attribute to copy into a column of its own. All fields except
+// Codec are required.
+type HoistedAttribute struct {
+	// Key is the attribute key. It is an opaque string, not a column name or an expression.
+	Key string `mapstructure:"key"`
+	// Level is where the attribute is stored: "span" or "resource".
+	Level string `mapstructure:"level"`
+	// Type is the stored type of the attribute: "string", "int", "double" or "bool". It selects
+	// the typed group to copy from and is not a conversion: a value stored under the same key
+	// with another type is not copied.
+	Type string `mapstructure:"type"`
+	// Column is the name of the dedicated column. It must match [a-z][a-z0-9_]* and must not
+	// be a column the spans table already has.
+	Column string `mapstructure:"column"`
+	// Codec is the compression codec of the column, in the form ZSTD(level) with a level from
+	// 1 through 22. The default is ZSTD(1).
+	Codec string `mapstructure:"codec"`
 }
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
+}
+
+// TableEngine selects the ClickHouse engine family for the tables the backend creates.
+// The backend knows which tables are `MergeTree` and which are `AggregatingMergeTree`, so the
+// choice here is only between the local engines and their Replicated counterparts.
+type TableEngine struct {
+	// MergeTree creates local tables, which hold data only on the server that received the
+	// insert. It is the right choice for a single-node server.
+	MergeTree configoptional.Optional[MergeTreeEngine] `mapstructure:"merge_tree"`
+	// Replicated creates `ReplicatedMergeTree` and `ReplicatedAggregatingMergeTree` tables, which
+	// keep every row on every replica of the shard. It is required on a cluster with more than
+	// one replica.
+	Replicated configoptional.Optional[ReplicatedEngine] `mapstructure:"replicated"`
+	// Cluster creates the schema as Distributed tables over a named ClickHouse cluster.
+	Cluster configoptional.Optional[ClusterConfig] `mapstructure:"cluster"`
+}
+
+// MergeTreeEngine has no parameters.
+type MergeTreeEngine struct{}
+
+// ReplicatedEngine carries the two arguments of a Replicated* engine. Both are optional,
+// but only together: when both are empty the engine is rendered without arguments and the
+// server's `default_replica_path` and `default_replica_name` settings apply, and setting one
+// without the other is a validation error. Both are passed to ClickHouse verbatim, so
+// server macros such as `{shard}`, `{replica}`, `{database}` and `{table}` are substituted by the
+// server.
+type ReplicatedEngine struct {
+	// KeeperPath is the path in ClickHouse Keeper under which the table's replication
+	// metadata is kept. The same template is used for every table in the schema, so it
+	// must contain the `{table}` macro, or another expansion distinct per table, because
+	// ClickHouse refuses two tables under one path.
+	KeeperPath string `mapstructure:"keeper_path"`
+	// ReplicaName identifies this replica under KeeperPath. The same value is used for
+	// every table, which is what the `{replica}` macro expects.
+	ReplicaName string `mapstructure:"replica_name"`
+}
+
+// ClusterConfig makes create_schema create every table twice: a storage table named
+// <table>_local with the engine that TableEngine selects, and a Distributed table under
+// the public name, which routes each insert to one shard of the named cluster and sends
+// each query to all of them. It is meant for a cluster with more than one shard; a
+// single shard with replicas needs only the replicated engine. It is independent of the
+// engine choice: merge_tree or replicated decides whether a shard keeps replicas of its
+// rows, and this block decides whether the rows are divided between shards (RFC 0022 §6).
+type ClusterConfig struct {
+	// Name is the cluster that the Distributed tables forward to, as defined in the
+	// server's remote_servers. Required.
+	Name string `mapstructure:"name"`
+}
+
+// engineFamily is the local engine of a table in the schema, which a TableEngine
+// renders either as is or as its Replicated counterpart.
+type engineFamily string
+
+const (
+	mergeTreeFamily            engineFamily = "MergeTree"
+	aggregatingMergeTreeFamily engineFamily = "AggregatingMergeTree"
+)
+
+// engineClause validates the TableEngine and returns the body of the ENGINE clause for a
+// table of the given family, as the configured TableEngine renders it. Validation and
+// rendering share one function so that no clause can be rendered from a configuration
+// that was not checked.
+func (e TableEngine) engineClause(family engineFamily) (string, error) {
+	hasMergeTree := e.MergeTree.HasValue()
+	hasReplicated := e.Replicated.HasValue()
+	if hasMergeTree && hasReplicated {
+		return "", errors.New("`table_engine` must set only one of `merge_tree` or `replicated`")
+	}
+	if !hasMergeTree && !hasReplicated {
+		return "", errors.New("`create_schema` requires `table_engine` with exactly one of `merge_tree` or `replicated`: " +
+			"use `merge_tree` for a single-node server, `replicated` for a cluster with more than one replica, " +
+			"or set `create_schema: false` and manage the tables yourself")
+	}
+	r := e.Replicated.Get()
+	if r == nil {
+		return string(family), nil
+	}
+	if (r.KeeperPath == "") != (r.ReplicaName == "") {
+		return "", errors.New("`table_engine.replicated` must set `keeper_path` and `replica_name` together or neither")
+	}
+	// Both values are rendered inside single-quoted SQL literals, where a quote ends the
+	// literal and a backslash escapes the character after it.
+	if strings.ContainsAny(r.KeeperPath, `'\`) || strings.ContainsAny(r.ReplicaName, `'\`) {
+		return "", errors.New("`table_engine.replicated` `keeper_path` and `replica_name` must not contain a single quote or a backslash")
+	}
+	if r.KeeperPath == "" {
+		return "Replicated" + string(family), nil
+	}
+	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName), nil
+}
+
+// clusterConfig validates the TableEngine's Cluster block and returns it, or nil when unset.
+func (e TableEngine) clusterConfig() (*ClusterConfig, error) {
+	c := e.Cluster.Get()
+	if c == nil {
+		return nil, nil
+	}
+	if c.Name == "" {
+		return nil, errors.New("`table_engine.cluster.name` is required when `table_engine.cluster` is set")
+	}
+	// Name is rendered inside a single-quoted SQL literal, where a quote ends the literal
+	// and a backslash escapes the character after it.
+	if strings.ContainsAny(c.Name, `'\`) {
+		return nil, errors.New("`table_engine.cluster.name` must not contain a single quote or a backslash")
+	}
+	return c, nil
 }
 
 // DefaultConfiguration returns the configuration a ClickHouse backend starts from
@@ -72,6 +228,7 @@ func DefaultConfiguration() Configuration {
 		MaxSearchDepth:                defaultMaxSearchDepth,
 		AttributeMetadataCacheTTL:     defaultAttributeMetadataCacheTTL,
 		AttributeMetadataCacheMaxSize: defaultAttributeMetadataCacheMaxSize,
+		AttributeLayout:               defaultAttributeLayout,
 	}
 }
 
@@ -87,17 +244,40 @@ func (cfg *Configuration) Validate() error {
 	}
 	// A search depth of zero would make every trace search return nothing, and a
 	// negative one is meaningless, so reject both rather than querying with them.
-	if cfg.DefaultSearchDepth <= 0 {
+	if cfg.DefaultSearchDepth == 0 {
 		return errors.New("default_search_depth must be a positive number")
 	}
-	if cfg.MaxSearchDepth <= 0 {
+	if cfg.MaxSearchDepth == 0 {
 		return errors.New("max_search_depth must be a positive number")
+	}
+	if cfg.DefaultSearchDepth > cfg.MaxSearchDepth {
+		return errors.New("default_search_depth cannot exceed max_search_depth")
+	}
+	if cfg.DialTimeout < 0 {
+		return errors.New("dial_timeout must be a non-negative duration")
 	}
 	if cfg.AttributeMetadataCacheTTL < 0 {
 		return errors.New("attribute_metadata_cache_ttl must be a non-negative duration")
 	}
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
+	}
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return err
+	}
+	if _, err := newHoistedColumns(cfg.HoistedAttributes, layout); err != nil {
+		return err
+	}
+	// The table_engine block is ignored without create_schema, because the operator then
+	// owns the tables.
+	if cfg.CreateSchema {
+		if _, err := cfg.TableEngine.engineClause(mergeTreeFamily); err != nil {
+			return err
+		}
+		if _, err := cfg.TableEngine.clusterConfig(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -4,8 +4,6 @@
 package querysvc
 
 import (
-	"errors"
-
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -31,18 +29,13 @@ var StructuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
 
-// ErrFilterDisabled is returned for a query carrying a filter to a deployment that has not
-// enabled StructuredFiltersGate. The query is refused rather than served with the filter
-// ignored, because dropping a predicate would answer with every trace in the time range.
-var ErrFilterDisabled = errors.New("the structured query filter is disabled")
-
 // queryToReaderCapabilities returns the query in the shape the reader declared it can serve, immediately
 // before dispatch.
 //
-// A reader that cannot paginate has no field to read PageSize from, so PageSize is folded into
+// A reader that cannot paginate has no field to read PageSize from, so PageSize becomes the
 // SearchDepth and Pagination is cleared, which keeps the search bounded. A PageToken is never
-// folded: a reader that cannot paginate cannot have minted it, so the query is refused
-// (RFC 0014 §6.2) rather than restarted as a new search.
+// folded: a reader that cannot paginate cannot have minted it, so the query is refused rather
+// than restarted as a new search (RFC 0014 §6.2).
 //
 // A reader that declares filter support gets the filter itself, once every level and operator
 // it uses is one the reader listed. A reader that declares none gets the filter rewritten into
@@ -51,12 +44,11 @@ func queryToReaderCapabilities(
 	query tracestore.TraceQueryParams,
 	caps tracestore.SearchCapabilities,
 ) (tracestore.TraceQueryParams, error) {
-	if query.Pagination != nil && !caps.Paginated {
-		if query.Pagination.PageToken != "" {
-			return tracestore.TraceQueryParams{}, tracestore.ErrPaginationUnsupported
+	if !caps.Paginated {
+		var err error
+		if query, err = query.ReplacePaginationWithDepth(); err != nil {
+			return tracestore.TraceQueryParams{}, err
 		}
-		query.SearchDepth = query.Pagination.PageSize
-		query.Pagination = nil
 	}
 	if query.Filter == nil {
 		return query, nil
@@ -65,21 +57,4 @@ func queryToReaderCapabilities(
 		return query.ToLegacyShape()
 	}
 	return query, caps.Filter.EnsureSupported(query.Filter)
-}
-
-// IsBadRequest reports whether err means the caller must change the query, either
-// because its shape is wrong or because this deployment's storage cannot serve it.
-// Either way it is the caller's problem, so the API layers answer InvalidArgument /
-// HTTP 400 rather than reporting a server fault.
-func IsBadRequest(err error) bool {
-	return errors.Is(err, ErrQueryInvalid) ||
-		errors.Is(err, ErrServiceNameRequired) ||
-		errors.Is(err, ErrSpanSearchUnsupported) ||
-		errors.Is(err, ErrFilterDisabled) ||
-		errors.Is(err, tracestore.ErrFilterUnsupported) ||
-		errors.Is(err, tracestore.ErrFilterInvalid) ||
-		errors.Is(err, ErrPaginationDisabled) ||
-		errors.Is(err, tracestore.ErrPaginationUnsupported) ||
-		errors.Is(err, tracestore.ErrPaginationInvalid) ||
-		errors.Is(err, tracestore.ErrPaginationUnsupportedByFindTraces)
 }

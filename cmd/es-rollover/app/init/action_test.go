@@ -26,7 +26,7 @@ import (
 
 func applyTestDefaults(cfg *Config) {
 	indices := []*config.IndexOptions{
-		&cfg.Indices.Spans,
+		&cfg.Indices.Spans.IndexOptions,
 		&cfg.Indices.Services,
 		&cfg.Indices.Dependencies,
 		&cfg.Indices.Sampling,

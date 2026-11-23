@@ -17,7 +17,9 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
@@ -38,6 +40,7 @@ const (
 	paramAttributes     = "query.attributes"
 	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
+	paramOrderBy        = "query.orderBy"
 	paramPageSize       = "query.pagination.pageSize"
 	paramPageToken      = "query.pagination.pageToken"
 
@@ -56,6 +59,64 @@ const (
 	paramQueryRawTracesDeprecated = "query.raw_traces"
 	paramSpanKindDeprecated       = "span_kind"
 )
+
+// maxFilterJSONDepth is the deepest the protobuf JSON of a filter within expression.MaxNestingDepth
+// nests objects and arrays. Each call takes three levels: its Call object, its "args" array, and
+// the Expression object of the argument holding the next call, so the argument Expressions of the
+// deepest call allowed open at 3*MaxNestingDepth. Below them a term is one object of strings, or a
+// List object whose "values" array of strings is one level more, which makes 3*MaxNestingDepth+2.
+// A call argument at that point is past the limit already.
+//
+// maxOrderByJSONDepth is the same bound for query.orderBy, whose sort terms hold an Expression that
+// is decoded under the same limit: the array, a sort term object and its "expression" object put a
+// call three levels deeper than in a filter.
+const (
+	maxFilterJSONDepth  = 3*expression.MaxNestingDepth + 2
+	maxOrderByJSONDepth = maxFilterJSONDepth + 3
+)
+
+// errNestedTooDeeply refuses a filter or an ordering whose JSON nests deeper than any value within
+// expression.MaxNestingDepth can, before the protobuf decoder reads it. It wraps the error that
+// decoding a well-formed value that deep ends in.
+var errNestedTooDeeply = fmt.Errorf("JSON nested too deeply to decode: %w", expression.ErrTooDeeplyNested)
+
+// nestsDeeperThan reports whether the JSON text in value opens more than limit objects and arrays
+// at once. The protobuf decoder copies the rest of the text at every level it descends, so its work
+// grows with the depth times the length; this check reads the text once, allocates nothing, and
+// stops at the first level past limit. It skips string contents, escapes included, and validates
+// nothing else: text it lets through is still decoded, and refused if malformed, by the decoder.
+func nestsDeeperThan(value string, limit int) bool {
+	depth := 0
+	inString := false
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if inString {
+			switch c {
+			case '\\':
+				i++ // the escaped byte, which may be a quote, does not end the string
+			case '"':
+				inString = false
+			default:
+				// Any other byte, a bracket included, is part of the string.
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{', '[':
+			depth++
+			if depth > limit {
+				return true
+			}
+		case '}', ']':
+			depth--
+		default:
+			// Any other byte neither opens nor closes a level.
+		}
+	}
+	return false
+}
 
 // parseTimeQueryParam parses value, already resolved from a query parameter, as RFC3339Nano,
 // reporting a malformed value under paramName. An empty value is not an error: it returns the
@@ -101,11 +162,14 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 	if filterParam == "" {
 		return nil, nil
 	}
+	if nestsDeeperThan(filterParam, maxFilterJSONDepth) {
+		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, errNestedTooDeeply)
+	}
 	var call expressionproto.Call
 	if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
-	filter, err := expressionproto.FromProto(&call)
+	filter, err := expressionproto.CallFromProto(&call)
 	if err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 	}
@@ -120,11 +184,11 @@ func parsePaginationParams(q url.Values) (pagination querysvc.Pagination, presen
 	present = pageSizeStr != "" || pageToken != ""
 	pagination.PageToken = pageToken
 	if pageSizeStr != "" {
-		pageSize, err := strconv.Atoi(pageSizeStr)
-		if err != nil || pageSize < 0 {
+		pageSize, err := strconv.ParseUint(pageSizeStr, 10, 32)
+		if err != nil {
 			return querysvc.Pagination{}, present, fmt.Errorf("malformed parameter %s: %s", paramPageSize, pageSizeStr)
 		}
-		pagination.PageSize = pageSize
+		pagination.PageSize = uint32(pageSize)
 	}
 	return pagination, present, nil
 }
@@ -173,11 +237,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		searchDepth, err := strconv.ParseInt(n, 10, 32)
+		searchDepth, err := strconv.ParseUint(n, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
-		queryParams.SearchDepth = int(searchDepth)
+		queryParams.SearchDepth = uint32(searchDepth)
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
@@ -204,10 +268,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	return queryParams, nil
 }
 
-// parseFindSpansQuery parses the query parameters for a span search (RFC 0016 §4.3), the subset
-// of a trace search's that a span query has: the time range, the filter and the pagination. The
-// parser reads each parameter and reports one it cannot read under its own name; whether the
-// query as a whole is acceptable is the query service's decision (prepareSpanSearchQuery).
+// parseFindSpansQuery reads the time range, filter, ordering and pagination of a span search.
 func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams := &querysvc.SpanQueryParams{}
 	var err error
@@ -218,6 +279,26 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 	queryParams.Filter, err = parseFilterParam(q)
 	if err != nil {
 		return nil, err
+	}
+	if raw := q.Get(paramOrderBy); raw != "" {
+		// The parameter is spliced into a JSON object below, so it must be exactly one JSON value.
+		// With trailing content or a second member the protobuf decoder would read something other
+		// than the array the caller sent, such as a duplicate orderBy member that wins over the first.
+		if !json.Valid([]byte(raw)) {
+			return nil, fmt.Errorf("malformed parameter %s: not a single JSON value", paramOrderBy)
+		}
+		if nestsDeeperThan(raw, maxOrderByJSONDepth) {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, errNestedTooDeeply)
+		}
+		var wire api_v3.SpanQueryParameters
+		if err := jsonpb.UnmarshalString(`{"orderBy":`+raw+`}`, &wire); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		}
+		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		}
+		queryParams.OrderBy = order
 	}
 	// A span search is always bounded by its page size, so the value is taken whether or not
 	// the caller sent one; the query service fills in the default (RFC 0016 §6).

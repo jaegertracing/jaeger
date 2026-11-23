@@ -19,7 +19,7 @@ Follow [Upgrading the Go Version](./CONTRIBUTING.md#upgrading-the-go-version) in
 
 ## Pull Requests
 
-- **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work. Speculative refactors and unsolicited feature work are not accepted.
+- **Require an issue:** Do not open a Pull Request unless there is an existing, open GitHub Issue that explicitly requests the work and carries the `help wanted` label. A PR without one is labelled `missing-issue` or `unapproved-issue` and closed automatically (see [Link each pull request to an issue](./CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue)). Speculative refactors and unsolicited feature work are not accepted.
 - **Stay inside the issue's scope:** Implement only what the issue describes. If you discover related problems, mention them in the PR description or open a separate issue rather than fixing them in the same PR.
 - **One issue, one PR:** Do not bundle multiple issues into a single PR.
 - **No PR for chores already handled by automation:** Dependency bumps managed by Dependabot and similar housekeeping are handled automatically. Do not open PRs that duplicate that work.
@@ -81,6 +81,10 @@ New files get the standard header (but with current year):
 - Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
 - Every package must have at least one `*_test.go` file (enforced by `make nocover`). If no tests are possible (e.g. a package that only defines types), create an empty `empty_test.go`.
 
+## Storage Integration Tests
+
+Storage behavior belongs in the shared `internal/storage/integration` corpus and `StorageIntegration.AssertCorpus`, which run in both direct and e2e modes. New assertions run for every backend by default; unsupported backends must explicitly opt out in `internal/storage/integration/capabilities`. Extend the e2e reader/writer adapters when the shared tests need new API fields, and keep transport-specific assertions in the e2e package. Read [the integration architecture](cmd/jaeger/internal/integration/README.md) before adding tests.
+
 ## Scope Discipline
 
 - Do not reformat, rename, or restructure code outside the scope of the requested change.
@@ -97,6 +101,7 @@ RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.
 - **An RFC still being implemented is a live document.** While its status is Draft or its milestones are in flight, implementation turns up findings and reverses decisions, and the RFC is expected to be rewritten to match — that is the point of writing one down. Update the prose that a decision moved past, and say what is true now rather than narrating the document's own history; where the new decision reverses what the RFC proposed, it is worth one clause saying so, because a reader who knows the old shape needs to see it was considered and dropped.
 - **An RFC whose work is finished is a snapshot.** Once its status is Implemented, do not rewrite its prose, abstract, or diagrams to track the evolving codebase: from then on the narrative is a record of the state and plan at the time, and the code has moved on for reasons the RFC never claimed to cover.
 - ADRs are different: they describe a design, not a plan, so keeping one accurate is worth more than keeping it pristine. Judge by proportion. If a change touches a small part of an ADR and reverses none of its decisions, **edit that ADR in place** — extend the affected sections, note the extension in the Status or Date line, and leave the original Context and Decision prose alone. Write a new superseding ADR only when the change replaces the original's decision or architecture outright. [ADR-004](./docs/adr/004-migrating-coverage-gating-to-github-actions.md) is an example of the former: its fan-in gating decision and requirements stood, so later work extended it rather than superseding it. What the rule forbids is rewriting an ADR into running documentation of the code.
+- Files in a directory next to an RFC (`docs/rfc/NNNN-short-slug/`) are evidence for the RFC's claims and not product code. Review them for whether each test backs the claim that cites it, not against the coding standards of this file. See [Evidence for claims about other systems](./docs/rfc/README.md#evidence-for-claims-about-other-systems).
 - When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
 
 ## When in Doubt

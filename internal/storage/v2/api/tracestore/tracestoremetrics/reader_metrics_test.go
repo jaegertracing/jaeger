@@ -5,6 +5,7 @@ package tracestoremetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"testing"
@@ -252,6 +253,44 @@ func TestReadMetricsDecorator_FindTraceSummaries_Error(t *testing.T) {
 	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=err"])
 }
 
+func TestReadMetricsDecorator_FindTraceSummaries_Unsupported(t *testing.T) {
+	tests := []struct {
+		name       string
+		summaries  iter.Seq2[tracestore.PageChunk[[]tracestore.TraceSummary], error]
+		wantErr    error
+		wantErrors int64
+	}{
+		{
+			// The query service falls back to FindTraces, so this is not a failed request.
+			name:      "reader without native summaries",
+			summaries: tracestore.UnsupportedTraceSummaries{}.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}),
+			wantErr:   errors.ErrUnsupported,
+		},
+		{
+			name:       "query the reader cannot serve",
+			summaries:  pageChunkIter[[]tracestore.TraceSummary](nil, tracestore.ErrFilterUnsupported),
+			wantErr:    tracestore.ErrFilterUnsupported,
+			wantErrors: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mf := metricstest.NewFactory(0)
+			inner := &mocks.Reader{}
+			inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).Return(tt.summaries)
+
+			d := NewReaderDecorator(inner, mf)
+			for _, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+
+			counters, _ := mf.Snapshot()
+			assert.Equal(t, tt.wantErrors, counters["requests|operation=find_trace_summaries|result=err"])
+			assert.Zero(t, counters["requests|operation=find_trace_summaries|result=ok"])
+		})
+	}
+}
+
 func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
@@ -311,6 +350,8 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		{Paginated: true},
 		{SpanSearch: false},
 		{SpanSearch: true},
+		{SpanSorting: false},
+		{SpanSorting: true},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			inner := &mocks.Reader{}

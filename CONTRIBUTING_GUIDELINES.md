@@ -22,7 +22,7 @@ Table of Contents:
 
 ### Open an issue first
 
-**Before making any significant changes, please open an issue**. Each issue
+**Before making a change, please open an issue**, unless one already exists. Each issue
 should describe the following:
 
 * Requirement - what kind of business use case are you trying to solve?
@@ -31,8 +31,9 @@ should describe the following:
 * Any open questions to address
 
 Discussing your proposed changes ahead of time will make the contribution
-process smooth for everyone. Once the approach is agreed upon, make your changes
-and open a pull request (PR).
+process smooth for everyone. A maintainer who agrees with the approach and is
+willing to accept a contribution applies the `help wanted` label to the issue.
+Once the issue carries that label, make your changes and open a pull request (PR).
 
 ### Assigning Issues
 
@@ -40,7 +41,49 @@ We do not assign issues to contributors. It is almost never the case that multip
 people jump on the same issue, and practice showed that occasionally people who ask
 for an issue to be assigned to them later have a change in priorities and are unable
 to find time to finish it, which leaves the issue in limbo.
-So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
+So if you have a desire to work on an issue, feel free to mention it in the
+comment, then link the pull request to the issue as described in
+[Link each pull request to an issue](#link-each-pull-request-to-an-issue).
+
+### Link each pull request to an issue
+
+Every pull request must be linked to the issue it addresses. Use a GitHub closing
+keyword in the PR description, for example `Fixes #123`, or explicitly link the
+issue in GitHub's sidebar, so GitHub records the canonical issue relationship. A
+bare issue number in a title, commit, or comment is not sufficient. A closing
+keyword that appears only in a commit message does not link the open PR to the
+issue for this policy.
+
+The linked issue must be open and carry the `help wanted` label, which a
+maintainer applies when the project is ready to accept a contribution for that
+issue. An issue in another repository of the `jaegertracing` organization
+qualifies. If the issue you want to work on does not carry the label, ask on the
+issue before writing code, because the maintainers may not want the change or
+may already be working on it.
+
+A pull request that is not linked to such an issue receives a comment that
+points to this section. It is labelled `unapproved-issue` when it is linked to
+an open issue of the `jaegertracing` organization that does not carry
+`help wanted`, and `missing-issue` otherwise.
+Adding a closing keyword for a qualifying issue to the description removes
+the `missing-issue` or `unapproved-issue` label.
+The pull request is checked again when its description is edited, and once a
+day while it carries one of the two labels. Edit the description after you link
+an issue through the sidebar to have it checked sooner. A pull request that still carries
+`missing-issue` or `unapproved-issue` a week after the comment was posted is closed automatically. Comments and
+new commits do not extend the week. A closed pull request
+can be reopened once its description links a qualifying issue. Pull requests from maintainers and from
+Dependabot and Renovate are exempt, and a maintainer may exempt any other pull request,
+such as a fix for a typo, by applying the `no-issue-needed` label to it. A
+maintainer may also keep a flagged pull request open with the `do-not-expire`
+label.
+
+Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
+count. If another active PR is already linked, coordinate with its author and
+maintainers instead of starting duplicate work. The repository may label a
+duplicate PR and point to the primary PR; this does not close the PR. For umbrella
+issues or intentionally competing implementations, a maintainer may apply the
+`allow-multiple-prs` label to the issue.
 
 ### Creating a pull request
 
@@ -88,7 +131,7 @@ Each PR should have:
   * Capitalize the title
   * Do not end the title with a period
   * Use the imperative mood in the title
-* A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
+* A description of the problem it is solving, including the required canonical link to the corresponding issue, e.g. `Resolves #123`.
 * A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
 
 ## AI Usage Policy

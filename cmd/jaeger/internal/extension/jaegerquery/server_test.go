@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -31,6 +32,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
@@ -87,6 +89,17 @@ func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	return &tracestoremocks.Writer{}, nil
 }
 
+// fakeTraceOnlyFactory implements tracestore.Factory but not depstore.Factory.
+type fakeTraceOnlyFactory struct{}
+
+func (fakeTraceOnlyFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return &tracestoremocks.Reader{}, nil
+}
+
+func (fakeTraceOnlyFactory) CreateTraceWriter() (tracestore.Writer, error) {
+	return &tracestoremocks.Writer{}, nil
+}
+
 type fakeMetricsFactory struct {
 	name string
 }
@@ -119,6 +132,10 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, erro
 	case "unknowable-capabilities-store":
 		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
 	}
+	if name == "need-no-dep-factory" {
+		return fakeTraceOnlyFactory{}, nil
+	}
+
 	return fakeFactory{name: name}, nil
 }
 
@@ -174,6 +191,23 @@ func TestServerDependencies(t *testing.T) {
 		server := newServer(cfg, telemetrySettings)
 		assert.Equal(t, []component.ID{jaegerstorage.ID, testInterceptorID}, server.Dependencies())
 	})
+
+	t.Run("includes the AI authenticator", func(t *testing.T) {
+		authID := component.MustNewID("ai_authenticator")
+		cfg := createDefaultConfig().(*Config)
+		ai := jaegerai.Config{}
+		ai.Auth = configoptional.Some(confighttp.AuthConfig{Config: configauth.Config{AuthenticatorID: authID}})
+		cfg.AI = configoptional.Some(ai)
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID, authID}, server.Dependencies())
+	})
+
+	t.Run("lists no authenticator when ai has no auth block", func(t *testing.T) {
+		cfg := createDefaultConfig().(*Config)
+		cfg.AI = configoptional.Some(jaegerai.Config{})
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID}, server.Dependencies())
+	})
 }
 
 func TestServerStart(t *testing.T) {
@@ -227,6 +261,15 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 			expectedErr: "cannot create trace reader",
+		},
+		{
+			name: "depstore not implemented",
+			config: &Config{
+				Storage: Storage{
+					TracesPrimary: "need-no-dep-factory",
+				},
+			},
+			expectedErr: "cannot find factory for dependency storage",
 		},
 		{
 			name: "dependency error",
@@ -285,11 +328,11 @@ func TestServerStart(t *testing.T) {
 			config: &Config{
 				Storage: Storage{TracesPrimary: "jaeger_storage"},
 				QueryOptions: app.QueryOptions{
-					AI: configoptional.Some(app.AIConfig{
+					AI: configoptional.Some(jaegerai.Config{
 						AgentURL:            "ws://127.0.0.1:1",
-						MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+						MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 						HealthCheckInterval: time.Hour, // long enough that no check actually fires in this test
-						HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+						HealthCheckTimeout:  jaegerai.DefaultHealthCheckTimeout,
 					}),
 				},
 			},
@@ -340,6 +383,10 @@ func TestServerStart(t *testing.T) {
 				}.Execute(t)
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
+				if tt.name == "depstore not implemented" {
+					assert.NotContains(t, err.Error(), "%!w")
+					assert.NotContains(t, err.Error(), "<nil>")
+				}
 			}
 		})
 	}
@@ -533,19 +580,19 @@ func TestQueryService(t *testing.T) {
 func TestBuildAIHealthChecker(t *testing.T) {
 	tests := []struct {
 		name    string
-		ai      configoptional.Optional[app.AIConfig]
+		ai      configoptional.Optional[jaegerai.Config]
 		wantNil bool
 	}{
 		{
 			name:    "no AI block (HasValue=false) returns nil",
-			ai:      configoptional.None[app.AIConfig](),
+			ai:      configoptional.None[jaegerai.Config](),
 			wantNil: true,
 		},
 		{
 			name: "MCP-only mode (no agent_url) disables the checker",
-			ai: configoptional.Some(app.AIConfig{
-				MCP:                 configoptional.Some(app.MCPConfig{}),
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+			ai: configoptional.Some(jaegerai.Config{
+				MCP:                 configoptional.Some(jaegerai.MCPConfig{}),
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 5 * time.Second,
 				HealthCheckTimeout:  2 * time.Second,
 			}),
@@ -553,19 +600,19 @@ func TestBuildAIHealthChecker(t *testing.T) {
 		},
 		{
 			name: "HealthCheckInterval=0 disables the checker",
-			ai: configoptional.Some(app.AIConfig{
+			ai: configoptional.Some(jaegerai.Config{
 				AgentURL:            "ws://localhost:16688",
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 0,
-				HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+				HealthCheckTimeout:  jaegerai.DefaultHealthCheckTimeout,
 			}),
 			wantNil: true,
 		},
 		{
 			name: "valid config returns a configured Checker",
-			ai: configoptional.Some(app.AIConfig{
+			ai: configoptional.Some(jaegerai.Config{
 				AgentURL:            "ws://localhost:16688",
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 5 * time.Second,
 				HealthCheckTimeout:  2 * time.Second,
 			}),

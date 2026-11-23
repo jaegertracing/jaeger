@@ -6,7 +6,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -30,13 +30,13 @@ import (
 
 // withCaps builds a provider that always reports caps.
 func withCaps(caps BackendCapabilities) BackendCapabilityProvider {
-	return func(context.Context) BackendCapabilities { return caps }
+	return func(*http.Request) BackendCapabilities { return caps }
 }
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.ErrorContains(t, err, "no such file or directory")
@@ -54,7 +54,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 					AssetsPath: "/foo/bar",
 				},
 			},
-			nilBackendCaps,
+			noBackendCaps,
 		)
 		defer closer.Close()
 	})
@@ -216,6 +216,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 				tt.caps.SearchWithoutServiceName, tt.caps.AIAssistant,
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
+			assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"), "a per-caller page must not be served from a shared cache")
 		})
 	}
 }
@@ -226,7 +227,7 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		func(context.Context) BackendCapabilities {
+		func(*http.Request) BackendCapabilities {
 			return BackendCapabilities{AIAssistant: available.Load()}
 		},
 	)
@@ -257,7 +258,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		func(context.Context) BackendCapabilities {
+		func(*http.Request) BackendCapabilities {
 			return BackendCapabilities{SearchWithoutServiceName: supported.Load()}
 		},
 	)
@@ -279,7 +280,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.Error(t, err)
@@ -310,13 +311,13 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
 	defer h.Close()
 
-	assert.Contains(t, string(h.deriveIndexHTML(context.Background())), "About Jaeger")
+	assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
@@ -325,7 +326,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
 	// disk after that. Poll until the new content is picked up.
 	require.Eventually(t, func() bool {
-		return strings.Contains(string(h.deriveIndexHTML(context.Background())), "About a new Jaeger")
+		return strings.Contains(string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), "About a new Jaeger")
 	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
 }
 
@@ -351,7 +352,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.ErrorLevel)
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		nilBackendCaps,
+		noBackendCaps,
 		zap.New(zcore),
 	)
 	require.NoError(t, err)
@@ -365,13 +366,52 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 		// Force a reload attempt by calling deriveIndexHTML; the malformed
 		// file should produce a logged error while leaving the previously
 		// cached "About Jaeger" content intact.
-		body := string(h.deriveIndexHTML(context.Background()))
+		body := string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
 		if !strings.Contains(body, "About Jaeger") {
 			return false
 		}
 		return logObserver.FilterMessage("could not reload UI config; keeping previously cached value").Len() > 0
 	}, time.Second, 5*time.Millisecond,
 		"expected the static handler to keep the previously cached UI config when a reload fails")
+}
+
+func TestDeriveIndexHTMLInjectsUIConfigVerbatim(t *testing.T) {
+	tests := []struct {
+		name     string
+		fileName string
+		content  string
+		expected string
+	}{
+		{
+			name:     "json",
+			fileName: "ui-config.json",
+			content:  `{"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service&var-env=${env}&var-n=$1&cost=$$"}]}`,
+			expected: `JAEGER_CONFIG = {"menu":[{"label":"Grafana","url":"https://grafana.example.com/d/abc?var-service=$service\u0026var-env=${env}\u0026var-n=$1\u0026cost=$$"}]};`,
+		},
+		{
+			name:     "js",
+			fileName: "ui-config.js",
+			content:  "function UIConfig() {\n  return { url: '/d/abc?var-service=$service&var-env=${env}', price: '$5', cost: '$$' };\n}",
+			expected: "function UIConfig() {\n  return { url: '/d/abc?var-service=$service&var-env=${env}', price: '$5', cost: '$$' };\n}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfgFile := filepath.Join(t.TempDir(), tt.fileName)
+			require.NoError(t, os.WriteFile(cfgFile, []byte(tt.content), 0o600))
+
+			h, err := newStaticAssetsHandler(
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFile}},
+				noBackendCaps,
+				zap.NewNop(),
+			)
+			require.NoError(t, err)
+			defer h.Close()
+
+			html := string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody)))
+			assert.Contains(t, html, tt.expected)
+		})
+	}
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -401,12 +441,12 @@ func TestLoadUIConfig(t *testing.T) {
 			if testCase.expectedContent != "" {
 				h, err := newStaticAssetsHandler(
 					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
-					nilBackendCaps,
+					noBackendCaps,
 					zap.NewNop(),
 				)
 				require.NoError(t, err)
 				defer h.Close()
-				assert.Contains(t, string(h.deriveIndexHTML(context.Background())), testCase.expectedContent)
+				assert.Contains(t, string(h.deriveIndexHTML(httptest.NewRequest(http.MethodGet, "/", http.NoBody))), testCase.expectedContent)
 			}
 		})
 	}

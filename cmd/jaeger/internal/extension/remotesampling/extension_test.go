@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
@@ -656,6 +657,24 @@ func TestShutdownWithProviderError(t *testing.T) {
 
 		wg.Wait()
 		_ = srv.Shutdown(context.Background())
+	})
+}
+
+func TestShutdownWaitsForServeGoroutines(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ext := &rsExtension{}
+		release := make(chan struct{})
+		ext.shutdownWG.Go(func() { <-release })
+
+		done := make(chan error, 1)
+		go func() { done <- ext.Shutdown(context.Background()) }()
+
+		synctest.Wait()
+		assert.Empty(t, done)
+
+		close(release)
+		synctest.Wait()
+		require.NoError(t, <-done)
 	})
 }
 

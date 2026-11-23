@@ -38,6 +38,7 @@ func init() {
 			"es.index.relativeTimeIndexDeletion",
 			featuregate.StageBeta,
 			featuregate.WithRegisterFromVersion("v2.5.0"),
+			featuregate.WithRegisterToVersion("v2.24.0"),
 			featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.index.relativeTimeIndexDeletion."),
 			featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 		),
@@ -60,6 +61,9 @@ func main() {
 			numOfDays, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %w", err)
+			}
+			if numOfDays < 0 {
+				return errors.New("NUM_OF_DAYS argument must be non-negative")
 			}
 
 			if err := cfg.InitFromViper(v); err != nil {
