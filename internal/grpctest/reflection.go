@@ -5,6 +5,7 @@ package grpctest
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,12 @@ func (v ReflectionServiceValidator) Execute(t *testing.T) {
 	require.NoError(t, err)
 	m, err := r.Recv()
 	require.NoError(t, err)
+	// End the stream before the deferred conn.Close, so that the server writes its final status
+	// to an open connection. Otherwise the write fails, and gRPC logs a warning through its
+	// global logger, which a later test may be replacing.
+	require.NoError(t, r.CloseSend())
+	_, err = r.Recv()
+	require.ErrorIs(t, err, io.EOF)
 	require.IsType(t,
 		new(grpcreflection.ServerReflectionResponse_ListServicesResponse),
 		m.MessageResponse)
