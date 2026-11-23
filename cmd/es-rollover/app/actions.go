@@ -54,7 +54,6 @@ type Action interface {
 
 // ActionExecuteOptions are the options passed to the execute action function
 type ActionExecuteOptions struct {
-	Ctx    context.Context
 	Args   []string
 	Viper  *viper.Viper
 	Logger *zap.Logger
@@ -63,16 +62,13 @@ type ActionExecuteOptions struct {
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
 type ActionCreatorFunction func(*esclient.Client, Config) Action
 
-// ExecuteAction execute the action returned by the createAction function
-func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
+// ExecuteAction execute the action returned by the createAction function.
+// ctx is used for the Elasticsearch client and passed to the action, so
+// cancelling it aborts in-flight requests.
+func ExecuteAction(ctx context.Context, opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
 	if err := cfg.InitFromViper(opts.Viper); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
-	}
-
-	ctx := opts.Ctx
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	esClient, err := newESClient(ctx, opts.Args[0], &cfg, opts.Logger)

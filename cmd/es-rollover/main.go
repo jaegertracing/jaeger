@@ -8,6 +8,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -40,8 +41,7 @@ func main() {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.ExecuteAction(app.ActionExecuteOptions{
-				Ctx:    cmd.Context(),
+			return app.ExecuteAction(cmd.Context(), app.ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -78,8 +78,7 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rolloverCfg.InitFromViper(v)
-			return app.ExecuteAction(app.ActionExecuteOptions{
-				Ctx:    cmd.Context(),
+			return app.ExecuteAction(cmd.Context(), app.ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -107,8 +106,7 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			lookbackCfg.InitFromViper(v)
-			return app.ExecuteAction(app.ActionExecuteOptions{
-				Ctx:    cmd.Context(),
+			return app.ExecuteAction(cmd.Context(), app.ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -133,7 +131,7 @@ func main() {
 	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
