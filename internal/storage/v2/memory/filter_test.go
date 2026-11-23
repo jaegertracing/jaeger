@@ -5,6 +5,7 @@ package memory
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,42 @@ func TestMatchesFilter_SpanFields(t *testing.T) {
 		{"duration lt", p.Span().Duration.Lt(100 * time.Millisecond), false},
 		{"duration gt, typed", p.Span().Duration.Gt(p.Duration(100 * time.Millisecond)), true},
 		{"startTime exists", p.Span().StartTime.Exists(), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, f.matches(tt.pred))
+		})
+	}
+}
+
+func TestMatchesFilter_IDConstantsIgnoreCase(t *testing.T) {
+	f := newFilterFixture(t)
+	f.span.SetTraceID(pcommon.TraceID{0xab, 0xcd, 0xef, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})
+	f.span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 0xaa})
+	f.span.SetParentSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 0xbb})
+	link := f.span.Links().At(0)
+	link.SetTraceID(f.span.TraceID())
+	link.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 0xcc})
+	traceID := strings.ToUpper(f.span.TraceID().String())
+	spanID := strings.ToUpper(f.span.SpanID().String())
+	parentSpanID := strings.ToUpper(f.span.ParentSpanID().String())
+	linkSpanID := strings.ToUpper(link.SpanID().String())
+	other := strings.Repeat("F", 32)
+	tests := []struct {
+		name string
+		pred *expression.Call
+		want bool
+	}{
+		{"traceID eq uppercase", p.Span().TraceID.Eq(traceID), true},
+		{"spanID eq uppercase", p.Span().SpanID.Eq(spanID), true},
+		{"traceID ne uppercase of itself", p.Span().TraceID.Ne(traceID), false},
+		{"traceID eq other uppercase", p.Span().TraceID.Eq(other), false},
+		{"spanID in uppercase", p.Span().SpanID.In(spanID), true},
+		{"spanID not in uppercase", p.Span().SpanID.NotIn(spanID), false},
+		{"traceID regex uppercase", p.Span().TraceID.Matches("^" + traceID[:8]), true},
+		{"parentSpanID eq uppercase", p.Span().ParentSpanID.Eq(parentSpanID), true},
+		{"link traceID eq uppercase", p.Link().TraceID.Eq(traceID), true},
+		{"link spanID eq uppercase", p.Link().SpanID.Eq(linkSpanID), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
