@@ -18,9 +18,10 @@ type GetTraceTopologyInput struct {
 // the tree structure as a slash-delimited sequence of span IDs from the root to
 // that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
-	TraceID        string         `json:"trace_id"         jsonschema:"Unique identifier for the trace"`
-	TotalSpanCount int            `json:"total_span_count" jsonschema:"Total number of spans in the trace. With depth 0 a shorter spans list means the per-request limit cut it; with depth > 0 truncated_children marks where the depth limit cut the tree"`
-	Spans          []TopologySpan `json:"spans"            jsonschema:"Flat depth-first list of spans (possibly truncated to server-configured limit); Path encodes parent-child relationships"`
+	TraceID        string         `json:"trace_id"            jsonschema:"Unique identifier for the trace"`
+	TotalSpanCount int            `json:"total_span_count"    jsonschema:"Number of spans received after the upstream trace-size limit and before the per-request limit"`
+	Spans          []TopologySpan `json:"spans"               jsonschema:"Flat depth-first list of retained spans; Path encodes parent-child relationships"`
+	Truncated      bool           `json:"truncated,omitempty" jsonschema:"Whether a span-count limit truncated the trace or response"`
 }
 
 // TopologySpan represents a span in the flat trace topology output.
@@ -28,8 +29,11 @@ type GetTraceTopologyOutput struct {
 // The Path field encodes the tree structure: it contains all span IDs from the root span down
 // to this span, separated by slashes.
 // Example: "rootSpanID/parentSpanID/thisSpanID"
-// For orphan spans (whose parent is not present in the trace) the missing parent ID is prepended
-// so the caller can identify the attachment point.
+// For orphan spans (whose parent is not present in the stored trace) the missing parent ID is prepended
+// so the caller can identify the attachment point. Parents omitted only by the per-request span-count
+// limit are not prefixed that way; TruncatedChildren on a surviving ancestor signals the gap.
+// When upstream trace truncation makes parent presence uncertain, the missing-parent
+// prefix is omitted and GetTraceTopologyOutput.Truncated signals the incomplete trace.
 type TopologySpan struct {
 	// Path is a slash-delimited sequence of span IDs from the root span to this span.
 	Path              string `json:"path"                         jsonschema:"Slash-delimited span IDs from root to this span"`
@@ -38,5 +42,5 @@ type TopologySpan struct {
 	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
 	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
 	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
-	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded due to depth limit"`
+	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded by the depth limit or the per-request span-count limit"`
 }

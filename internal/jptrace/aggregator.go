@@ -24,7 +24,25 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 //
 // The `tracesSeq` input must adhere to the chunking requirements of tracestore.Reader.GetTraces.
 func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSize int) iter.Seq2[ptrace.Traces, error] {
-	return func(yield func(trace ptrace.Traces, err error) bool) {
+	return func(yield func(ptrace.Traces, error) bool) {
+		for result, err := range AggregateTracesWithLimitAndMetadata(tracesSeq, maxSize) {
+			if !yield(result.Traces, err) {
+				return
+			}
+		}
+	}
+}
+
+// AggregatedTrace includes metadata produced by the current aggregation.
+type AggregatedTrace struct {
+	Traces    ptrace.Traces
+	Truncated bool
+}
+
+// AggregateTracesWithLimitAndMetadata behaves like AggregateTracesWithLimit,
+// but reports whether this aggregation dropped spans independently of stored warnings.
+func AggregateTracesWithLimitAndMetadata(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSize int) iter.Seq2[AggregatedTrace, error] {
+	return func(yield func(AggregatedTrace, error) bool) {
 		currentTrace := ptrace.NewTraces()
 		currentTraceID := pcommon.NewTraceIDEmpty()
 		currentSpanCount := 0
@@ -33,7 +51,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 
 		tracesSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
-				cont = yield(ptrace.NewTraces(), err)
+				cont = yield(AggregatedTrace{Traces: ptrace.NewTraces()}, err)
 				return false
 			}
 			for _, trace := range traces {
@@ -52,7 +70,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					}
 				} else {
 					if currentSpanCount > 0 {
-						if !yield(currentTrace, nil) {
+						if !yield(AggregatedTrace{Traces: currentTrace, Truncated: currentTruncated}, nil) {
 							cont = false
 							return false
 						}
@@ -78,7 +96,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 		// Emit the last accumulated trace if non-empty.
 		// `cont` guards against calling yield after consumer already returned false.
 		if cont && currentSpanCount > 0 {
-			yield(currentTrace, nil)
+			yield(AggregatedTrace{Traces: currentTrace, Truncated: currentTruncated}, nil)
 		}
 	}
 }
