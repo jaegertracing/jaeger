@@ -504,8 +504,8 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 	assert.Equal(t, 0, iterLength)
 }
 
-func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
-	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+func TestFindTraces_ZeroSearchDepthErr(t *testing.T) {
+	testZeroSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
 		gotIter := store.FindTraces(context.Background(), params)
 		iterLength := 0
 		for traces, err := range gotIter {
@@ -517,8 +517,8 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 	})
 }
 
-func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
-	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+func TestFindTraceIds_ZeroSearchDepth(t *testing.T) {
+	testZeroSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
 		gotIter := store.FindTraceIDs(context.Background(), params)
 		iterLength := 0
 		for chunk, err := range gotIter {
@@ -531,7 +531,7 @@ func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
 	})
 }
 
-func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
+func testZeroSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
