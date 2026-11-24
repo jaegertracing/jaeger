@@ -4,8 +4,10 @@
     "config:best-practices",
     ":gitSignOff"
   ],
-  "dependencyDashboard": true,
-  "dependencyDashboardHeader": "Project settings are at https://developer.mend.io/",
+  "dependencyDashboard": {
+    "enabled": true,
+    "header": "Project settings are at https://developer.mend.io/"
+  },
   "labels": [
     "changelog:dependencies"
   ],

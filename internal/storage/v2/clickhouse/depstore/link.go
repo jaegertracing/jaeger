@@ -11,6 +11,7 @@ type dependencyLink struct {
 	Parent    string `json:"parent"`
 	Child     string `json:"child"`
 	CallCount uint64 `json:"callCount"`
+	Source    string `json:"source,omitempty"`
 }
 
 func dependencyLinkFromModel(d model.DependencyLink) dependencyLink {
@@ -18,15 +19,20 @@ func dependencyLinkFromModel(d model.DependencyLink) dependencyLink {
 		Parent:    d.Parent,
 		Child:     d.Child,
 		CallCount: d.CallCount,
+		Source:    d.Source,
 	}
 }
 
+// toModel returns a link stored without a source field as a link from Jaeger's own
+// traces. The field is absent whenever the writer set no source: a writer older than
+// the field never stores it, and the omitempty tag on Source leaves out an empty string.
 func (l dependencyLink) toModel() model.DependencyLink {
 	return model.DependencyLink{
 		Parent:    l.Parent,
 		Child:     l.Child,
 		CallCount: l.CallCount,
-	}
+		Source:    l.Source,
+	}.ApplyDefaults()
 }
 
 // dependencyLinks represents the JSON value stored in the `dependencies_json`

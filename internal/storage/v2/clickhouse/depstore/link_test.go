@@ -12,13 +12,33 @@ import (
 )
 
 var testModelDeps = []model.DependencyLink{
-	{Parent: "serviceA", Child: "serviceB", CallCount: 10},
-	{Parent: "serviceB", Child: "serviceC", CallCount: 5},
+	{
+		Parent:    "serviceA",
+		Child:     "serviceB",
+		CallCount: 10,
+		Source:    model.JaegerDependencyLinkSource,
+	},
+	{
+		Parent:    "serviceB",
+		Child:     "serviceC",
+		CallCount: 5,
+		Source:    "mesh",
+	},
 }
 
 var testDBLinks = dependencyLinks{
-	{Parent: "serviceA", Child: "serviceB", CallCount: 10},
-	{Parent: "serviceB", Child: "serviceC", CallCount: 5},
+	{
+		Parent:    "serviceA",
+		Child:     "serviceB",
+		CallCount: 10,
+		Source:    model.JaegerDependencyLinkSource,
+	},
+	{
+		Parent:    "serviceB",
+		Child:     "serviceC",
+		CallCount: 5,
+		Source:    "mesh",
+	},
 }
 
 func TestDependencyLink(t *testing.T) {
@@ -28,6 +48,14 @@ func TestDependencyLink(t *testing.T) {
 	})
 	t.Run("toModel", func(t *testing.T) {
 		got := testDBLinks[0].toModel()
+		assert.Equal(t, testModelDeps[0], got)
+	})
+	t.Run("toModel_withoutSource", func(t *testing.T) {
+		got := dependencyLink{
+			Parent:    "serviceA",
+			Child:     "serviceB",
+			CallCount: 10,
+		}.toModel()
 		assert.Equal(t, testModelDeps[0], got)
 	})
 	t.Run("roundTrip", func(t *testing.T) {

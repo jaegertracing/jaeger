@@ -1109,6 +1109,36 @@ func TestGetLatenciesWithFilter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetLatenciesKeepsQuantilePrecision(t *testing.T) {
+	for _, tc := range []struct {
+		quantile float64
+		want     string
+	}{
+		{quantile: 0.999, want: "0.999"},
+		{quantile: 0.995, want: "0.995"},
+		{quantile: 0.9999, want: "0.9999"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			params := metricstore.LatenciesQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+					serviceNames: []string{"emailservice"},
+					spanKinds:    []string{"SPAN_KIND_SERVER"},
+				}),
+				Quantile: tc.quantile,
+			}
+			tracer, _, closer := tracerProvider(t)
+			defer closer()
+			want := `histogram_quantile(` + tc.want + `, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,le))`
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, config.Configuration{}, want, nil, tracer)
+			defer mockPrometheus.Close()
+
+			_, err := reader.GetLatencies(context.Background(), &params)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestGetErrorRatesWithFilterAppliesToBothNumeratorAndDenominator(t *testing.T) {
 	params := metricstore.ErrorRateQueryParameters{
 		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{

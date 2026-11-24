@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-name: PR Quota Manager
+name: Author PR Quota
 
 on:
   pull_request_target:  # Runs with write permissions even for fork PRs
@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  manage-quota:
+  label-prs-over-quota:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -39,7 +39,7 @@ jobs:
           # checkout v7 refuses it in a pull_request_target workflow as fork code.
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Process PR Quota
+      - name: Label pull requests over the author's quota
         uses: ./.github/actions/pr-quota-manager
         with:
           # The default GITHUB_TOKEN suffices: the pull_request_target trigger runs in

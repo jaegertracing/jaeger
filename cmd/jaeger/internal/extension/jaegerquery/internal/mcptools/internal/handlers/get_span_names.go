@@ -91,9 +91,13 @@ func (h *getSpanNamesHandler) handle(
 		filteredOps = operations
 	}
 
-	// Sort by name for consistent results
+	// Sort by name, then span kind, so that the limit below keeps the same
+	// entries whatever order storage returns them in.
 	slices.SortFunc(filteredOps, func(a, b tracestore.Operation) int {
-		return cmp.Compare(a.Name, b.Name)
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.SpanKind, b.SpanKind),
+		)
 	})
 
 	// Apply limit, recording the pre-truncation total so the caller can detect

@@ -7,14 +7,12 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -200,8 +198,8 @@ func (r *Reader) buildFindSpansQuery(
 	pageSize uint32,
 ) (string, []any, error) {
 	q := r.newSQLBuilder()
-	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
-	q.WriteString("\nWHERE 1=1")
+	q.appendSelectSpans()
+	q.appendClause("WHERE 1=1")
 	args := q.appendTimeRange(nil, query.StartTimeMin, query.StartTimeMax)
 	if query.Filter != nil {
 		var err error
@@ -214,14 +212,14 @@ func (r *Reader) buildFindSpansQuery(
 		args = q.appendContinuation(args, sort, after)
 	}
 	q.appendOrderBy(sort)
-	q.WriteString("\nLIMIT ?")
+	q.appendClause("LIMIT ?")
 	args = append(args, uint64(pageSize)+1)
 	return q.String(), args, nil
 }
 
 // appendOrderBy writes the ORDER BY clause of the sort terms, each column in its direction.
 func (q *sqlBuilder) appendOrderBy(sort []sortTerm) {
-	q.WriteString("\nORDER BY ")
+	q.appendClause("ORDER BY ")
 	for i, term := range sort {
 		if i > 0 {
 			q.WriteString(", ")

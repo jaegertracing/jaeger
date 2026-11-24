@@ -95,6 +95,35 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 	}
 }
 
+func TestServiceNamesStorageWriteRetriesAfterError(t *testing.T) {
+	withServiceNamesStorage(time.Minute, func(s *serviceNameStorageTest) {
+		query := &mocks.Query{}
+		query1 := &mocks.Query{}
+		query.On("Bind", []any{"service-a"}).Return(query1)
+		query1.On("Exec").Return(errors.New("exec error")).Once()
+		query1.On("Exec").Return(nil)
+		query1.On("String").Return("select from service_names")
+
+		s.session.On("Query", mock.AnythingOfType("string")).Return(query)
+
+		err := s.storage.Write("service-a")
+		require.EqualError(t, err, "failed to Exec query 'select from service_names': exec error")
+
+		// the failed insert must not stay in the write cache
+		err = s.storage.Write("service-a")
+		require.NoError(t, err)
+
+		// cached after the successful retry
+		err = s.storage.Write("service-a")
+		require.NoError(t, err)
+
+		counts, _ := s.metricsFactory.Snapshot()
+		assert.Equal(t, map[string]int64{
+			"attempts|table=service_names": 2, "inserts|table=service_names": 1, "errors|table=service_names": 1,
+		}, counts)
+	})
+}
+
 func TestServiceNamesStorageGetServices(t *testing.T) {
 	scanError := errors.New("scan error")
 	var writeCacheTTL time.Duration

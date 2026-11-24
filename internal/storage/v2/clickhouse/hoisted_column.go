@@ -19,7 +19,10 @@ import (
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
-const defaultHoistedCodec = "ZSTD(1)"
+const (
+	defaultHoistedCodec = "ZSTD(1)"
+	spansTable          = "spans"
+)
 
 var (
 	hoistedColumnNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -60,7 +63,7 @@ func zstdCodec(codec string) (string, bool) {
 // newHoistedColumns validates attributes and returns the columns they describe, in the
 // configured order. Validation and conversion share one function so that no column can be
 // rendered from an entry that was not checked.
-func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedColumn, error) {
+func newHoistedColumns(attributes []HoistedAttribute, layout chtracestore.AttributeLayout) ([]chtracestore.HoistedColumn, error) {
 	type source struct {
 		level     expression.Level
 		key       string
@@ -111,17 +114,18 @@ func newHoistedColumns(attributes []HoistedAttribute) ([]chtracestore.HoistedCol
 			}
 		}
 		columns = append(columns, chtracestore.HoistedColumn{
-			Name:  attribute.Column,
-			Level: level,
-			Key:   attribute.Key,
-			Type:  valueType,
-			Codec: codec,
+			Name:   attribute.Column,
+			Level:  level,
+			Key:    attribute.Key,
+			Type:   valueType,
+			Codec:  codec,
+			Layout: layout,
 		})
 	}
 	return columns, nil
 }
 
-// hoistedColumnState is how the spans table declares a hoisted column.
+// hoistedColumnState is how a table declares a hoisted column.
 type hoistedColumnState struct {
 	Type           string `ch:"type"`
 	Kind           string `ch:"default_kind"`
@@ -142,35 +146,49 @@ func (s hoistedColumnState) declaration() string {
 	return strings.Join(parts, " ")
 }
 
-// checkHoistedColumns verifies that the spans table has every configured hoisted column with
-// the type, expression and codec the configuration renders. The table may have been created by
-// the operator or by an earlier configuration, and a search that read a column of another
-// attribute would return wrong results without an error.
+// checkHoistedColumns verifies that the spans table, and its storage table when spans is
+// Distributed, declare every configured hoisted column with the type, expression and codec
+// that the configuration renders. The tables
+// may have been created by the operator or by an earlier configuration, and a search that read
+// a column of another attribute would return wrong results without an error.
 func checkHoistedColumns(ctx context.Context, conn driver.Conn, columns []chtracestore.HoistedColumn) error {
+	if len(columns) == 0 {
+		return nil
+	}
+	tables, err := hoistedColumnTables(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("failed to look up the spans table: %w", err)
+	}
+	if len(tables) == 0 {
+		return errors.New("hoisted attributes are configured, but the spans table does not exist; create the schema first")
+	}
 	for _, column := range columns {
-		state, found, err := readHoistedColumn(ctx, conn, column)
-		if err != nil {
-			return fmt.Errorf("failed to read the hoisted attribute column %q: %w", column.Name, err)
-		}
-		if !found {
-			// A missing table also has no columns, and the statement below cannot add one to it.
-			tableExists, err := spansTableExists(ctx, conn)
+		var addColumnStatements []string
+		var mismatchErr error
+		for _, table := range tables {
+			state, found, err := readHoistedColumn(ctx, conn, table, column)
 			if err != nil {
-				return fmt.Errorf("failed to look up the spans table: %w", err)
+				return fmt.Errorf("failed to read the hoisted attribute column %q of the %s table: %w", column.Name, table, err)
 			}
-			if !tableExists {
-				return errors.New("hoisted attributes are configured, but the spans table does not exist; create the schema first")
+			if !found {
+				addColumnStatements = append(addColumnStatements, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", table, column.Definition()))
+				continue
 			}
-			return fmt.Errorf("hoisted attribute column %q is missing from the spans table; add it with: ALTER TABLE spans ADD COLUMN %s",
-				column.Name, column.Definition())
+			if state.Type != column.NullableType() ||
+				state.Kind != "MATERIALIZED" ||
+				state.SameExpression == 0 ||
+				state.Codec != "CODEC("+column.Codec+")" {
+				mismatchErr = errors.Join(mismatchErr, fmt.Errorf("hoisted attribute column %q does not match its configuration: the %s table declares it as [%s], "+
+					"and the configuration needs [%s]; a changed hoisted attribute needs a schema migration",
+					column.Name, table, state.declaration(), column.Declaration()))
+			}
 		}
-		if state.Type != column.NullableType() ||
-			state.Kind != "MATERIALIZED" ||
-			state.SameExpression == 0 ||
-			state.Codec != "CODEC("+column.Codec+")" {
-			return fmt.Errorf("hoisted attribute column %q does not match its configuration: the spans table declares it as [%s], "+
-				"and the configuration needs [%s]; a changed hoisted attribute needs a schema migration",
-				column.Name, state.declaration(), column.Declaration())
+		var missingErr error
+		if len(addColumnStatements) > 0 {
+			missingErr = fmt.Errorf("hoisted attribute column %q is missing; add it with: %s", column.Name, strings.Join(addColumnStatements, "; "))
+		}
+		if err := errors.Join(missingErr, mismatchErr); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -178,8 +196,8 @@ func checkHoistedColumns(ctx context.Context, conn driver.Conn, columns []chtrac
 
 // readHoistedColumn reads the rows to the end, because the driver reports an error of the
 // result stream only after the last row.
-func readHoistedColumn(ctx context.Context, conn driver.Conn, column chtracestore.HoistedColumn) (state hoistedColumnState, found bool, err error) {
-	rows, err := conn.Query(ctx, sql.SelectHoistedColumn, column.SourceExpression(), column.Name)
+func readHoistedColumn(ctx context.Context, conn driver.Conn, table string, column chtracestore.HoistedColumn) (state hoistedColumnState, found bool, err error) {
+	rows, err := conn.Query(ctx, sql.SelectHoistedColumn, column.SourceExpression(), table, column.Name)
 	if err != nil {
 		return state, false, err
 	}
@@ -193,12 +211,33 @@ func readHoistedColumn(ctx context.Context, conn driver.Conn, column chtracestor
 	return state, found, rows.Err()
 }
 
-func spansTableExists(ctx context.Context, conn driver.Conn) (bool, error) {
-	rows, err := conn.Query(ctx, sql.SelectSpansTable)
+// hoistedColumnTables returns the tables that must declare a hoisted column: spans, preceded by its
+// storage table when spans is a Distributed table. A search fails on a shard when the
+// Distributed table has the column and its storage table does not.
+func hoistedColumnTables(ctx context.Context, conn driver.Conn) ([]string, error) {
+	storageTable := spansTable + localTableSuffix
+	rows, err := conn.Query(ctx, sql.SelectTableEngines, spansTable, storageTable)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer rows.Close()
-	exists := rows.Next()
-	return exists, rows.Err()
+	engines := map[string]string{}
+	for rows.Next() {
+		var name, engine string
+		if err := rows.Scan(&name, &engine); err != nil {
+			return nil, err
+		}
+		engines[name] = engine
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	engine, hasSpans := engines[spansTable]
+	if !hasSpans {
+		return nil, nil
+	}
+	if _, hasStorage := engines[storageTable]; hasStorage && engine == "Distributed" {
+		return []string{storageTable, spansTable}, nil
+	}
+	return []string{spansTable}, nil
 }

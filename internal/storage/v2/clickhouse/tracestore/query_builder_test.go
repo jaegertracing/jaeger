@@ -4,7 +4,6 @@
 package tracestore
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +28,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s := attrs.PutEmptySlice("bad_slice")
 		s.AppendEmpty()
 
-		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -41,7 +40,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m := attrs.PutEmptyMap("bad_map")
 		m.PutEmpty("key")
 
-		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, NestedLayout{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -59,7 +58,7 @@ func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(td, testReaderConfig)
+	reader := NewReader(td, NestedLayout{}, testReaderConfig)
 	_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: buildTestAttributes()})
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
@@ -103,7 +102,7 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			attr := pcommon.NewValueStr(tc.attrValue)
-			var q sqlBuilder
+			q := newNestedSQLBuilder()
 			var args []any
 
 			args = q.buildStringAttributeCondition(args, "k", attr, tc.metadata)
@@ -137,7 +136,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 			params: tracestore.GetTraceParams{
 				TraceID: traceID,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID,
+			expectedSQL:  nestedSelectSpansByTraceID,
 			expectedArgs: []any{traceID},
 		},
 		{
@@ -147,7 +146,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				Start:   now.Add(-1 * time.Hour),
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano(), now.UnixNano()},
 		},
 		{
@@ -156,7 +155,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				Start:   now.Add(-1 * time.Hour),
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time >= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.Add(-1 * time.Hour).UnixNano()},
 		},
 		{
@@ -165,14 +164,14 @@ func TestBuildGetTracesQuery(t *testing.T) {
 				TraceID: traceID,
 				End:     now,
 			},
-			expectedSQL:  sql.SelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
+			expectedSQL:  nestedSelectSpansByTraceID + "\n\tAND s.start_time <= fromUnixTimestamp64Nano(?)",
 			expectedArgs: []any{traceID, now.UnixNano()},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			query, args := buildGetTracesQuery(tt.params)
+			query, args := NewReader(&clickhousetest.Driver{}, NestedLayout{}, ReaderConfig{}).buildGetTracesQuery(tt.params)
 			require.Equal(t, tt.expectedSQL, query)
 			require.Equal(t, tt.expectedArgs, args)
 		})
@@ -181,7 +180,7 @@ func TestBuildGetTracesQuery(t *testing.T) {
 
 func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	attr := pcommon.NewValueStr("123") // parses as both int and str
-	var q sqlBuilder
+	q := newNestedSQLBuilder()
 	var args []any
 
 	metadata := attributeMetadata{
@@ -210,7 +209,7 @@ func TestBuildStringAttributeCondition_AllLevels(t *testing.T) {
 			link:     []pcommon.ValueType{pcommon.ValueTypeInt},
 		},
 	}
-	var q sqlBuilder
+	q := newNestedSQLBuilder()
 
 	args := q.buildStringAttributeCondition(nil, "k", attr, metadata)
 
@@ -290,8 +289,8 @@ func TestBuildFindTracesQuery(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			q, args := buildFindTracesQuery(tc.bounds)
-			require.Equal(t, strings.TrimRight(sql.SelectSpansQuery, "\n")+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
+			q, args := NewReader(&clickhousetest.Driver{}, NestedLayout{}, ReaderConfig{}).buildFindTracesQuery(tc.bounds)
+			require.Equal(t, nestedSelectSpans+"\nWHERE "+tc.condition+"\nORDER BY s.trace_id", q)
 			require.Equal(t, tc.args, args)
 		})
 	}

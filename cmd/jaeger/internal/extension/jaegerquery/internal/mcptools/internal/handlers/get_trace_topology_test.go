@@ -8,10 +8,12 @@ import (
 	"errors"
 	"iter"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
@@ -234,13 +236,18 @@ func TestGetTraceTopologyHandler_Handle_DuplicateSpanIDs(t *testing.T) {
 			},
 		},
 		{
+			// The first spanAAA is kept, so A and B form a parent cycle and are walked
+			// by the unreached pass; the root with the reused ID is dropped.
 			name: "root reuses the ID of an earlier span",
 			spans: []spanConfig{
 				{spanID: "spanAAA", parentSpanID: "spanBBB", operation: "A"},
 				{spanID: "spanBBB", parentSpanID: "spanAAA", operation: "B"},
 				{spanID: "spanAAA", operation: "root"},
 			},
-			expected: []pathAndName{},
+			expected: []pathAndName{
+				{path: bHex + "/" + aHex, name: "A"},
+				{path: bHex + "/" + aHex + "/" + bHex, name: "B"},
+			},
 		},
 	}
 
@@ -761,4 +768,237 @@ func TestGetTraceTopologyHandler_Handle_LimitDropsLaterRoot(t *testing.T) {
 		assert.Zero(t, s.TruncatedChildren)
 	}
 	assert.Equal(t, []string{"rootA", "childA1", "childA2"}, names)
+}
+
+func TestGetTraceTopologyHandler_Handle_ParentCycle(t *testing.T) {
+	// Each span's parent is the other, so neither is a root.
+	spanConfigs := []spanConfig{
+		{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+		{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+	}
+	handler := &getTraceTopologyHandler{
+		queryService:             newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs)),
+		maxSpanDetailsPerRequest: 20,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: testTraceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, output.TotalSpanCount)
+	require.Len(t, output.Spans, 2)
+	a, b := spanIDToHex("spanA01"), spanIDToHex("spanB01")
+	assert.Equal(t, b+"/"+a, output.Spans[0].Path)
+	assert.Equal(t, b+"/"+a+"/"+b, output.Spans[1].Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_SelfParent(t *testing.T) {
+	spanConfigs := []spanConfig{
+		{spanID: "spanA01", parentSpanID: "spanA01", operation: "a"},
+	}
+	handler := &getTraceTopologyHandler{
+		queryService:             newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs)),
+		maxSpanDetailsPerRequest: 20,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: testTraceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, output.TotalSpanCount)
+	require.Len(t, output.Spans, 1)
+	a := spanIDToHex("spanA01")
+	assert.Equal(t, a+"/"+a, output.Spans[0].Path)
+}
+
+func TestGetTraceTopologyHandler_Handle_UnreachedSpans(t *testing.T) {
+	// A normal tree plus two parent cycles. The span IDs sort in the order the spans
+	// are created, so the order is the same whether start times or IDs decide it.
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "root002", parentSpanID: "root001", operation: "child"},
+		{spanID: "root003", parentSpanID: "root002", operation: "grandchild"},
+		{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+		{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+		{spanID: "spanX01", parentSpanID: "spanY01", operation: "x"},
+		{spanID: "spanY01", parentSpanID: "spanX01", operation: "y"},
+	}
+
+	tests := []struct {
+		name     string
+		depth    int
+		maxSpans int
+		expected []string
+	}{
+		{name: "cycles walked after the tree", maxSpans: 20, expected: []string{"root", "child", "grandchild", "a", "b", "x", "y"}},
+		{name: "span limit still applies", maxSpans: 4, expected: []string{"root", "child", "grandchild", "a"}},
+		// child, grandchild and b are cut by the depth limit and are not pulled back in.
+		{name: "depth limit is not undone", depth: 1, maxSpans: 20, expected: []string{"root", "a", "x"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &getTraceTopologyHandler{
+				queryService:             newMockYieldingTraces(createTestTraceWithSpans(testTraceID, spanConfigs)),
+				maxSpanDetailsPerRequest: tt.maxSpans,
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID, Depth: tt.depth}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			assert.Equal(t, len(spanConfigs), output.TotalSpanCount)
+			names := make([]string, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				names = append(names, s.SpanName)
+			}
+			assert.Equal(t, tt.expected, names)
+		})
+	}
+}
+
+func TestGetTraceTopologyHandler_Handle_UnreachedSpansTruncatedChildren(t *testing.T) {
+	// At the depth limit, TruncatedChildren counts the children left out of the
+	// output. A child that closes a cycle is already in the output, so it is not counted.
+	tests := []struct {
+		name      string
+		spans     []spanConfig
+		depth     int
+		names     []string
+		truncated []int
+	}{
+		{
+			name:      "self-parent span is not its own cut child",
+			spans:     []spanConfig{{spanID: "spanA01", parentSpanID: "spanA01", operation: "a"}},
+			depth:     1,
+			names:     []string{"a"},
+			truncated: []int{0},
+		},
+		{
+			name: "cycle closed at the depth limit",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+			},
+			depth:     2,
+			names:     []string{"a", "b"},
+			truncated: []int{0, 0},
+		},
+		{
+			name: "cycle cut by the depth limit",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+			},
+			depth:     1,
+			names:     []string{"a"},
+			truncated: []int{1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &getTraceTopologyHandler{
+				queryService:             newMockYieldingTraces(createTestTraceWithSpans(testTraceID, tt.spans)),
+				maxSpanDetailsPerRequest: 20,
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID, Depth: tt.depth}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			names := make([]string, 0, len(output.Spans))
+			truncated := make([]int, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				names = append(names, s.SpanName)
+				truncated = append(truncated, s.TruncatedChildren)
+			}
+			assert.Equal(t, tt.names, names)
+			assert.Equal(t, tt.truncated, truncated)
+		})
+	}
+}
+
+func TestGetTraceTopologyHandler_Handle_UnreachedSpansStartTimeOrder(t *testing.T) {
+	// The spans are created in span ID order, so walking them in input order or in ID
+	// order would give a different result. The start times decide the order.
+	a, b, c := spanIDToHex("spanA01"), spanIDToHex("spanB01"), spanIDToHex("spanC01")
+	x, y := spanIDToHex("spanX01"), spanIDToHex("spanY01")
+
+	tests := []struct {
+		name       string
+		spans      []spanConfig
+		startOrder []string
+		names      []string
+		paths      []string
+	}{
+		{
+			name: "cycle that starts earlier is walked first",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+				{spanID: "spanX01", parentSpanID: "spanY01", operation: "x"},
+				{spanID: "spanY01", parentSpanID: "spanX01", operation: "y"},
+			},
+			startOrder: []string{"spanX01", "spanY01", "spanA01", "spanB01"},
+			names:      []string{"x", "y", "a", "b"},
+			paths:      []string{y + "/" + x, y + "/" + x + "/" + y, b + "/" + a, b + "/" + a + "/" + b},
+		},
+		{
+			name: "span hanging off a cycle that starts before it is listed first",
+			spans: []spanConfig{
+				{spanID: "spanA01", parentSpanID: "spanB01", operation: "a"},
+				{spanID: "spanB01", parentSpanID: "spanA01", operation: "b"},
+				{spanID: "spanC01", parentSpanID: "spanA01", operation: "c"},
+			},
+			startOrder: []string{"spanC01", "spanA01", "spanB01"},
+			names:      []string{"c", "a", "b"},
+			paths:      []string{a + "/" + c, b + "/" + a, b + "/" + a + "/" + b},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := withStartOrder(createTestTraceWithSpans(testTraceID, tt.spans), tt.startOrder...)
+			handler := &getTraceTopologyHandler{
+				queryService:             newMockYieldingTraces(td),
+				maxSpanDetailsPerRequest: 20,
+			}
+
+			input := types.GetTraceTopologyInput{TraceID: testTraceID}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			names := make([]string, 0, len(output.Spans))
+			paths := make([]string, 0, len(output.Spans))
+			for _, s := range output.Spans {
+				names = append(names, s.SpanName)
+				paths = append(paths, s.Path)
+			}
+			assert.Equal(t, tt.names, names)
+			assert.Equal(t, tt.paths, paths)
+		})
+	}
+}
+
+// withStartOrder gives the listed spans start times one second apart, in the given
+// order, so the start-time order can differ from the order the spans were created in.
+func withStartOrder(td ptrace.Traces, spanIDs ...string) ptrace.Traces {
+	rank := make(map[string]int, len(spanIDs))
+	for i, id := range spanIDs {
+		rank[spanIDToHex(id)] = i
+	}
+	base := pcommon.NewTimestampFromTime(time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC))
+	for _, rs := range td.ResourceSpans().All() {
+		for _, ss := range rs.ScopeSpans().All() {
+			for _, span := range ss.Spans().All() {
+				if i, ok := rank[span.SpanID().String()]; ok {
+					start := base + pcommon.Timestamp(time.Duration(i)*time.Second)
+					span.SetStartTimestamp(start)
+					span.SetEndTimestamp(start + pcommon.Timestamp(time.Millisecond))
+				}
+			}
+		}
+	}
+	return td
 }

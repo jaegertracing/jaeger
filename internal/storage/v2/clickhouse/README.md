@@ -36,6 +36,66 @@ The `Value` type here actually refers to the `pdata` data types from the `otel-c
 The OTel-contrib implementation uses `database/sql` for writing data. Using the provided generic interface is unnecessary; using the client provided by Clickhouse is a better choice.
 For write operations, `ch-go`'s `chpool` is used in batch mode. For read operations, `clickhouse-go` is used.
 
+### Distributed layout
+
+A `table_engine.cluster` block, beside `merge_tree` or `replicated`, additionally shards the
+schema across a named ClickHouse cluster. See
+[RFC 0022 §6](../../../../docs/rfc/0022-clickhouse-schema-migrations.md#6-cluster-setups) for
+the full set of cluster setups this selects and the ClickHouse administrator steps each
+requires; this is a summary.
+
+```yaml
+table_engine:
+  replicated: {}
+  cluster:
+    name: my_cluster
+```
+
+Setting `cluster` creates every table twice: once under its name with a `_local` suffix as
+the storage table, using the engine `table_engine` otherwise selects, and once under the
+public name as a `Distributed` table over the storage table, with a sharding key for each
+table whose rows belong to one trace or one point in time. Application reads and writes
+against the public name are routed and fanned out across the cluster's shards. Materialized
+views attach to the storage tables, never to a `Distributed` table.
+
+Jaeger inserts with the ClickHouse default for `distributed_foreground_insert`: a
+`Distributed` table acknowledges an insert once the rows are queued on the node that received
+them, and forwards them to their shards in the background, so the rows become readable shortly
+after the insert returns. An operator who needs an acknowledged insert to be stored on its
+shard sets `distributed_foreground_insert = 1` in the settings profile of the ClickHouse user
+that Jaeger connects as, at the price of slower inserts that fail while a shard is unreachable.
+
+A multi-node deployment needs a `Replicated` database: with `create_schema: true`, Jaeger
+issues its schema statements once, and the database itself delivers them to every node. An
+`Atomic` database delivers nothing to other nodes, so `cluster` with an `Atomic` database and
+`create_schema: true` is only correct on a single node; a genuine multi-node `Atomic`
+deployment needs `create_schema: false`, with the operator running the rendered statements on
+every node directly. The named cluster in `remote_servers` must also set
+`internal_replication: true` when `replicated` is used with `cluster`; without it, each
+replica of a shard keeps a copy of every insert in addition to the one replication makes, so
+rows are stored once per replica rather than once per shard.
+
+`merge_tree` with `cluster` is accepted, with a startup warning: this shards without
+replicas, so the data has no second copy, and a node that is down affects every shard, not
+only its own.
+
+### Attribute layout
+
+The `spans` table stores the attributes of each level in typed groups, such as `str_attributes` and `resource_int_attributes`. The `attribute_layout` setting selects the ClickHouse type of every group:
+
+| `attribute_layout` | Type of a group | Equality search |
+| --- | --- | --- |
+| `nested` (default) | `Nested(key String, value T)`, which is two parallel arrays | `arrayExists` over the keys and the values |
+| `map` | `Map(String, T)` | `mapContains(group, key) AND group[key] = value` |
+
+The setting changes how ClickHouse stores and searches the groups, and nothing else. A trace read from a table in either layout is the same, including the order of its attributes, and hoisted attributes work in both. The `map` layout is experimental.
+
+Three properties of the setting matter to an operator:
+
+- The layout belongs to the table. `create_schema` creates a new table in the configured layout and leaves an existing table as it is, and the backend does not convert spans from one layout to the other. At startup the backend reads the layout of the `spans` table and refuses to start when it differs from `attribute_layout`. A deployment that changes the layout therefore creates its tables again, for example in a new database, and the spans of the old tables are not searched from the new ones.
+- Every backend entry that opens the database states the layout. A ClickHouse entry under `metric_backends` reads the same `spans` table and runs the same check, so it needs the same `attribute_layout` as the entry under `backends`.
+- If a span carries the same key twice in one typed group, which OTLP forbids, a search in the `map` layout compares the first value only, and a search in the `nested` layout matches either value. Both layouts store and return both values.
+
 ### Hoisted attributes
 
 A deployment can copy attributes that it searches often into dedicated columns of the `spans` table. The backend calls such an attribute "hoisted". Each entry of `hoisted_attributes` names one attribute by its key, level and stored type, and the column that receives the copy:
@@ -94,9 +154,41 @@ SELECT mutation_id, parts_to_do, is_done FROM system.mutations WHERE database = 
 
 The backend never starts this mutation itself.
 
+#### Hoisted attributes in the Distributed layout
+
+With a `table_engine.cluster` block, `spans` is a `Distributed` table and the rows are stored in `spans_local` on each shard. A search on a hoisted attribute goes to the `Distributed` table, which forwards it to `spans_local`, so both tables need the column on every node. The statements above name only `spans`. If only `spans` has the column, every search on the attribute fails on the shards with `UNKNOWN_IDENTIFIER` (code 47).
+
+When `spans` is a `Distributed` table, the startup check therefore reads the column from both `spans_local` and `spans`, and its error gives an `ALTER TABLE` statement for each table that lacks the column. The check reads both tables on the server it connects to, not on every shard. The check finds the storage table by the name `spans_local` on that server. If the server has no table of that name, because an operator created the storage table under another name or the server holds only the `Distributed` table, the check reads `spans` alone. In both cases the check cannot see the storage table, so a storage table without the column lets the backend start, and every search on the attribute fails.
+
+The operator adds the column to both tables with the same definition:
+
+```sql
+ALTER TABLE spans_local ADD COLUMN IF NOT EXISTS input_tokens Nullable(Int64)
+    MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'),
+                    int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')],
+                    NULL)
+    CODEC(ZSTD(3));
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_tokens Nullable(Int64)
+    MATERIALIZED if(has(int_attributes.key, 'gen_ai.usage.input_tokens'),
+                    int_attributes.value[indexOf(int_attributes.key, 'gen_ai.usage.input_tokens')],
+                    NULL)
+    CODEC(ZSTD(3));
+```
+
+How a statement reaches every node depends on the database. A `Replicated` database executes a statement that one node receives on all of its nodes, and it rejects `ON CLUSTER` (code 80), so the operator sends each statement as written to one node. An `Atomic` database delivers nothing, so the operator adds `ON CLUSTER my_cluster` after the table name, which executes the statement on every node of the cluster.
+
+The mutation that stores the column in existing parts runs on `spans_local` only, because a `Distributed` table stores no parts and rejects a mutation with `NOT_IMPLEMENTED` (code 48). It reaches the nodes the same way as the statements above. Each node records its own mutation, so the progress query reads `system.mutations` on all of them:
+
+```sql
+ALTER TABLE spans_local MATERIALIZE COLUMN input_tokens;
+SELECT hostName(), mutation_id, parts_to_do, is_done FROM clusterAllReplicas('my_cluster', system.mutations) WHERE database = currentDatabase() AND table = 'spans_local' AND NOT is_done;
+```
+
 #### Removing or changing a hoisted attribute
 
 Removing an entry from the configuration makes searches use the typed groups again. The column stays in the table until the operator drops it, and the drop comes after every Jaeger instance whose configuration lists the entry has restarted without it. An instance checks its columns only at startup, so one that still runs with the entry keeps searching the column, and its searches for that attribute fail once the column is gone.
+
+In the Distributed layout the operator drops the column from both `spans` and `spans_local`.
 
 Changing the key, level, type or codec of an entry is a schema change, and the startup check refuses a column that does not match its entry. A running instance does not repeat the check, so the steps go in this order:
 

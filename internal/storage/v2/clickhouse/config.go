@@ -13,6 +13,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 )
 
 const (
@@ -22,6 +24,7 @@ const (
 	defaultMaxSearchDepth                = 10000
 	defaultAttributeMetadataCacheTTL     = time.Hour
 	defaultAttributeMetadataCacheMaxSize = 1000
+	defaultAttributeLayout               = "nested"
 )
 
 type Configuration struct {
@@ -68,6 +71,21 @@ type Configuration struct {
 	// table is not altered, so the operator adds the columns to it. An empty list leaves the
 	// schema as it is.
 	HoistedAttributes []HoistedAttribute `mapstructure:"hoisted_attributes"`
+	// AttributeLayout is how the spans table stores each typed attribute group: "nested", as
+	// Nested(key, value), or "map", as Map(String, T). The default is "nested". CreateSchema
+	// creates a table in this layout; an existing table is not converted, and the backend
+	// does not start on a table in the other layout.
+	AttributeLayout string `mapstructure:"attribute_layout"`
+}
+
+// attributeLayout returns the layout that AttributeLayout names. An empty value is the
+// default layout, as in a Configuration that was not built from DefaultConfiguration.
+func (cfg *Configuration) attributeLayout() (chtracestore.AttributeLayout, error) {
+	name := cfg.AttributeLayout
+	if name == "" {
+		name = defaultAttributeLayout
+	}
+	return chtracestore.AttributeLayoutByName(name)
 }
 
 // HoistedAttribute selects one attribute to copy into a column of its own. All fields except
@@ -104,6 +122,8 @@ type TableEngine struct {
 	// keep every row on every replica of the shard. It is required on a cluster with more than
 	// one replica.
 	Replicated configoptional.Optional[ReplicatedEngine] `mapstructure:"replicated"`
+	// Cluster creates the schema as Distributed tables over a named ClickHouse cluster.
+	Cluster configoptional.Optional[ClusterConfig] `mapstructure:"cluster"`
 }
 
 // MergeTreeEngine has no parameters.
@@ -124,6 +144,19 @@ type ReplicatedEngine struct {
 	// ReplicaName identifies this replica under KeeperPath. The same value is used for
 	// every table, which is what the `{replica}` macro expects.
 	ReplicaName string `mapstructure:"replica_name"`
+}
+
+// ClusterConfig makes create_schema create every table twice: a storage table named
+// <table>_local with the engine that TableEngine selects, and a Distributed table under
+// the public name, which routes each insert to one shard of the named cluster and sends
+// each query to all of them. It is meant for a cluster with more than one shard; a
+// single shard with replicas needs only the replicated engine. It is independent of the
+// engine choice: merge_tree or replicated decides whether a shard keeps replicas of its
+// rows, and this block decides whether the rows are divided between shards (RFC 0022 §6).
+type ClusterConfig struct {
+	// Name is the cluster that the Distributed tables forward to, as defined in the
+	// server's remote_servers. Required.
+	Name string `mapstructure:"name"`
 }
 
 // engineFamily is the local engine of a table in the schema, which a TableEngine
@@ -168,6 +201,23 @@ func (e TableEngine) engineClause(family engineFamily) (string, error) {
 	return fmt.Sprintf("Replicated%s('%s', '%s')", family, r.KeeperPath, r.ReplicaName), nil
 }
 
+// clusterConfig validates the TableEngine's Cluster block and returns it, or nil when unset.
+func (e TableEngine) clusterConfig() (*ClusterConfig, error) {
+	c := e.Cluster.Get()
+	if c == nil {
+		return nil, nil
+	}
+	if c.Name == "" {
+		return nil, errors.New("`table_engine.cluster.name` is required when `table_engine.cluster` is set")
+	}
+	// Name is rendered inside a single-quoted SQL literal, where a quote ends the literal
+	// and a backslash escapes the character after it.
+	if strings.ContainsAny(c.Name, `'\`) {
+		return nil, errors.New("`table_engine.cluster.name` must not contain a single quote or a backslash")
+	}
+	return c, nil
+}
+
 // DefaultConfiguration returns the configuration a ClickHouse backend starts from
 // before the user's own settings are unmarshaled over it.
 func DefaultConfiguration() Configuration {
@@ -178,6 +228,7 @@ func DefaultConfiguration() Configuration {
 		MaxSearchDepth:                defaultMaxSearchDepth,
 		AttributeMetadataCacheTTL:     defaultAttributeMetadataCacheTTL,
 		AttributeMetadataCacheMaxSize: defaultAttributeMetadataCacheMaxSize,
+		AttributeLayout:               defaultAttributeLayout,
 	}
 }
 
@@ -211,13 +262,20 @@ func (cfg *Configuration) Validate() error {
 	if cfg.AttributeMetadataCacheMaxSize < 0 {
 		return errors.New("attribute_metadata_cache_max_size must be a non-negative number")
 	}
-	if _, err := newHoistedColumns(cfg.HoistedAttributes); err != nil {
+	layout, err := cfg.attributeLayout()
+	if err != nil {
+		return err
+	}
+	if _, err := newHoistedColumns(cfg.HoistedAttributes, layout); err != nil {
 		return err
 	}
 	// The table_engine block is ignored without create_schema, because the operator then
 	// owns the tables.
 	if cfg.CreateSchema {
 		if _, err := cfg.TableEngine.engineClause(mergeTreeFamily); err != nil {
+			return err
+		}
+		if _, err := cfg.TableEngine.clusterConfig(); err != nil {
 			return err
 		}
 	}
