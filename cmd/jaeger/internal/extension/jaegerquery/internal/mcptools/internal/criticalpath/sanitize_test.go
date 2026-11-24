@@ -297,25 +297,19 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 	assert.False(t, ok4)
 }
 
-// TestSanitizeOverFlowingChildren_OrphanCascade pins the behavior of a "true
-// orphan": a span whose ParentSpanID is non-empty but does not exist anywhere
-// in spanMap (its parent was never part of the trace, not merely dropped during
-// this pass).
+// TestSanitizeOverFlowingChildren_OrphanCascade verifies that a span whose
+// ParentSpanID is non-empty but absent from spanMap (a "true orphan") is dropped
+// along with its entire subtree.
 //
-// The original single-pass code dropped the orphan via the `parentExists ==
-// false` branch (delete + continue, no explicit child cascade). Children of the
-// orphan were still in the flat spanIDs snapshot, so they were visited later;
-// their own parent-lookup also failed (orphan was deleted), causing them to be
-// deleted too. The net result: the full subtree rooted at the orphan is removed.
+// The BFS seeds every span whose parent is missing as an orphan root; when the
+// orphan is dequeued it is deleted and its children are enqueued. Each child is
+// then dequeued and hits the same branch (parent now gone), propagating the
+// deletion transitively. The observable result: every span in the orphan's
+// subtree is absent from the output.
 //
-// The BFS rewrite replicates this by enqueuing the orphan's children
-// (appendChildren) before the continue, so they are processed in the same pass
-// and deleted via the same orphan-detection branch. The observable result is
-// identical: every span in the orphan's subtree is absent from the output.
+// This test asserts that contract for a two-level subtree:
 //
-// This test explicitly asserts that contract for a two-level subtree:
-//
-//	Orphan O  (ParentSpanID → X, X not in map)
+//	Orphan O  (ParentSpanID -> X, X not in map)
 //	  └─ Child C
 //	       └─ Grandchild G
 func TestSanitizeOverFlowingChildren_OrphanCascade(t *testing.T) {
@@ -438,4 +432,82 @@ func TestSanitizeOverFlowingChildren_GrandchildCascade(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSanitizeOverFlowingChildren_TransitiveDrop verifies that when a span is
+// dropped, the orphan-detection branch alone removes its entire descendant
+// chain without a separate cascadeDelete helper. The chain is three levels
+// deep below the dropped span so that each level must be handled by
+// re-enqueuing through the orphan branch rather than any eager traversal.
+//
+// Tree:
+//
+//	A [0..200]  root
+//	  └─ B [250..300]  overflows A, dropped
+//	       └─ C [260..290]  child of B
+//	            └─ D [265..280]  grandchild of B
+//	                 └─ E [270..275]  great-grandchild of B
+func TestSanitizeOverFlowingChildren_TransitiveDrop(t *testing.T) {
+	spA := pcommon.SpanID([8]byte{0xA0})
+	spB := pcommon.SpanID([8]byte{0xB0})
+	spC := pcommon.SpanID([8]byte{0xC0})
+	spD := pcommon.SpanID([8]byte{0xD0})
+	spE := pcommon.SpanID([8]byte{0xE0})
+
+	input := map[pcommon.SpanID]CPSpan{
+		spA: {
+			SpanID:       spA,
+			StartTime:    0,
+			Duration:     200, // [0..200]
+			ChildSpanIDs: []pcommon.SpanID{spB},
+		},
+		spB: {
+			SpanID:       spB,
+			ParentSpanID: spA,
+			StartTime:    250, // starts after A ends, will be dropped
+			Duration:     50,  // [250..300]
+			ChildSpanIDs: []pcommon.SpanID{spC},
+		},
+		spC: {
+			SpanID:       spC,
+			ParentSpanID: spB,
+			StartTime:    260,
+			Duration:     30, // [260..290]
+			ChildSpanIDs: []pcommon.SpanID{spD},
+		},
+		spD: {
+			SpanID:       spD,
+			ParentSpanID: spC,
+			StartTime:    265,
+			Duration:     15, // [265..280]
+			ChildSpanIDs: []pcommon.SpanID{spE},
+		},
+		spE: {
+			SpanID:       spE,
+			ParentSpanID: spD,
+			StartTime:    270,
+			Duration:     5, // [270..275]
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+
+	// A must survive with B removed from its children.
+	a, ok := result[spA]
+	assert.True(t, ok, "root A must survive")
+	assert.Empty(t, a.ChildSpanIDs, "A's ChildSpanIDs must be empty after B is dropped")
+
+	// B overflows A and must be dropped.
+	_, ok = result[spB]
+	assert.False(t, ok, "B overflows A and must be dropped")
+
+	// C, D, E are descendants of dropped B and must all be dropped via the orphan branch.
+	_, ok = result[spC]
+	assert.False(t, ok, "C is a child of dropped B and must be dropped")
+
+	_, ok = result[spD]
+	assert.False(t, ok, "D is a grandchild of dropped B and must be dropped")
+
+	_, ok = result[spE]
+	assert.False(t, ok, "E is a great-grandchild of dropped B and must be dropped")
 }
