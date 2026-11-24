@@ -61,7 +61,7 @@ Receivers and the query API reject payloads that do not unmarshal, and they boun
 - **Storage Queries**: Elasticsearch/OpenSearch, Cassandra, ClickHouse, and the gRPC storage client build requests through their own client libraries. User-controlled span values still reach those backends as data.
 - **Query API**: HTTP `/api/` and `/api/v3/`, plus gRPC query v2 and v3, read stored traces. They do not redact attributes. Optional `query_interceptors` can, and none are registered by default.
 - **UI**: The embedded UI renders span data in the browser. Ordinary text goes through React. GenAI Markdown disables raw HTML, drops images, and allows links only for `http`, `https`, and `mailto`. Remote GenAI media is not fetched until the user asks to show it. The static handler does not send a `Content-Security-Policy` header. Trace JSON dropped on the search page is parsed only in the browser; it is not posted to Jaeger. See the [threat model](threat-model.md) for the attack side of this.
-- **MCP**: `/api/ai/mcp/` returns query results to the caller. `read_skill` only opens the embedded skill tree and, when configured, `custom/` under `ai.mcp.skills_dir`, and it rejects paths that fail `fs.ValidPath`. Search and span-detail tools are capped (100 hits, 20 spans, 512 KiB skill files).
+- **MCP**: `/api/ai/mcp/` returns query results to the caller. `read_skill` only opens the embedded skill tree and, when configured, `custom/` under `ai.mcp.skills_dir`, and it rejects paths that fail `fs.ValidPath`. Search and span-detail tools have operator-configurable caps: 100 hits, 20 spans and 512 KiB skill files by default, up to 1000, 100 and 10 MiB.
 
 ## System Hardening
 

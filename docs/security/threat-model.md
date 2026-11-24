@@ -279,9 +279,10 @@ is `read_skill`, which reads files: it rejects paths that fail `fs.ValidPath`
 registered tool set is what `tools/list` returns on this route; the gateway's
 turn-scoped route below adds UI tools to it.
 
-Limits compiled into the handler: 100 search hits, 20 spans of detail per
-call, and 512 KiB for a skill file. The endpoint keeps no session between
-requests, so there is nothing for an idle client to hold.
+Default limits, configurable under `ai.mcp`: 100 search hits (up to 1000),
+20 spans of detail per call (up to 100), and 512 KiB for a skill file (up to
+10 MiB). The endpoint keeps no session between requests, so there is nothing
+for an idle client to hold.
 
 There is no MCP-specific authentication, allowlist of clients, or filter of
 span text before it is returned. Tool arguments and tool results are copied

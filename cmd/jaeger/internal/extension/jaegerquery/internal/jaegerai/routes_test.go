@@ -95,7 +95,7 @@ func TestRegister(t *testing.T) {
 		// mcp.applyTo(&mcpParams) in Register must fail this test.
 		cfg := validConfig()
 		cfg.AgentURL = ""
-		cfg.MCP = configoptional.Some(MCPConfig{ServerName: "custom", MaxSearchResults: 7})
+		cfg.MCP = configoptional.Some(MCPConfig{ServerName: "custom"})
 		r, _ := register(t, cfg)
 
 		body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`

@@ -19,8 +19,8 @@ about the second.
 
 ## Tuning the tool limits
 
-Three settings bound what six tools may return. Each has a default, and each
-can be raised under the same `ai.mcp` block:
+Three settings bound what six tools may return. Each has a default and can be
+set under the same `ai.mcp` block:
 
 ```yaml
 extensions:
