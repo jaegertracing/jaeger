@@ -184,6 +184,30 @@ func TestHandler_GetTraces_ByteOrdering(t *testing.T) {
 	reader.AssertExpectations(t)
 }
 
+func TestHandler_GetTraces_InvalidTraceID(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	server := NewHandler(reader, writer, depReader)
+	stream := &testStream{}
+
+	err := server.GetTraces(&storage.GetTracesRequest{
+		Query: []*storage.GetTraceParams{
+			{
+				TraceId:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
+				StartTime: time.Now(),
+				EndTime:   time.Now().Add(time.Minute),
+			},
+		},
+	}, stream)
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "invalid trace ID length: 17 bytes (maximum is 16)")
+}
+
 func TestHandler_GetServices(t *testing.T) {
 	tests := []struct {
 		name             string

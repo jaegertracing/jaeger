@@ -552,16 +552,8 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					},
 				},
 			},
-			queryParams: queryParams,
-			expectedIDs: []tracestore.FoundTraceID{
-				{
-					// IDs longer than 16 bytes cannot be right-aligned safely;
-					// the receiver ignores them and returns a zero TraceID.
-					TraceID: pcommon.TraceID([16]byte{}),
-					Start:   now,
-					End:     now.Add(1 * time.Second),
-				},
-			},
+			queryParams:   queryParams,
+			expectedError: "failed to execute FindTraceIDs",
 		},
 		{
 			name: "error",
@@ -785,6 +777,53 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 	}
 }
 
+func TestTraceIDFromBytes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []byte
+		expected    pcommon.TraceID
+		expectedErr string
+	}{
+		{
+			name:     "empty",
+			input:    []byte{},
+			expected: pcommon.TraceID([16]byte{}),
+		},
+		{
+			name:     "1 byte",
+			input:    []byte{1},
+			expected: pcommon.TraceID([16]byte{15: 1}),
+		},
+		{
+			name:     "8 bytes (64-bit)",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			expected: pcommon.TraceID([16]byte{8: 1, 9: 2, 10: 3, 11: 4, 12: 5, 13: 6, 14: 7, 15: 8}),
+		},
+		{
+			name:     "16 bytes (128-bit)",
+			input:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expected: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+		},
+		{
+			name:        "17 bytes (> 16)",
+			input:       []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
+			expectedErr: "invalid trace ID length: 17 bytes (maximum is 16)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := traceIDFromBytes(tt.input)
+			if tt.expectedErr != "" {
+				require.ErrorContains(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	minStart := time.Unix(1000, 0).UTC()
 	maxEnd := time.Unix(1001, 0).UTC()
@@ -801,6 +840,19 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 				{Name: "frontend", SpanCount: 2, ErrorSpanCount: 1},
 			},
 		},
+		{
+			// 8-byte wire value must be right-aligned into the low half.
+			TraceId:              []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			RootServiceName:      "backend",
+			RootOperationName:    "DB Query",
+			MinStartTimeUnixNano: uint64(minStart.UnixNano()),
+			MaxEndTimeUnixNano:   uint64(maxEnd.UnixNano()),
+			SpanCount:            1,
+			ErrorSpanCount:       0,
+			Services: []*storage.ServiceSummary{
+				{Name: "backend", SpanCount: 1, ErrorSpanCount: 0},
+			},
+		},
 	}
 	ts := &testServer{summaries: wantSummaries, nextPageToken: "next-page"}
 	conn := startTestServer(t, ts)
@@ -814,7 +866,7 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 		assert.Equal(t, tracestore.PageToken("next-page"), chunk.NextPageToken)
 		got = append(got, chunk.Results...)
 	}
-	require.Len(t, got, 1)
+	require.Len(t, got, 2)
 	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
 	assert.Equal(t, "frontend", got[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", got[0].RootOperationName)
@@ -824,6 +876,21 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	assert.Equal(t, 1, got[0].ErrorSpanCount)
 	require.Len(t, got[0].Services, 1)
 	assert.Equal(t, "frontend", got[0].Services[0].Name)
+
+	assert.Equal(t, pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}), got[1].TraceID)
+	assert.Equal(t, "backend", got[1].RootServiceName)
+}
+
+func TestTraceReader_FindTraceSummaries_InvalidTraceID(t *testing.T) {
+	ts := &testServer{summaries: []*storage.TraceSummary{{TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}}}}
+	conn := startTestServer(t, ts)
+	reader := NewTraceReader(conn)
+
+	_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}))
+	require.ErrorContains(t, err, "failed to execute FindTraceSummaries")
+	require.ErrorContains(t, err, "invalid trace ID length")
 }
 
 func TestTraceReader_FindTraceSummaries_GRPCClientError(t *testing.T) {
