@@ -43,10 +43,87 @@ func Test_Run(t *testing.T) {
 		{
 			name: "Negative traces, positive duration",
 			config: &Config{
-				Traces:   -7,
-				Duration: 7,
+				Workers:    1,
+				Traces:     -7,
+				Duration:   7,
+				AttrKeys:   97,
+				AttrValues: 1000,
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "Zero workers",
+			config: &Config{
+				Workers:    0,
+				Traces:     10,
+				AttrKeys:   97,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`workers` must be greater than 0"),
+		},
+		{
+			name: "Negative workers",
+			config: &Config{
+				Workers:    -1,
+				Traces:     10,
+				AttrKeys:   97,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`workers` must be greater than 0"),
+		},
+		{
+			name: "Negative spans",
+			config: &Config{
+				Workers:    1,
+				Traces:     10,
+				ChildSpans: -1,
+				AttrKeys:   97,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`spans` must be non-negative"),
+		},
+		{
+			name: "Negative attrs",
+			config: &Config{
+				Workers:    1,
+				Traces:     10,
+				Attributes: -1,
+				AttrKeys:   97,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`attrs` must be non-negative"),
+		},
+		{
+			name: "Zero spans and attrs",
+			config: &Config{
+				Workers:    1,
+				Traces:     1,
+				ChildSpans: 0,
+				Attributes: 0,
+				AttrKeys:   97,
+				AttrValues: 1000,
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Zero attr-keys",
+			config: &Config{
+				Workers:    1,
+				Traces:     10,
+				AttrKeys:   0,
+				AttrValues: 1000,
+			},
+			expectedErr: errors.New("`attr-keys` must be greater than 0"),
+		},
+		{
+			name: "Zero attr-values",
+			config: &Config{
+				Workers:    1,
+				Traces:     10,
+				AttrKeys:   97,
+				AttrValues: 0,
+			},
+			expectedErr: errors.New("`attr-values` must be greater than 0"),
 		},
 	}
 

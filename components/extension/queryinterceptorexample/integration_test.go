@@ -21,6 +21,8 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 const traceID = "00000000000000000000000000abc123"
@@ -34,9 +36,9 @@ var testHTTPClient = &http.Client{Timeout: 5 * time.Second}
 // through the same env vars the file already exposes (`${env:...:-default}`),
 // so the file itself is what runs. It pushes one span via OTLP and drives the
 // jaeger-query API as two callers to prove both hooks fire per caller identity:
-//   - OnResult (return-path) redacts the configured attributes for a
+//   - OnTraceResult (return-path) redacts the configured attributes for a
 //     non-privileged caller but leaves them intact for a privileged one;
-//   - OnQuery (pre-query) rejects a search filtering on a forbidden attribute
+//   - OnTraceQuery (pre-query) rejects a search filtering on a forbidden attribute
 //     for a non-privileged caller but admits it for a privileged one.
 //
 // The caller identity travels in a request header and reaches the interceptor
@@ -96,34 +98,37 @@ func TestExampleConfigEndToEnd(t *testing.T) {
 	// restricted. This is the crux of the Option-D PoC: a real extension would
 	// resolve the caller against an access-control system instead of a static role.
 
-	// OnResult, privileged caller: sees the sensitive attributes unredacted.
+	// OnTraceResult, privileged caller: sees the sensitive attributes unredacted.
 	// This first fetch also serves as the readiness wait for the pushed trace.
-	var adminTags map[string]string
+	var adminAttrs map[string]string
 	require.Eventually(t, func() bool {
-		code, body := httpGet(t, queryBase+"/api/traces/"+traceID, "admin")
+		code, body := httpGet(t, queryBase+"/api/v3/traces/"+traceID, "admin")
 		if code != http.StatusOK || !strings.Contains(body, `"spans"`) {
 			return false
 		}
-		adminTags = spanTags(t, body)
-		_, ok := adminTags["prompt"]
+		adminAttrs = spanAttributes(t, body)
+		_, ok := adminAttrs["prompt"]
 		return ok
 	}, 10*time.Second, 100*time.Millisecond, "trace not queryable")
-	assert.Equal(t, "my password is hunter2", adminTags["prompt"], "privileged caller sees prompt unredacted")
-	assert.Equal(t, "the capital is Paris", adminTags["llm.response"], "privileged caller sees response unredacted")
+	assert.Equal(t, "my password is hunter2", adminAttrs["prompt"], "privileged caller sees prompt unredacted")
+	assert.Equal(t, "the capital is Paris", adminAttrs["llm.response"], "privileged caller sees response unredacted")
 
-	// OnResult, non-privileged caller: same trace, sensitive attributes redacted.
-	_, viewerBody := httpGet(t, queryBase+"/api/traces/"+traceID, "viewer")
-	viewerTags := spanTags(t, viewerBody)
-	assert.Equal(t, "REDACTED", viewerTags["prompt"], "non-privileged caller: prompt redacted")
-	assert.Equal(t, "REDACTED", viewerTags["llm.response"], "non-privileged caller: llm.response redacted")
-	assert.Equal(t, "visible", viewerTags["keep"], "non-configured attribute must be untouched")
+	// OnTraceResult, non-privileged caller: same trace, sensitive attributes redacted.
+	_, viewerBody := httpGet(t, queryBase+"/api/v3/traces/"+traceID, "viewer")
+	viewerAttrs := spanAttributes(t, viewerBody)
+	assert.Equal(t, "REDACTED", viewerAttrs["prompt"], "non-privileged caller: prompt redacted")
+	assert.Equal(t, "REDACTED", viewerAttrs["llm.response"], "non-privileged caller: llm.response redacted")
+	assert.Equal(t, "visible", viewerAttrs["keep"], "non-configured attribute must be untouched")
 
-	// OnQuery, per caller: a search filtering on the forbidden `prompt` attribute
+	// OnTraceQuery, per caller: a search filtering on the forbidden `prompt` attribute
 	// is admitted for the privileged caller but rejected for everyone else.
-	nowUS := time.Now().UnixMicro()
-	tagFilter := url.QueryEscape(`{"prompt":"hunter2"}`)
-	searchURL := fmt.Sprintf("%s/api/traces?service=checkout&start=%d&end=%d&tags=%s",
-		queryBase, nowUS-3600_000_000, nowUS, tagFilter)
+	now := time.Now()
+	attrFilter := url.QueryEscape(`{"prompt":"my password is hunter2"}`)
+	searchURL := fmt.Sprintf("%s/api/v3/traces?query.serviceName=checkout&query.startTimeMin=%s&query.startTimeMax=%s&query.attributes=%s",
+		queryBase,
+		url.QueryEscape(now.Add(-time.Hour).Format(time.RFC3339Nano)),
+		url.QueryEscape(now.Format(time.RFC3339Nano)),
+		attrFilter)
 
 	adminCode, _ := httpGet(t, searchURL, "admin")
 	assert.Equal(t, http.StatusOK, adminCode, "privileged caller may filter on prompt")
@@ -147,14 +152,14 @@ func freePort(t *testing.T) int {
 
 func pushSpan(t *testing.T, otlpHTTPPort int) {
 	t.Helper()
-	now := time.Now().UnixNano()
+	nowNano := time.Now().UnixNano()
 	payload := fmt.Sprintf(`{"resourceSpans":[{"resource":{"attributes":[`+
 		`{"key":"service.name","value":{"stringValue":"checkout"}}]},"scopeSpans":[{"spans":[{`+
 		`"traceId":"%s","spanId":"0000000000abc123","name":"llm-call","kind":2,`+
 		`"startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[`+
 		`{"key":"prompt","value":{"stringValue":"my password is hunter2"}},`+
 		`{"key":"llm.response","value":{"stringValue":"the capital is Paris"}},`+
-		`{"key":"keep","value":{"stringValue":"visible"}}]}]}]}]}`, traceID, now, now+1000)
+		`{"key":"keep","value":{"stringValue":"visible"}}]}]}]}]}`, traceID, nowNano, nowNano+1000)
 
 	endpoint := fmt.Sprintf("http://127.0.0.1:%d/v1/traces", otlpHTTPPort)
 	var code int
@@ -189,27 +194,21 @@ func httpGet(t *testing.T, rawURL, role string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
-// spanTags extracts the first span's string tags from an /api/traces/{id} response.
-func spanTags(t *testing.T, body string) map[string]string {
+// spanAttributes extracts the first span's string attributes from an /api/v3/traces/{id} response.
+func spanAttributes(t *testing.T, body string) map[string]string {
 	t.Helper()
 	var resp struct {
-		Data []struct {
-			Spans []struct {
-				Tags []struct {
-					Key   string          `json:"key"`
-					Value json.RawMessage `json:"value"`
-				} `json:"tags"`
-			} `json:"spans"`
-		} `json:"data"`
+		Result json.RawMessage `json:"result"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(body), &resp))
-	require.NotEmpty(t, resp.Data)
-	require.NotEmpty(t, resp.Data[0].Spans)
+	traces, err := new(ptrace.JSONUnmarshaler).UnmarshalTraces(resp.Result)
+	require.NoError(t, err)
+	require.Positive(t, traces.SpanCount())
+	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	out := map[string]string{}
-	for _, tag := range resp.Data[0].Spans[0].Tags {
-		var s string
-		if json.Unmarshal(tag.Value, &s) == nil {
-			out[tag.Key] = s
+	for k, v := range span.Attributes().All() {
+		if v.Type() == pcommon.ValueTypeStr {
+			out[k] = v.Str()
 		}
 	}
 	return out

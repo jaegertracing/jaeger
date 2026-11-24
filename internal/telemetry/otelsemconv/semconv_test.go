@@ -211,10 +211,10 @@ func TestMCPGenAIAttributes(t *testing.T) {
 		},
 		{
 			name:     "gen ai tool",
-			attr:     GenAIToolName("search_traces"),
+			attr:     GenAIToolName("find_traces"),
 			wantKey:  string(semconv.GenAIToolNameKey),
 			wantType: attribute.STRING,
-			wantVal:  "search_traces",
+			wantVal:  "find_traces",
 		},
 		{
 			name:     "error type",
@@ -222,6 +222,20 @@ func TestMCPGenAIAttributes(t *testing.T) {
 			wantKey:  string(semconv.ErrorTypeKey),
 			wantType: attribute.STRING,
 			wantVal:  "tool_error",
+		},
+		{
+			name:     "gen ai tool call arguments",
+			attr:     GenAIToolCallArguments(`{"service_name":"frontend"}`),
+			wantKey:  string(semconv.GenAIToolCallArgumentsKey),
+			wantType: attribute.STRING,
+			wantVal:  `{"service_name":"frontend"}`,
+		},
+		{
+			name:     "gen ai tool call result",
+			attr:     GenAIToolCallResult(`{"content":[]}`),
+			wantKey:  string(semconv.GenAIToolCallResultKey),
+			wantType: attribute.STRING,
+			wantVal:  `{"content":[]}`,
 		},
 	}
 

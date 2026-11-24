@@ -15,15 +15,24 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 )
 
 // tracedComponents is the allowlist of otelcol.component.id values that receive
 // the real TracerProvider. All other components (receivers, processors, exporters,
 // connectors, and unlisted extensions) get a noop tracer, preventing recursive
-// self-tracing loops when Jaeger's OTLP receiver is the export destination.
+// self-tracing loops when Jaeger's OTLP receiver is the export destination. Those
+// components cannot be trusted with a real tracer selectively, because most of them
+// come from the collector's own ecosystem and have nowhere to opt out.
+//
+// The listed extensions are Jaeger's own, and they serve queries, so they are given
+// the real tracer and opt out where they write: tracing a span write would itself
+// produce spans to write, so a write path passes a noop provider explicitly, as
+// internal/storage/v2/grpc does for its writer connection.
 var tracedComponents = map[string]struct{}{
-	jaegerquery.ID.String(): {},
+	jaegerquery.ID.String():   {},
+	jaegerstorage.ID.String(): {},
 }
 
 var componentIDKey = attribute.Key("otelcol.component.id")

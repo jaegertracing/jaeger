@@ -42,10 +42,12 @@ type linkConfig struct {
 	spanID  string
 }
 
-// mockQueryService is a unified mock implementation for both GetTraces and FindTraceSummaries
+// mockQueryService is a unified mock implementation for GetTraces, FindTraceSummaries and
+// FindSpans.
 type mockQueryService struct {
 	getTracesFunc          func(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 	findTraceSummariesFunc func(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
+	findSpansFunc          func(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error]
 }
 
 func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -55,11 +57,24 @@ func (m *mockQueryService) GetTraces(ctx context.Context, params querysvc.GetTra
 	return func(_ func([]ptrace.Traces, error) bool) {}
 }
 
-func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	if m.findTraceSummariesFunc != nil {
-		return m.findTraceSummariesFunc(ctx, query)
+func (m *mockQueryService) FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[querysvc.PageChunk[[]tracestore.TraceSummary], error] {
+	return func(yield func(querysvc.PageChunk[[]tracestore.TraceSummary], error) bool) {
+		if m.findTraceSummariesFunc == nil {
+			return
+		}
+		for summaries, err := range m.findTraceSummariesFunc(ctx, query) {
+			if !yield(querysvc.PageChunk[[]tracestore.TraceSummary]{Results: summaries}, err) {
+				return
+			}
+		}
 	}
-	return func(_ func([]tracestore.TraceSummary, error) bool) {}
+}
+
+func (m *mockQueryService) FindSpans(ctx context.Context, query querysvc.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	if m.findSpansFunc != nil {
+		return m.findSpansFunc(ctx, query)
+	}
+	return func(_ func(tracestore.PageChunk[ptrace.Traces], error) bool) {}
 }
 
 // newMockYieldingTraces creates a mock that yields the given traces for GetTraces calls
@@ -90,17 +105,6 @@ func newMockYieldingEmpty() *mockQueryService {
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(_ func([]ptrace.Traces, error) bool) {
 				// Don't yield anything
-			}
-		},
-	}
-}
-
-// newMockFindTraceSummaries creates a mock for FindTraceSummaries calls that yields the given summaries
-func newMockFindTraceSummaries(summaries ...tracestore.TraceSummary) *mockQueryService {
-	return &mockQueryService{
-		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-			return func(yield func([]tracestore.TraceSummary, error) bool) {
-				yield(summaries, nil)
 			}
 		},
 	}

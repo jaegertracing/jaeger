@@ -7,19 +7,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"iter"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -27,10 +32,12 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
@@ -44,6 +51,11 @@ import (
 
 type fakeFactory struct {
 	name string
+	// searchWithoutServiceName is what the reader this factory builds declares, and
+	// capabilitiesErr makes that reader unable to answer, so a test can drive both inputs
+	// server.Start takes from storage.
+	searchWithoutServiceName bool
+	capabilitiesErr          error
 }
 
 func (ff fakeFactory) CreateDependencyReader() (depstore.Reader, error) {
@@ -57,13 +69,34 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &tracestoremocks.Reader{}, nil
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(
+			tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName},
+			ff.capabilitiesErr,
+		).
+		Maybe()
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(func([]ptrace.Traces, error) bool) {})).
+		Maybe()
+	return reader, nil
 }
 
 func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	if ff.name == "need-span-writer-error" {
 		return nil, errors.New("test-error")
 	}
+	return &tracestoremocks.Writer{}, nil
+}
+
+// fakeTraceOnlyFactory implements tracestore.Factory but not depstore.Factory.
+type fakeTraceOnlyFactory struct{}
+
+func (fakeTraceOnlyFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return &tracestoremocks.Reader{}, nil
+}
+
+func (fakeTraceOnlyFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	return &tracestoremocks.Writer{}, nil
 }
 
@@ -91,8 +124,16 @@ type fakeStorageExt struct{}
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
 func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
-	if name == "need-factory-error" {
+	switch name {
+	case "need-factory-error":
 		return nil, errors.New("test-error")
+	case "serviceless-search-store":
+		return fakeFactory{name: name, searchWithoutServiceName: true}, nil
+	case "unknowable-capabilities-store":
+		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
+	}
+	if name == "need-no-dep-factory" {
+		return fakeTraceOnlyFactory{}, nil
 	}
 
 	return fakeFactory{name: name}, nil
@@ -115,15 +156,17 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 
 // stubQueryInterceptor is an extension that also implements
 // queryinterceptor.Interceptor, used to exercise the server's interceptor wiring.
-type stubQueryInterceptor struct{}
+type stubQueryInterceptor struct {
+	queryinterceptor.UnsupportedSpanSearch
+}
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+func (stubQueryInterceptor) OnTraceQuery(ctx context.Context, q queryinterceptor.TraceQuery) (context.Context, queryinterceptor.TraceQuery, error) {
 	return ctx, q, nil
 }
 
-func (stubQueryInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (stubQueryInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	return ctx, t, nil
 }
 
@@ -147,6 +190,23 @@ func TestServerDependencies(t *testing.T) {
 		cfg.QueryInterceptors = []component.ID{testInterceptorID}
 		server := newServer(cfg, telemetrySettings)
 		assert.Equal(t, []component.ID{jaegerstorage.ID, testInterceptorID}, server.Dependencies())
+	})
+
+	t.Run("includes the AI authenticator", func(t *testing.T) {
+		authID := component.MustNewID("ai_authenticator")
+		cfg := createDefaultConfig().(*Config)
+		ai := jaegerai.Config{}
+		ai.Auth = configoptional.Some(confighttp.AuthConfig{Config: configauth.Config{AuthenticatorID: authID}})
+		cfg.AI = configoptional.Some(ai)
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID, authID}, server.Dependencies())
+	})
+
+	t.Run("lists no authenticator when ai has no auth block", func(t *testing.T) {
+		cfg := createDefaultConfig().(*Config)
+		cfg.AI = configoptional.Some(jaegerai.Config{})
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID}, server.Dependencies())
 	})
 }
 
@@ -201,6 +261,15 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 			expectedErr: "cannot create trace reader",
+		},
+		{
+			name: "depstore not implemented",
+			config: &Config{
+				Storage: Storage{
+					TracesPrimary: "need-no-dep-factory",
+				},
+			},
+			expectedErr: "cannot find factory for dependency storage",
 		},
 		{
 			name: "dependency error",
@@ -259,11 +328,11 @@ func TestServerStart(t *testing.T) {
 			config: &Config{
 				Storage: Storage{TracesPrimary: "jaeger_storage"},
 				QueryOptions: app.QueryOptions{
-					AI: configoptional.Some(app.AIConfig{
+					AI: configoptional.Some(jaegerai.Config{
 						AgentURL:            "ws://127.0.0.1:1",
-						MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+						MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 						HealthCheckInterval: time.Hour, // long enough that no check actually fires in this test
-						HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+						HealthCheckTimeout:  jaegerai.DefaultHealthCheckTimeout,
 					}),
 				},
 			},
@@ -314,6 +383,10 @@ func TestServerStart(t *testing.T) {
 				}.Execute(t)
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
+				if tt.name == "depstore not implemented" {
+					assert.NotContains(t, err.Error(), "%!w")
+					assert.NotContains(t, err.Error(), "<nil>")
+				}
 			}
 		})
 	}
@@ -507,19 +580,19 @@ func TestQueryService(t *testing.T) {
 func TestBuildAIHealthChecker(t *testing.T) {
 	tests := []struct {
 		name    string
-		ai      configoptional.Optional[app.AIConfig]
+		ai      configoptional.Optional[jaegerai.Config]
 		wantNil bool
 	}{
 		{
 			name:    "no AI block (HasValue=false) returns nil",
-			ai:      configoptional.None[app.AIConfig](),
+			ai:      configoptional.None[jaegerai.Config](),
 			wantNil: true,
 		},
 		{
 			name: "MCP-only mode (no agent_url) disables the checker",
-			ai: configoptional.Some(app.AIConfig{
-				EnableMCP:           true,
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+			ai: configoptional.Some(jaegerai.Config{
+				MCP:                 configoptional.Some(jaegerai.MCPConfig{}),
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 5 * time.Second,
 				HealthCheckTimeout:  2 * time.Second,
 			}),
@@ -527,19 +600,19 @@ func TestBuildAIHealthChecker(t *testing.T) {
 		},
 		{
 			name: "HealthCheckInterval=0 disables the checker",
-			ai: configoptional.Some(app.AIConfig{
+			ai: configoptional.Some(jaegerai.Config{
 				AgentURL:            "ws://localhost:16688",
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 0,
-				HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+				HealthCheckTimeout:  jaegerai.DefaultHealthCheckTimeout,
 			}),
 			wantNil: true,
 		},
 		{
 			name: "valid config returns a configured Checker",
-			ai: configoptional.Some(app.AIConfig{
+			ai: configoptional.Some(jaegerai.Config{
 				AgentURL:            "ws://localhost:16688",
-				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				MaxRequestBodySize:  jaegerai.DefaultMaxRequestBodySize,
 				HealthCheckInterval: 5 * time.Second,
 				HealthCheckTimeout:  2 * time.Second,
 			}),
@@ -559,6 +632,139 @@ func TestBuildAIHealthChecker(t *testing.T) {
 			require.Equal(t, 2*time.Second, got.Timeout)
 			require.NotNil(t, got.Check)
 			require.NotNil(t, got.Logger)
+		})
+	}
+}
+
+// TestServerReportsSearchCapabilityToUI covers the other half of the wiring: what the SPA is
+// told. A backend that declares the capability has it injected; one that cannot be asked is
+// reported as the least capable, and says why in the log, which is the only place an operator
+// can find out that the missing "All Services" option is a reachability problem rather than a
+// backend limitation.
+func TestServerReportsSearchCapabilityToUI(t *testing.T) {
+	tests := []struct {
+		name        string
+		store       string
+		expected    string
+		expectedLog string
+	}{
+		{
+			name:     "declared capability reaches the UI",
+			store:    "serviceless-search-store",
+			expected: `"searchWithoutServiceName":true`,
+		},
+		{
+			name:     "declared absence reaches the UI",
+			store:    "some_store",
+			expected: `"searchWithoutServiceName":false`,
+		},
+		{
+			name:        "a backend that cannot be asked is reported as the least capable",
+			store:       "unknowable-capabilities-store",
+			expected:    `"searchWithoutServiceName":false`,
+			expectedLog: "Storage did not report its search capabilities",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logger, logBuf := testutils.NewLogger()
+			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+			srv := newServer(&Config{
+				QueryOptions: app.QueryOptions{
+					HTTP: confighttp.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+				},
+				Storage: Storage{TracesPrimary: test.store},
+			}, component.TelemetrySettings{
+				Logger:         logger,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			})
+			require.NoError(t, srv.Start(t.Context(), host))
+			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
+
+			var body string
+			require.Eventually(t, func() bool {
+				resp, err := http.Get(fmt.Sprintf("http://%s/", srv.server.HTTPAddr()))
+				if err != nil {
+					return false
+				}
+				defer resp.Body.Close()
+				b, err := io.ReadAll(resp.Body)
+				if err != nil || resp.StatusCode != http.StatusOK {
+					return false
+				}
+				body = string(b)
+				return true
+			}, 10*time.Second, 100*time.Millisecond, "server not started")
+
+			assert.Contains(t, body, test.expected)
+			if test.expectedLog != "" {
+				assert.Contains(t, logBuf.String(), test.expectedLog)
+				assert.Contains(t, logBuf.String(), "cannot ask the backend", "the reader's reason must survive")
+			} else {
+				assert.NotContains(t, logBuf.String(), "Storage did not report")
+			}
+		})
+	}
+}
+
+// TestServerStartWiresSearchCapability follows the capability from storage through Start
+// into the query service, where it decides whether a search may omit the service name.
+// The three cases are the three answers a reader can give.
+func TestServerStartWiresSearchCapability(t *testing.T) {
+	tests := []struct {
+		name        string
+		store       string
+		expectError error
+	}{
+		{name: "capable backend forwards the query", store: "serviceless-search-store"},
+		{
+			name:        "backend requiring a service name rejects it",
+			store:       "some_store",
+			expectError: querysvc.ErrServiceNameRequired,
+		},
+		{
+			name:        "backend that cannot answer is treated as requiring one",
+			store:       "unknowable-capabilities-store",
+			expectError: querysvc.ErrServiceNameRequired,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+			srv := newServer(&Config{
+				QueryOptions: app.QueryOptions{
+					HTTP: confighttp.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+				},
+				Storage: Storage{TracesPrimary: test.store},
+			}, component.TelemetrySettings{
+				Logger:         zaptest.NewLogger(t),
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			})
+			require.NoError(t, srv.Start(t.Context(), host))
+			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
+
+			_, err := jiter.FlattenWithErrors(srv.QueryService().FindTraces(t.Context(), querysvc.TraceQueryParams{
+				Attributes:   pcommon.NewMap(),
+				StartTimeMin: time.Now().Add(-time.Hour),
+				StartTimeMax: time.Now(),
+			}))
+			if test.expectError != nil {
+				require.ErrorIs(t, err, test.expectError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,13 +60,18 @@ import (
 var Regenerate = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
 // CapturedRequest is a faithful record of a single HTTP request as received: the
-// method, path, parsed query, and the raw body bytes exactly as sent. Turning it
-// into a canonical, diffable snapshot happens in Marshal, not here.
+// method, path, parsed query, the Content-Type it was sent with, and the raw body
+// bytes exactly as sent. Turning it into a canonical, diffable snapshot happens in
+// Marshal, not here.
 type CapturedRequest struct {
 	Method string
 	Path   string
 	Query  url.Values
-	Body   []byte
+	// ContentType is the request's Content-Type header. It is recorded — rather
+	// than only the body — because the NDJSON endpoints require a specific media
+	// type that the canonicalized body cannot express.
+	ContentType string
+	Body        []byte
 }
 
 // Recorder is an http.Handler that records every request it receives and
@@ -95,9 +101,10 @@ func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	captured := CapturedRequest{
-		Method: r.Method,
-		Path:   r.URL.Path,
-		Body:   body,
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		ContentType: r.Header.Get("Content-Type"),
+		Body:        body,
 	}
 	if q := r.URL.Query(); len(q) > 0 {
 		captured.Query = q
@@ -182,9 +189,68 @@ func Marshal(t testing.TB, requests []CapturedRequest) string {
 	return string(out)
 }
 
+// ndjsonContentTypes are the media types Elasticsearch/OpenSearch accept on the
+// newline-delimited endpoints. application/x-ndjson is the canonical one and what
+// this repo's own request builder sends; application/json is also accepted, and is
+// what the official go-elasticsearch esapi.BulkRequest defaults to (it sets that
+// header when the caller leaves it unset), so the async bulk indexer emits it.
+// Requiring only x-ndjson would therefore reject a request the official client
+// itself produces.
+var ndjsonContentTypes = []string{"application/x-ndjson", "application/json"}
+
+// isNDJSONEndpoint reports whether path is an endpoint whose body must be
+// newline-delimited JSON (_bulk and _msearch), which the backend rejects when the
+// body is not spec-conformant.
+func isNDJSONEndpoint(path string) bool {
+	return strings.HasSuffix(path, "/_bulk") || strings.HasSuffix(path, "/_msearch")
+}
+
+// validateNDJSON reports the wire-level requirements of an NDJSON request that the
+// canonicalized snapshot cannot express, and that a reviewer therefore cannot see
+// in a diff: a media type the backend accepts, and a body terminated by exactly one
+// newline (the _bulk API requires the final newline). Without these checks a
+// malformed body snapshots identically to a correct one.
+//
+// It returns an error rather than asserting so the rules are unit-testable on their
+// own; toSnapshot turns the error into a test failure.
+func validateNDJSON(contentType string, body []byte) error {
+	// Parse the full header so a malformed parameter is rejected (not silently
+	// dropped) and the media type is normalized: mime.ParseMediaType lower-cases it,
+	// so a valid mixed-case header like "Application/X-NDJSON" is accepted, and any
+	// parameters (e.g. "; charset=utf-8") are validated rather than ignored.
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fmt.Errorf("invalid Content-Type %q: %w", contentType, err)
+	}
+	if !slices.Contains(ndjsonContentTypes, mediaType) {
+		return fmt.Errorf("Content-Type %q is not one of %v", contentType, ndjsonContentTypes)
+	}
+	if len(body) == 0 {
+		return errors.New("body must not be empty")
+	}
+	// A body of only newlines/whitespace passes the suffix checks below but carries
+	// no document — the backend rejects it, and toSnapshot would trim it to empty
+	// and never reach parseNDJSON, so the blank line escapes detection. Require at
+	// least one non-whitespace (JSON) line here.
+	if len(bytes.TrimSpace(body)) == 0 {
+		return errors.New("body must contain at least one JSON document")
+	}
+	if !bytes.HasSuffix(body, []byte("\n")) {
+		return errors.New("body must end with a newline")
+	}
+	if bytes.HasSuffix(body, []byte("\n\n")) {
+		return errors.New("body must end with exactly one newline")
+	}
+	return nil
+}
+
 func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	t.Helper()
 	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query)}
+	if isNDJSONEndpoint(r.Path) {
+		require.NoErrorf(t, validateNDJSON(r.ContentType, r.Body),
+			"%s %s is not spec-conformant NDJSON", r.Method, r.Path)
+	}
 	body := bytes.TrimRight(r.Body, "\n")
 	if len(body) == 0 {
 		return s
@@ -217,12 +283,16 @@ func canonicalQuery(q url.Values) url.Values {
 	return out
 }
 
+// parseNDJSON parses a newline-delimited body (with its trailing newline already
+// trimmed) into one document per line. A blank line is rejected rather than
+// skipped: the backend does not accept one, and silently dropping it would let
+// "{a}\n\n{b}" snapshot identically to "{a}\n{b}".
 func parseNDJSON(body []byte) ([]map[string]any, error) {
 	lines := bytes.Split(body, []byte("\n"))
 	docs := make([]map[string]any, 0, len(lines))
-	for _, line := range lines {
+	for i, line := range lines {
 		if len(bytes.TrimSpace(line)) == 0 {
-			continue
+			return nil, fmt.Errorf("blank line at line %d: NDJSON must not contain empty lines", i+1)
 		}
 		var doc map[string]any
 		if err := json.Unmarshal(line, &doc); err != nil {

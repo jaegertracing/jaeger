@@ -1,0 +1,23 @@
+{
+  "nested": {
+    "path": "logs.fields",
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "term": {
+              "logs.fields.key": "payload.bytes"
+            }
+          },
+          {
+            "range": {
+              "logs.fields.value.number": {
+                "lte": 2048
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

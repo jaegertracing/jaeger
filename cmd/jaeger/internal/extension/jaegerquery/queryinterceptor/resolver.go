@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package queryinterceptor wires the public query-interceptor contract into
-// jaeger-query's read path: it resolves the configured interceptor extensions
-// from the collector host and decorates the storage Reader with them, converting
-// between the internal query type and the public Query at the boundary.
+// jaeger-query's read path: it resolves the interceptor extensions a deployment
+// configured from the collector host, which the jaeger_query extension then hands
+// to the query service to invoke around every trace query.
 //
 // The public contract that extensions implement — the Interceptor interface and
 // the Query type — lives at

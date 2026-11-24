@@ -1,0 +1,36 @@
+{
+  "bool": {
+    "should": [
+      {
+        "range": {
+          "tag.sampler@param.number": {
+            "gt": 0.001
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "sampler.param"
+                  }
+                },
+                {
+                  "range": {
+                    "tags.value.number": {
+                      "gt": 0.001
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

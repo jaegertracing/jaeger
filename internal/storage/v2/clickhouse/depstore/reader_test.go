@@ -51,8 +51,18 @@ func TestGetDependencies(t *testing.T) {
 				EndTime:   now,
 			},
 			expected: []model.DependencyLink{
-				{Parent: "serviceA", Child: "serviceB", CallCount: 42},
-				{Parent: "serviceB", Child: "serviceC", CallCount: 7},
+				{
+					Parent:    "serviceA",
+					Child:     "serviceB",
+					CallCount: 42,
+					Source:    model.JaegerDependencyLinkSource,
+				},
+				{
+					Parent:    "serviceB",
+					Child:     "serviceC",
+					CallCount: 7,
+					Source:    model.JaegerDependencyLinkSource,
+				},
 			},
 		},
 		{
@@ -63,7 +73,8 @@ func TestGetDependencies(t *testing.T) {
 						Rows: &clickhousetest.Rows[string]{
 							Data: []string{
 								`[{"parent":"serviceA","child":"serviceB","callCount":10}]`,
-								`[{"parent":"serviceA","child":"serviceB","callCount":5},{"parent":"serviceC","child":"serviceD","callCount":3}]`,
+								`[{"parent":"serviceA","child":"serviceB","callCount":5,"source":"jaeger"},{"parent":"serviceC","child":"serviceD","callCount":3}]`,
+								`[{"parent":"serviceA","child":"serviceB","callCount":2,"source":"mesh"},{"parent":"serviceA","child":"serviceB","callCount":4,"source":"mesh"}]`,
 							},
 							ScanFn: scanString,
 						},
@@ -75,8 +86,24 @@ func TestGetDependencies(t *testing.T) {
 				EndTime:   now,
 			},
 			expected: []model.DependencyLink{
-				{Parent: "serviceA", Child: "serviceB", CallCount: 15},
-				{Parent: "serviceC", Child: "serviceD", CallCount: 3},
+				{
+					Parent:    "serviceA",
+					Child:     "serviceB",
+					CallCount: 15,
+					Source:    model.JaegerDependencyLinkSource,
+				},
+				{
+					Parent:    "serviceA",
+					Child:     "serviceB",
+					CallCount: 6,
+					Source:    "mesh",
+				},
+				{
+					Parent:    "serviceC",
+					Child:     "serviceD",
+					CallCount: 3,
+					Source:    model.JaegerDependencyLinkSource,
+				},
 			},
 		},
 		{

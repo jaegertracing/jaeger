@@ -41,12 +41,25 @@ func TestV2GetDependencies(t *testing.T) {
 					Child:     "testing-child",
 					CallCount: 1,
 				},
+				{
+					Parent:    "testing-parent",
+					Child:     "testing-child",
+					CallCount: 2,
+					Source:    "mesh",
+				},
 			},
 			expectedOutput: []model.DependencyLink{
 				{
 					Parent:    "testing-parent",
 					Child:     "testing-child",
 					CallCount: 1,
+					Source:    model.JaegerDependencyLinkSource,
+				},
+				{
+					Parent:    "testing-parent",
+					Child:     "testing-child",
+					CallCount: 2,
+					Source:    "mesh",
 				},
 			},
 		},

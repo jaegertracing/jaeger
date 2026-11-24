@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,15 +86,37 @@ type IndexOptions struct {
 	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
+// SpanIndexOptions extends the shared index options with the settings only the span
+// index has, which all concern how a span document and its attributes are mapped.
+// The shared options are flattened into the same configuration block, so a span index
+// is configured under one `indices.spans` key.
+type SpanIndexOptions struct {
+	IndexOptions `mapstructure:",squash"`
+	// TotalFieldsLimit sets index.mapping.total_fields.limit on the span index
+	// template (the maximum number of fields an index mapping may have). Left
+	// unset, no limit is set on the index and Elasticsearch's own default applies.
+	TotalFieldsLimit configoptional.Optional[int64] `mapstructure:"total_fields_limit"`
+	// Tags decides which span attributes are stored as fields of the span document
+	// rather than in the nested array of key-value objects.
+	Tags TagsAsFields `mapstructure:"tags_as_fields"`
+	// NumericAttributes indexes every attribute value as a number beside the keyword it is
+	// already indexed as, so that a query can order on an attribute (RFC 0015). The mapping
+	// reaches only indices created after it is turned on, and the reader ranges over it
+	// regardless, so an ordering predicate finds nothing in the indices created before it until
+	// retention has turned them over. Off by default: the sub-field costs a mapped field per
+	// attribute key on the elevated representation.
+	NumericAttributes bool `mapstructure:"numeric_attributes"`
+}
+
 // Indices describes different configuration options for each index type
 type Indices struct {
 	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
 	// For example, setting this field to "production" creates "production-jaeger-*".
-	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
-	Spans        IndexOptions `mapstructure:"spans"`
-	Services     IndexOptions `mapstructure:"services"`
-	Dependencies IndexOptions `mapstructure:"dependencies"`
-	Sampling     IndexOptions `mapstructure:"sampling"`
+	IndexPrefix  IndexPrefix      `mapstructure:"index_prefix"`
+	Spans        SpanIndexOptions `mapstructure:"spans"`
+	Services     IndexOptions     `mapstructure:"services"`
+	Dependencies IndexOptions     `mapstructure:"dependencies"`
+	Sampling     IndexOptions     `mapstructure:"sampling"`
 }
 
 type IndexPrefix string
@@ -263,6 +284,19 @@ type Configuration struct {
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
+	// SpanSearchTieBreakByID makes a span search (RFC 0016) sort on the document _id after the
+	// caller's ordering terms and the backing index, which lets a page resume exactly after its
+	// last span even when several stored documents share every other sort value. It is off by
+	// default because _id has no doc values: to sort on it the engine builds _id field data on
+	// the heap for every document in every segment the search touches, keeps it resident, and
+	// counts it against the parent circuit breaker, so a few searches over a day of spans can
+	// take tens of gigabytes of heap and fail every other query on the cluster. The sort also
+	// needs the cluster setting indices.id_field_data.enabled, which Elasticsearch 8 and later
+	// turn off. When false, the sort ends at the backing index, and documents that tie on the
+	// ordering terms within one index while straddling a page boundary are skipped by the next
+	// page, which may then come back empty; the effective order already ends in traceID and
+	// spanID, so those are duplicates of one span.
+	SpanSearchTieBreakByID bool `mapstructure:"span_search_tie_break_by_id"`
 	// MaxSpanAge configures the maximum lookback on span reads.
 	// For alias-based rotation (manual_rollover/auto_rollover), this should be set
 	// to match the ILM/ISM data retention policy so that GetTraces can find traces
@@ -279,7 +313,11 @@ type Configuration struct {
 	// AdaptiveSamplingLookback contains the duration to look back for the
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// Tags is the top-level spelling of the tags-as-fields settings.
+	//
+	// Deprecated: superseded by indices.spans.tags_as_fields, which ResolvedTagsAsFields
+	// falls back to when this one is not set.
+	Tags configoptional.Optional[TagsAsFields] `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -370,123 +408,6 @@ type BasicAuthentication struct {
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 
-func setDefaultIndexOptions(target, source *IndexOptions) {
-	if target.Shards == 0 {
-		target.Shards = source.Shards
-	}
-
-	if target.Replicas == nil {
-		target.Replicas = source.Replicas
-	}
-
-	if target.Priority == 0 {
-		target.Priority = source.Priority
-	}
-
-	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
-		target.DateLayout = source.DateLayout
-	}
-
-	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
-		target.RolloverFrequency = source.RolloverFrequency
-	}
-}
-
-// ApplyDefaults copies settings from source unless its own value is non-zero.
-func (c *Configuration) ApplyDefaults(source *Configuration) {
-	if len(c.RemoteReadClusters) == 0 {
-		c.RemoteReadClusters = source.RemoteReadClusters
-	}
-	// Handle BasicAuthentication defaults
-	sourceHasBasicAuth := source.Authentication.BasicAuthentication.HasValue()
-	targetHasBasicAuth := c.Authentication.BasicAuthentication.HasValue()
-	if sourceHasBasicAuth {
-		// If target doesn't have BasicAuth, copy it from source
-		if !targetHasBasicAuth {
-			c.Authentication.BasicAuthentication = source.Authentication.BasicAuthentication
-		} else {
-			// Target has BasicAuth, apply field-level defaults
-			sourceBasicAuth := source.Authentication.BasicAuthentication.Get()
-			// Make a copy of target BasicAuth
-			basicAuth := *c.Authentication.BasicAuthentication.Get()
-
-			// Apply defaults for username if not set
-			if basicAuth.Username == "" && sourceBasicAuth.Username != "" {
-				basicAuth.Username = sourceBasicAuth.Username
-			}
-			// Apply defaults for password if not set
-			if basicAuth.Password == "" && sourceBasicAuth.Password != "" {
-				basicAuth.Password = sourceBasicAuth.Password
-			}
-
-			// Only update BasicAuthentication if we have values to set
-			if basicAuth.Username != "" || basicAuth.Password != "" {
-				c.Authentication.BasicAuthentication = configoptional.Some(basicAuth)
-			}
-		}
-	}
-	if !c.Sniffing.Enabled {
-		c.Sniffing.Enabled = source.Sniffing.Enabled
-	}
-	if c.MaxSpanAge == 0 {
-		c.MaxSpanAge = source.MaxSpanAge
-	}
-	if c.MaxTraceDuration == 0 {
-		c.MaxTraceDuration = source.MaxTraceDuration
-	}
-	if c.AdaptiveSamplingLookback == 0 {
-		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
-	}
-	if c.Indices.IndexPrefix == "" {
-		c.Indices.IndexPrefix = source.Indices.IndexPrefix
-	}
-
-	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
-	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
-	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
-
-	if c.BulkProcessing.MaxBytes == 0 {
-		c.BulkProcessing.MaxBytes = source.BulkProcessing.MaxBytes
-	}
-	if c.BulkProcessing.Workers == 0 {
-		c.BulkProcessing.Workers = source.BulkProcessing.Workers
-	}
-	if c.BulkProcessing.FlushInterval == 0 {
-		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
-	}
-	if c.WriteMode == "" {
-		c.WriteMode = source.WriteMode
-	}
-	if c.PoisonPillHandling == "" {
-		c.PoisonPillHandling = source.PoisonPillHandling
-	}
-	if !c.Tags.AllAsFields {
-		c.Tags.AllAsFields = source.Tags.AllAsFields
-	}
-	if c.Tags.DotReplacement == "" {
-		c.Tags.DotReplacement = source.Tags.DotReplacement
-	}
-	if c.Tags.Include == "" {
-		c.Tags.Include = source.Tags.Include
-	}
-	if c.Tags.File == "" {
-		c.Tags.File = source.Tags.File
-	}
-	if c.MaxDocCount == 0 {
-		c.MaxDocCount = source.MaxDocCount
-	}
-	if c.LogLevel == "" {
-		c.LogLevel = source.LogLevel
-	}
-	if !c.HTTPCompression {
-		c.HTTPCompression = source.HTTPCompression
-	}
-	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
-		c.CustomHeaders = make(map[string]string)
-		maps.Copy(c.CustomHeaders, source.CustomHeaders)
-	}
-}
-
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
 	return -RolloverFrequencyDuration(frequency)
@@ -503,10 +424,11 @@ func RolloverFrequencyDuration(frequency string) time.Duration {
 // TagKeysAsFields returns tags from the file and command line merged
 func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	var tags []string
+	tagsAsFields := c.ResolvedTagsAsFields()
 
 	// from file
-	if c.Tags.File != "" {
-		file, err := os.Open(filepath.Clean(c.Tags.File))
+	if tagsAsFields.File != "" {
+		file, err := os.Open(filepath.Clean(tagsAsFields.File))
 		if err != nil {
 			return nil, err
 		}
@@ -524,8 +446,8 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	}
 
 	// from params
-	if c.Tags.Include != "" {
-		tags = append(tags, strings.Split(c.Tags.Include, ",")...)
+	if tagsAsFields.Include != "" {
+		tags = append(tags, strings.Split(tagsAsFields.Include, ",")...)
 	}
 
 	return tags, nil
@@ -591,6 +513,15 @@ func (c *Configuration) Validate() error {
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
+	}
+
+	// When the gate is disabled the deprecated spelling is honored, and NewFactoryBase
+	// logs the deprecation warning through LogDeprecationWarnings.
+	if c.Tags.HasValue() && RejectLegacyTagsAsFields.IsEnabled() {
+		return errors.New(
+			"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
+				"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
+		)
 	}
 
 	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {

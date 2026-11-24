@@ -31,9 +31,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/closers"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
@@ -54,14 +54,12 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -84,7 +82,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +106,12 @@ func registerGRPCHandlers(
 
 	api_v2.RegisterQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+	api_v3.RegisterCapabilitiesServer(server, &apiv3.CapabilitiesHandler{QueryService: querySvc})
 
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v3.Capabilities", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 }
@@ -123,10 +123,13 @@ func createGRPCServer(
 	telset telemetry.Settings,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
+	// Recovery comes first so that it also covers the interceptors after it.
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		recoveryhandler.NewUnaryServerInterceptor(telset.Logger),
 		bearertoken.NewUnaryServerInterceptor(),
 	}
 	streamInterceptors := []grpc.StreamServerInterceptor{
+		recoveryhandler.NewStreamServerInterceptor(telset.Logger),
 		bearertoken.NewStreamServerInterceptor(),
 	}
 
@@ -162,28 +165,13 @@ func createGRPCServer(
 	)
 }
 
-// closers are the components initRouter mounts that own resources past a single
-// request — the static assets handler, the AI gateway's MCP sessions, and whatever
-// is mounted next. Being an io.Closer itself lets both the caller that owns the
-// slice and the httpServer that stores it close the whole set the same way.
-type closers []io.Closer
-
-var _ io.Closer = closers(nil)
-
-// Close closes every closer and joins the errors, so one failure does not hide the
-// rest. This mirrors how the storage extension shuts its factories down.
-func (cs closers) Close() error {
-	var errs []error
-	for _, closer := range cs {
-		errs = append(errs, closer.Close())
-	}
-	return errors.Join(errs...)
-}
-
 type httpServer struct {
 	*http.Server
-	// closers shut down with the query server instead of being left to process exit.
-	closers closers
+	// closers are the components initRouter mounts that own resources past a
+	// single request: the static assets handler, the AI gateway's MCP sessions,
+	// and whatever is mounted next. They shut down with the query server instead
+	// of being left to process exit.
+	closers closers.Closers
 }
 
 var _ io.Closer = (*httpServer)(nil)
@@ -195,11 +183,10 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, closers, error) {
+) (http.Handler, closers.Closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -212,6 +199,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
+	var cs closers.Closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -229,47 +217,34 @@ func initRouter(
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
 
-	// AI Gateway Endpoints
-	var aiGateway *jaegerai.Handler
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil {
-			if err := aiCfg.Validate(); err != nil {
-				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-			} else {
-				if aiCfg.AgentURL != "" {
-					// When AI chat is enabled, jaegerai owns the chat endpoint and,
-					// if MCP is also enabled, the turn-scoped MCP endpoint
-					// (/api/ai/mcp/<id>/). It holds MCP sessions past the request
-					// that opened them, so it joins the closers returned below.
-					//
-					// The announced base URL is resolved here because inferring the
-					// gateway's own localhost address needs the query HTTP endpoint
-					// and TLS setting, which live on QueryOptions, not AIConfig.
-					aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
-						Logger:             telset.Logger,
-						AgentURL:           aiCfg.AgentURL,
-						BasePath:           queryOpts.BasePath,
-						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
-						EnableMCP:          aiCfg.EnableMCP,
-						MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
-						QueryService:       querySvc,
-						TenancyMgr:         tenancyMgr,
-						Telset:             telset,
-					})
-					aiGateway.RegisterRoutes(r)
-				}
-				if aiCfg.EnableMCP {
-					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
-					// wildcard turn-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
-				}
-			}
+		aiRoutes, err := jaegerai.Register(ctx, r, jaegerai.RegisterParams{
+			Config:       queryOpts.AI.Get(),
+			BasePath:     queryOpts.BasePath,
+			HTTPEndpoint: queryOpts.HTTP.NetAddr.Endpoint,
+			TLSEnabled:   queryOpts.HTTP.TLS.HasValue(),
+			QueryService: querySvc,
+			Tenancy:      tenancyMgr,
+			Telemetry:    telset,
+		})
+		if err != nil {
+			return nil, nil, errors.Join(err, cs.Close())
+		}
+		cs = append(cs, aiRoutes)
+		// The chat panel is offered only to a caller the ai.auth authenticator
+		// admits, so the UI hides it from everyone else instead of showing a panel
+		// whose first request would be refused.
+		next := backendCaps
+		backendCaps = func(r *http.Request) BackendCapabilities {
+			caps := next(r)
+			caps.AIAssistant = caps.AIAssistant && aiRoutes.Admits(r)
+			return caps
 		}
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
 		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Join(err, cs.Close())
 		}
 	}
 
@@ -277,12 +252,11 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	cs := closers{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
-	if aiGateway != nil {
-		cs = append(cs, aiGateway)
-	}
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
-	var handler http.Handler = r
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
+	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
@@ -319,14 +293,6 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
-	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
-	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
-	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
-}
-
-// per-route wrap is the only instrumentation layer.
 func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
 	cfg := queryOpts.OTLPProxy.Get()
 	target, err := url.Parse(cfg.Target)
@@ -353,12 +319,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -379,21 +344,7 @@ func createHTTPServer(
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				// Use just the route pattern without the HTTP method prefix or basePath
-				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
-				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
-				pattern := r.Pattern
-				if pattern != "" {
-					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
-					if idx := strings.Index(pattern, " "); idx > 0 {
-						pattern = pattern[idx+1:]
-					}
-					// Remove basePath prefix if present
-					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
-					}
-				}
-				return pattern
+				return spanNameForRoute(routeFromPattern(r.Pattern), queryOpts.BasePath)
 			}),
 		),
 	)

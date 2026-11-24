@@ -1,0 +1,42 @@
+{
+  "fixture": "error-timeout-masked",
+  "skill": "error-root-cause",
+  "pattern_present": true,
+  "label_derived_from": "capture",
+  "skill_rule_reaches_expected_answer": false,
+  "source": {
+    "system": "OpenTelemetry Demo",
+    "demo_commit": "2e72d8b",
+    "jaeger_image": "quay.io/jaegertracing/jaeger@sha256:ede4864215be4cd85bd8c3129a2fea6c5713c5653c7282c429dba123014bc68b",
+    "flags": {
+      "productCatalogFailure": "on",
+      "cartFailure": "100%"
+    },
+    "driver": "built-in load generator, user_checkout_multi journey",
+    "captured": "2026-08-06"
+  },
+  "trace_id": "3e241b731fcf87976a3d50f5a7cc4d94",
+  "expected": {
+    "locus_span_id": "909a94f934468e91",
+    "locus_service": "frontend",
+    "locus_operation": "POST",
+    "locus_duration_ms": 15001,
+    "mechanism_determinable_from_trace": false
+  },
+  "naive_answer": {
+    "deepest_errored_span_id": "247a43490cfe60cd",
+    "service": "frontend-proxy",
+    "operation": "POST",
+    "why_it_is_wrong": "It is the only errored span in the trace, so the step 3 rule -- 'the deepest error span with no errored children' -- selects it. But the proxy did not fail: it gave up. Envoy's 15s route timeout fired while its child was still running."
+  },
+  "structure": [
+    "ERR frontend-proxy/POST                 15001ms  <- only errored span",
+    "  ok frontend-proxy/router frontend egress 15001ms",
+    "    ok frontend/POST                     15001ms  <- consumed the whole budget, status OK"
+  ],
+  "notes": [
+    "The correct locus is the deepest span, which carries status OK. Every span below it is absent: the call never returned, so nothing downstream was ever recorded. An answer naming the proxy is not merely imprecise, it points at the wrong service.",
+    "The mechanism is not recoverable from this trace -- nothing says what frontend was waiting on. The expected answer is a locus only, which is why the manifest records mechanism_determinable_from_trace: false.",
+    "Trimmed from a 107-span, 11-service trace to the errored branch plus one successful user_add_to_cart branch: 26 spans, 5 services. The successful branch is kept so that locating the failure is still work."
+  ]
+}

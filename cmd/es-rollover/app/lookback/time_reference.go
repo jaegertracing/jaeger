@@ -3,29 +3,38 @@
 
 package lookback
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
-func getTimeReference(currentTime time.Time, units string, unitCount int) time.Time {
+// validUnits are the only values getTimeReference accepts for the --unit flag.
+var validUnits = []string{"seconds", "minutes", "hours", "days", "weeks", "months", "years"}
+
+func getTimeReference(currentTime time.Time, units string, unitCount int) (time.Time, error) {
 	switch units {
+	case "seconds":
+		return currentTime.Truncate(time.Second).Add(-time.Duration(unitCount) * time.Second), nil
 	case "minutes":
-		return currentTime.Truncate(time.Minute).Add(-time.Duration(unitCount) * time.Minute)
+		return currentTime.Truncate(time.Minute).Add(-time.Duration(unitCount) * time.Minute), nil
 	case "hours":
-		return currentTime.Truncate(time.Hour).Add(-time.Duration(unitCount) * time.Hour)
+		return currentTime.Truncate(time.Hour).Add(-time.Duration(unitCount) * time.Hour), nil
 	case "days":
 		year, month, day := currentTime.Date()
 		tomorrowMidnight := time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(0, 0, 1)
-		return tomorrowMidnight.Add(-time.Hour * 24 * time.Duration(unitCount))
+		return tomorrowMidnight.Add(-time.Hour * 24 * time.Duration(unitCount)), nil
 	case "weeks":
 		year, month, day := currentTime.Date()
 		tomorrowMidnight := time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(0, 0, 1)
-		return tomorrowMidnight.Add(-time.Hour * 24 * time.Duration(7*unitCount))
+		return tomorrowMidnight.Add(-time.Hour * 24 * time.Duration(7*unitCount)), nil
 	case "months":
 		year, month, day := currentTime.Date()
-		return time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(0, -1*unitCount, 0)
+		return time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(0, -1*unitCount, 0), nil
 	case "years":
 		year, month, day := currentTime.Date()
-		return time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(-1*unitCount, 0, 0)
+		return time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(-1*unitCount, 0, 0), nil
 	default:
-		return currentTime.Truncate(time.Second).Add(-time.Duration(unitCount) * time.Second)
+		return time.Time{}, fmt.Errorf("unknown unit %q, expected one of: %s", units, strings.Join(validUnits, ", "))
 	}
 }

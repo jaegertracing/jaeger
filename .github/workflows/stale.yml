@@ -5,11 +5,15 @@ name: 'Close stale issues and PRs'
 
 on:
   schedule:
-    # Run every Monday at 1:30 AM UTC
-    - cron: '30 1 * * 1'
+    # Run every day at 1:30 AM UTC
+    - cron: '30 1 * * *'
   workflow_dispatch:
 
 permissions:
+  # The stale action deletes its saved progress through the caches API. Without
+  # this permission a saved entry stays forever, and the items in it are
+  # skipped on every run.
+  actions: write
   issues: write
   pull-requests: write
 
@@ -34,7 +38,7 @@ jobs:
           close-issue-message: >
             This issue has been automatically closed due to inactivity.
           stale-issue-label: 'stale'
-          exempt-issue-labels: 'do-not-expire,help-wanted'
+          exempt-issue-labels: 'do-not-expire,help wanted'
           only-issue-labels: 'question'
 
           # Pull requests configuration

@@ -35,7 +35,7 @@ services:
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:

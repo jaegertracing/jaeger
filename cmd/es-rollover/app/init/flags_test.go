@@ -11,7 +11,13 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/featuregate"
 )
+
+// testGate stands in for any gate that changes a rendered template, so the test does not
+// depend on the default of a real one.
+var testGate = featuregate.GlobalRegistry().MustRegister("jaeger.test.esRolloverInitFlag", featuregate.StageAlpha)
 
 func TestBindFlags(t *testing.T) {
 	v := viper.New()
@@ -29,10 +35,13 @@ func TestBindFlags(t *testing.T) {
 		"--priority-service-template=301",
 		"--priority-dependencies-template=302",
 		"--priority-sampling-template=303",
+		"--span-total-fields-limit=2000",
+		"--span-numeric-attributes=true",
 	})
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
+	assert.True(t, c.Indices.Spans.NumericAttributes)
 	assert.EqualValues(t, 8, c.Indices.Spans.Shards)
 	require.NotNil(t, c.Indices.Spans.Replicas)
 	assert.EqualValues(t, 16, *c.Indices.Spans.Replicas)
@@ -40,4 +49,38 @@ func TestBindFlags(t *testing.T) {
 	assert.EqualValues(t, 301, c.Indices.Services.Priority)
 	assert.EqualValues(t, 302, c.Indices.Dependencies.Priority)
 	assert.EqualValues(t, 303, c.Indices.Sampling.Priority)
+	assert.Equal(t, configoptional.Some(int64(2000)), c.Indices.Spans.TotalFieldsLimit)
+}
+
+func TestBindFlagsTotalFieldsLimitUnset(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{})
+	require.NoError(t, err)
+
+	c.InitFromViper(v)
+	assert.False(t, c.Indices.Spans.TotalFieldsLimit.HasValue())
+	assert.False(t, c.Indices.Spans.NumericAttributes)
+}
+
+func TestFeatureGatesFlag(t *testing.T) {
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+
+	require.NoError(t, command.ParseFlags([]string{"--feature-gates=" + testGate.ID()}))
+	assert.True(t, testGate.IsEnabled())
+
+	require.NoError(t, command.ParseFlags([]string{"--feature-gates=-" + testGate.ID()}))
+	assert.False(t, testGate.IsEnabled())
+
+	require.ErrorContains(t, command.ParseFlags([]string{"--feature-gates=jaeger.es.noSuchGate"}), "no such feature gate")
 }

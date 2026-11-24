@@ -24,14 +24,16 @@ spec:
           items:
           - key: generate_traces.py
             path: generate_traces.py
+          - key: requirements.txt
+            path: requirements.txt
       containers:
       - name: trace-generator
-        image: python:3.11-slim
+        image: python:3.11.14-slim@sha256:c8271b1f627d0068857dce5b53e14a9558603b527e46f1f901722f935b786a39
         command:
           - /bin/sh
           - -c
           - |
-            pip install --no-cache-dir requests && python /app/generate_traces.py
+            pip install --no-cache-dir -r /app/requirements.txt && python /app/generate_traces.py
         env:
         - name: TARGET_URL
           value: "http://jaeger-hotrod.jaeger.svc.cluster.local/dispatch"

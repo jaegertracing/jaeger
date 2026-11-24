@@ -41,9 +41,16 @@ This avoids duplication: both the sequential and parallel paths call the same st
 #### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
 
+`ci-lint-checks.yaml` also fails a pull request whose `jaeger` binary grows by more than 2%. When an
+upstream upgrade links in code that the pull request has no way to avoid, no change to the branch can
+bring the binary back under the threshold. A maintainer waives the gate for that pull request by
+labeling it `accept-binary-size-increase` and describing the growth in the description; the job then
+reports the measurement as a warning instead of failing. Adding the label to a pull request whose run
+already failed takes effect on re-running the failed job, because the job reads the label from the
+API rather than from the event that started the run.
+
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
-- **ci-ai-sidecar-gemini.yml** - Python ACP sidecar workflow test for the Gemini example
 
 #### Stage 3: Expensive Checks & Static Analysis
 Executes in parallel within the stage:
@@ -134,18 +141,24 @@ the call site instead of relying on `write-all`:
 The following workflows operate independently and are **not** part of the orchestrator:
 
 ### Release & Deployment
+- **ci-release-draft.yml** - Creates the draft GitHub release when a "Prepare release vX.Y.Z" PR merges to main
 - **ci-release.yml** - Triggered on release events to build and publish artifacts
 - **ci-deploy-demo.yml** - Scheduled/manual deployment to demo environment
 
 ### Automated Checks
 - **ci-summary-report.yml** - Fan-in workflow triggered after CI Orchestrator completes; posts a consolidated PR comment with performance metrics comparison and code coverage gating (see `docs/adr/004-migrating-coverage-gating-to-github-actions.md`)
-- **label-check.yml** - Verifies PR labels
-- **pr-quota-manager.yml** - PR management automation
+- **pr-changelog-label.yml** - Requires a `changelog:` label on every PR
+- **pr-author-quota.yml** - Labels the PRs that exceed their author's limit of open PRs
+- **pr-duplicates.yml** - Labels the PRs that duplicate an older PR linked to the same issue. Pull request and issue events dispatch the workflow on the default branch, and the dispatched run labels the duplicates
+- **pr-linked-issue.yml** - Adds either `missing-issue` or `unapproved-issue` to a PR from an outside contributor that has no linked open `help wanted` issue, and comments with the policy. Pull request and issue events dispatch the workflow on the default branch, once for each pull request to check. A daily run closes the PRs that still carry one of the two labels a week after that comment
+- **pr-waiting-for-author.yml** - Adds the `waiting-for-author` label when a maintainer comments in the PR conversation, and removes it when the author replies there or pushes anything other than a merge from the base branch
 - **dco_merge_group.yml** - DCO verification for merge groups
+
+### Opt-in Checks
+- **ci-backward-compatibility.yml** - Writes the integration corpus with a Jaeger built from both the latest release and `main` and reads it back with the one built from the pull request. A backend joins by adding a matrix entry carrying the command that stands its storage up. Each job builds a second Jaeger and stands up a storage backend, so the workflow runs only on a pull request labelled `ci:backward-compat`, and it gates nothing.
 
 ### Scheduled Maintenance
 - **stale.yml** - Marks and closes stale issues/PRs
-- **waiting-for-author.yml** - PR status management
 - **scorecard.yml** - Security scorecard scanning
 
 ### Special Cases
@@ -176,7 +189,7 @@ This is much simpler than requiring 10+ individual workflow checks.
 
 ## Local Development
 
-Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. However, on PR events, only the orchestrator runs to avoid duplicate work.
+Individual workflows can still be triggered manually via the GitHub Actions UI for testing or debugging purposes. On PR events, the CI orchestrator owns CI execution; independent policy workflows such as PR quota management may also run to maintain their own state.
 
 ## Benefits
 

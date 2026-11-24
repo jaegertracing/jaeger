@@ -9,21 +9,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"maps"
 	"net/http"
-	"net/url"
+	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
-	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
@@ -33,8 +33,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
-	uiconv "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
+
+// filterValueRegex restricts free-text filter values when a Dimension's Values
+// set is empty. It rejects control chars, double-quotes and backslashes — the
+// PromQL-string-literal escape characters — and caps length at 256.
+var filterValueRegex = regexp.MustCompile(`^[^\x00-\x1f\x7f"\\]{1,256}$`)
 
 const (
 	traceIDParam          = "traceID"
@@ -84,8 +88,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{
-			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
-			timeNow:                    time.Now,
+			timeNow: time.Now,
 		},
 	}
 
@@ -106,20 +109,13 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
-	aH.handleFunc(router, aH.getTrace, http.MethodGet, "/traces/{%s}", traceIDParam)
 	aH.handleFunc(router, aH.archiveTrace, http.MethodPost, "/archive/{%s}", traceIDParam)
-	aH.handleFunc(router, aH.search, http.MethodGet, "/traces")
-	aH.handleFunc(router, aH.getServices, http.MethodGet, "/services")
-	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	aH.handleFunc(router, aH.getOperations, http.MethodGet, "/operations")
-	// TODO - remove this when UI catches up
-	aH.handleFunc(router, aH.getOperationsLegacy, http.MethodGet, "/services/{%s}/operations", serviceParam)
-	aH.handleFunc(router, aH.transformOTLP, http.MethodPost, "/transform")
 	aH.handleFunc(router, aH.dependencies, http.MethodGet, "/dependencies")
 	aH.handleFunc(router, aH.deepDependencies, http.MethodGet, "/deep-dependencies")
 	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
 	aH.handleFunc(router, aH.calls, http.MethodGet, "/metrics/calls")
 	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
+	aH.handleFunc(router, aH.dimensions, http.MethodGet, "/metrics/dimensions")
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 }
 
@@ -144,186 +140,6 @@ func (aH *APIHandler) formatRoute(route string, args ...any) string {
 	return formattedRoute
 }
 
-func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
-	services, err := aH.queryService.GetServices(r.Context())
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	if len(services) == 0 {
-		services = []string{}
-	}
-
-	structuredRes := structuredResponse{
-		Data:  services,
-		Total: len(services),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
-func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
-	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
-	service, _ := url.QueryUnescape(r.PathValue(serviceParam))
-	// for backwards compatibility, we will retrieve operations with all span kind
-	operations, err := aH.queryService.GetOperations(r.Context(),
-		tracestore.OperationQueryParams{
-			ServiceName: service,
-			// include all kinds
-			SpanKind: "",
-		})
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	operationNames := getUniqueOperationNames(operations)
-	structuredRes := structuredResponse{
-		Data:  operationNames,
-		Total: len(operationNames),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
-func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	traces, err := otlp2traces(body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse(traces, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
-}
-
-func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
-	service := r.URL.Query().Get(serviceParam)
-	if service == "" {
-		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
-			return
-		}
-	}
-	spanKind := r.URL.Query().Get(spanKindParam)
-	operations, err := aH.queryService.GetOperations(
-		r.Context(),
-		tracestore.OperationQueryParams{ServiceName: service, SpanKind: spanKind},
-	)
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	data := make([]ui.Operation, len(operations))
-	for i, operation := range operations {
-		data[i] = ui.Operation{
-			Name:     operation.Name,
-			SpanKind: operation.SpanKind,
-		}
-	}
-	structuredRes := structuredResponse{
-		Data:  data,
-		Total: len(operations),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
-func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
-	tQuery, err := aH.queryParser.parseTraceQueryParams(r)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	var uiErrors []structuredError
-	var tracesFromStorage []*model.Trace
-	if len(tQuery.TraceIDs) > 0 {
-		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
-			r.Context(),
-			tQuery,
-		)
-		if aH.handleError(w, err, http.StatusInternalServerError) {
-			return
-		}
-	} else {
-		// Convert to v2 query params and call v2 QueryService
-		queryParams := querysvc.TraceQueryParams{
-			TraceQueryParams: tQuery.TraceQueryParams,
-			RawTraces:        tQuery.RawTraces,
-		}
-		findTracesIter := aH.queryService.FindTraces(r.Context(), queryParams)
-		tracesFromStorage, err = v1adapter.V1TracesFromSeq2(findTracesIter)
-		if aH.handleError(w, err, http.StatusInternalServerError) {
-			return
-		}
-	}
-
-	structuredRes := aH.tracesToResponse(tracesFromStorage, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
-}
-
-func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
-	uiTraces := make([]*ui.Trace, len(traces))
-	for i, v := range traces {
-		uiTrace := uiconv.FromDomain(v)
-		uiTraces[i] = uiTrace
-	}
-
-	return &structuredResponse{
-		Data:   uiTraces,
-		Errors: uiErrors,
-	}
-}
-
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
-	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceQuery.TraceIDs))
-	if len(traceQuery.TraceIDs) == 0 {
-		return nil, nil, nil
-	}
-
-	ids := make([]tracestore.GetTraceParams, len(traceQuery.TraceIDs))
-	requestedIDs := make(map[pcommon.TraceID]model.TraceID)
-	for i, traceID := range traceQuery.TraceIDs {
-		v2ID := v1adapter.FromV1TraceID(traceID)
-		ids[i] = tracestore.GetTraceParams{
-			TraceID: v2ID,
-			Start:   traceQuery.StartTimeMin,
-			End:     traceQuery.StartTimeMax,
-		}
-		requestedIDs[v2ID] = traceID
-	}
-
-	query := querysvc.GetTraceParams{
-		TraceIDs:  ids,
-		RawTraces: traceQuery.RawTraces,
-	}
-
-	getTracesIter := aH.queryService.GetTraces(ctx, query)
-	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	foundIDs := make(map[pcommon.TraceID]struct{})
-	for _, tr := range traces {
-		if len(tr.Spans) > 0 {
-			retMe = append(retMe, tr)
-			foundIDs[v1adapter.FromV1TraceID(tr.Spans[0].TraceID)] = struct{}{}
-		}
-	}
-
-	for v2ID, v1ID := range requestedIDs {
-		if _, ok := foundIDs[v2ID]; !ok {
-			traceErrors = append(traceErrors, structuredError{
-				Msg:     spanstore.ErrTraceNotFound.Error(),
-				TraceID: ui.TraceID(v1ID.String()),
-			})
-		}
-	}
-	return retMe, traceErrors, nil
-}
-
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	dqp, err := aH.queryParser.parseDependenciesQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
@@ -345,7 +161,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) deepDependencies(w http.ResponseWriter, r *http.Request) {
 	focalService := r.URL.Query().Get("service")
-	data := deepdependencies.GetData(focalService)
+	data := ddg.GetData(focalService)
 	aH.writeJSON(w, r, &data)
 }
 
@@ -384,11 +200,67 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
+	if len(requestParams.Filters) > 0 {
+		dims, err := aH.metricsQueryService.GetDimensions(r.Context())
+		if aH.handleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+		if err := validateMetricFilters(requestParams.Filters, dims); aH.handleError(w, err, http.StatusBadRequest) {
+			return
+		}
+	}
 	m, err := getMetrics(r.Context(), requestParams)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	aH.writeJSON(w, r, m)
+}
+
+// dimensions returns the configured set of filterable dimensions for the SPM UI.
+// Backends without dimension support return an empty array; the disabled backend
+// returns ErrDisabled which maps to 501 via handleError.
+func (aH *APIHandler) dimensions(w http.ResponseWriter, r *http.Request) {
+	dims, err := aH.metricsQueryService.GetDimensions(r.Context())
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	if dims == nil {
+		dims = []metricstore.Dimension{}
+	}
+	aH.writeJSON(w, r, dims)
+}
+
+// validateMetricFilters checks the requested filter keys against the configured
+// dimensions and (when configured) their allowed values.
+func validateMetricFilters(filters map[string]string, dims []metricstore.Dimension) error {
+	if len(dims) == 0 {
+		return fmt.Errorf("metric filtering is not supported by this backend (no dimensions configured): %w", errors.ErrUnsupported)
+	}
+	byName := make(map[string]metricstore.Dimension, len(dims))
+	for _, d := range dims {
+		byName[d.Name] = d
+	}
+	for _, k := range slices.Sorted(maps.Keys(filters)) {
+		v := filters[k]
+		d, ok := byName[k]
+		if !ok {
+			names := make([]string, 0, len(dims))
+			for _, dim := range dims {
+				names = append(names, dim.Name)
+			}
+			return fmt.Errorf("unknown filter dimension %q; configured: %v", k, names)
+		}
+		if len(d.Values) > 0 {
+			if !slices.Contains(d.Values, v) {
+				return fmt.Errorf("value %q not allowed for filter %q; allowed: %v", v, k, d.Values)
+			}
+			continue
+		}
+		if !filterValueRegex.MatchString(v) {
+			return fmt.Errorf("invalid value for filter %q (control characters, quotes, and backslashes are not allowed)", k)
+		}
+	}
+	return nil
 }
 
 func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
@@ -427,7 +299,7 @@ func (*APIHandler) filterDependenciesByService(
 	return filteredDependencies
 }
 
-// Parses trace ID from URL like /traces/{trace-id}
+// Parses trace ID from URL like /archive/{trace-id}
 func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
 	traceIDVar := r.PathValue(traceIDParam)
 	traceID, err := apiv3.TraceIDFromString(traceIDVar)
@@ -439,7 +311,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 
 func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, timeKey string) (time.Time, bool) {
 	if timeString := r.URL.Query().Get(timeKey); timeString != "" {
-		t, err := aH.queryParser.parseTime(r, timeKey, time.Microsecond)
+		t, err := aH.queryParser.parseTime(r, timeKey, time.UnixMicro)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return time.Time{}, false
 		}
@@ -489,29 +361,6 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	return query, true
 }
 
-// getTrace implements the REST API /traces/{trace-id}
-// It parses trace ID from the path, fetches the trace from QueryService,
-// formats it in the UI JSON format, and responds to the client.
-func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
-	query, ok := aH.parseGetTraceParameters(w, r)
-	if !ok {
-		return
-	}
-	getTracesIter := aH.queryService.GetTraces(r.Context(), query)
-	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
-	if errors.Is(err, spanstore.ErrTraceNotFound) || (err == nil && len(traces) == 0) {
-		aH.handleError(w, spanstore.ErrTraceNotFound, http.StatusNotFound)
-		return
-	}
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse(traces, uiErrors)
-	aH.writeJSON(w, r, structuredRes)
-}
-
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
 // It passes the traceID to queryService.ArchiveTrace for writing.
 func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
@@ -541,7 +390,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, disabled.ErrDisabled) {
+	if errors.Is(err, disabled.ErrDisabled) || errors.Is(err, errors.ErrUnsupported) {
 		statusCode = http.StatusNotImplemented
 	}
 	if statusCode == http.StatusInternalServerError {

@@ -36,10 +36,12 @@ const (
 )
 
 // SyncBulkWriter issues synchronous, size-bounded _bulk requests over the shared
-// transport. Bulk blocks until the backend responds and returns an error iff any
-// document in the batch was not durably stored. That single error is a per-batch
-// durability verdict, derived from inspecting each item's status in the response —
-// not a structured per-item list; the caller (WriteTraces) only needs pass/fail.
+// transport. WriteBatch blocks until the backend responds and returns an error iff
+// any document in the batch was not durably stored. That error is a per-batch
+// durability verdict derived from each item's status in the response; when items
+// were rejected it is a *BulkWriteError, which also lists the terminally-rejected
+// documents so a dead-letter connector can re-route them (RFC 0007 §4.8), while
+// WriteTraces itself only needs pass/fail.
 //
 // It is a peer of the async BulkIndexer over the same Client, not a method on it,
 // because esutil's blocking Flush cannot express that verdict. Flush returns nil
@@ -60,9 +62,11 @@ type SyncBulkWriter struct {
 	// the batch, so the write completes and the offset advances. Transient failures
 	// (429 / 5xx / transport) still fail the batch. When false, any rejection fails
 	// the batch (retry-forever). Set from config.PoisonHandling by the factory.
-	dropPoison bool
-	metrics    *spanstoremetrics.WriteMetrics
-	logger     *zap.Logger
+	dropPoison    bool
+	metrics       *spanstoremetrics.WriteMetrics
+	poisonDropped metrics.Counter
+	requestBytes  metrics.Histogram
+	logger        *zap.Logger
 }
 
 // NewSyncBulkWriter returns a SyncBulkWriter that sends each _bulk chunk over the
@@ -75,12 +79,19 @@ func NewSyncBulkWriter(client *Client, maxBytes int, dropPoison bool, metricsFac
 	if maxBytes <= 0 {
 		maxBytes = defaultSyncBulkMaxBytes
 	}
+	poisonDropped := metricsFactory.Namespace(metrics.NSOptions{Name: "bulk_index"}).Counter(metrics.Options{
+		Name: "poison-dropped",
+		Help: "Terminally rejected documents discarded in synchronous drop mode, including repeated drops on retries",
+	})
+	poisonDropped.Inc(0)
 	return &SyncBulkWriter{
-		client:     client,
-		maxBytes:   maxBytes,
-		dropPoison: dropPoison,
-		metrics:    spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger:     logger,
+		client:        client,
+		maxBytes:      maxBytes,
+		dropPoison:    dropPoison,
+		metrics:       spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		poisonDropped: poisonDropped,
+		requestBytes:  newRequestBytesHistogram(metricsFactory),
+		logger:        logger,
 	}
 }
 
@@ -103,6 +114,12 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 		chunkLen  int
 		succeeded int
 	)
+	// A batch that splits into several chunks aggregates every chunk's item-level
+	// rejections into one BulkWriteError (bulkErr) rather than joining one per chunk,
+	// so a dead-letter connector recovers the whole batch's poison in a single
+	// errors.As. Transport/parse/context/encode failures are not per-item and stay
+	// individual entries in errs.
+	var bulkErr *BulkWriteError
 	flush := func() {
 		if chunkLen == 0 {
 			return
@@ -110,7 +127,16 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 		ok, err := w.sendChunk(ctx, chunk, chunkLen)
 		succeeded += ok
 		if err != nil {
-			errs = append(errs, err)
+			var be *BulkWriteError
+			if errors.As(err, &be) {
+				if bulkErr == nil {
+					bulkErr = be
+				} else {
+					bulkErr.merge(be)
+				}
+			} else {
+				errs = append(errs, err)
+			}
 		}
 		chunk, chunkLen = nil, 0
 	}
@@ -150,6 +176,16 @@ func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error
 	w.metrics.Attempts.Inc(int64(len(items)))
 	w.metrics.Inserts.Inc(int64(succeeded))
 	w.metrics.Errors.Inc(int64(len(items) - succeeded))
+	if bulkErr != nil {
+		// A chunk that failed as a whole (transport, non-2xx, malformed response) is
+		// a transient failure of the batch, and its documents are not durable, so
+		// the verdict must say the batch needs a retry even when the item-level
+		// rejections of the other chunks were all terminal. Otherwise a caller that
+		// re-routes terminal items and treats the rest as written would advance
+		// the offset over the failed chunk.
+		bulkErr.Transient = bulkErr.Transient || len(errs) > 0
+		errs = append(errs, bulkErr)
+	}
 	return errors.Join(errs...)
 }
 
@@ -167,6 +203,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		}
 	}()
 
+	w.requestBytes.Record(float64(len(body)))
 	raw, err := w.client.request(ctx, elasticRequest{
 		endpoint:    "_bulk",
 		method:      http.MethodPost,
@@ -198,34 +235,56 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	// a malformed or proxied response could report errors:false while an item still
 	// carries a failing status, and silently succeeding there would advance the
 	// Kafka offset over lost data — exactly what this synchronous writer prevents.
-	terminal, transient, sample := resp.classify()
-	failed := terminal + transient
+	out := resp.classify()
+	if out.conflicts > 0 {
+		// Counted in the durable total returned below, mirroring the async indexer's
+		// onItemConflict: an already-present document achieved the write's goal.
+		w.logger.Debug("bulk items already present (idempotent write)",
+			zap.Int("conflicts", out.conflicts), zap.Int("total", count),
+			zap.Int("status", http.StatusConflict))
+	}
+	failed := out.failed()
 	if failed == 0 {
 		return count, nil
 	}
-	msg := strings.Join(sample, "; ")
-	if failed > len(sample) {
-		msg += fmt.Sprintf("; …and %d more", failed-len(sample))
+	msg := strings.Join(out.sample, "; ")
+	if failed > len(out.sample) {
+		msg += fmt.Sprintf("; …and %d more", failed-len(out.sample))
 	}
 	// Drop mode: discard poison (terminal) items so the batch can complete. If the
 	// only failures are terminal, the chunk succeeds (offset advances) with the
 	// poison logged out-of-band. Transient failures — or fail mode — still error and
 	// retry the whole batch; any terminal items ride along and are re-dropped each
 	// retry until the transient ones clear.
-	if w.dropPoison && terminal > 0 {
+	if w.dropPoison && len(out.terminal) > 0 {
+		w.poisonDropped.Inc(int64(len(out.terminal)))
 		w.logger.Warn("dropping poison-pill documents the backend rejected terminally",
-			zap.Int("dropped", terminal), zap.Int("total", count), zap.String("sample", msg))
+			zap.Int("dropped", len(out.terminal)), zap.Int("total", count), zap.String("sample", msg))
 	}
-	if w.dropPoison && transient == 0 {
-		return count - terminal, nil
+	if w.dropPoison && out.transient == 0 {
+		return count - len(out.terminal), nil
 	}
 	rejected := failed
 	if w.dropPoison {
-		rejected = transient // terminal items were dropped above, not retried
+		rejected = out.transient // terminal items were dropped above, not retried
 	}
 	w.logger.Error("synchronous bulk write had rejected items",
 		zap.Int("rejected", rejected), zap.Int("total", count))
-	return count - failed, fmt.Errorf("%d of %d bulk items rejected: %s", rejected, count, msg)
+	// Return the typed error so a dead-letter connector can recover the poison items
+	// via errors.As (RFC 0007 §4.8). In fail mode Terminal carries the poison to
+	// re-route; in drop mode the terminal items were already discarded above, so
+	// only the retryable (transient) failures remain and Terminal stays empty.
+	be := &BulkWriteError{
+		Transient: out.transient > 0,
+		rejected:  rejected,
+		total:     count,
+		sample:    out.sample,
+		overflow:  failed - len(out.sample),
+	}
+	if !w.dropPoison {
+		be.Terminal = out.terminal
+	}
+	return count - failed, be
 }
 
 // encodeBulkItem renders one document as its two NDJSON lines: the action line
@@ -270,42 +329,80 @@ type bulkItemState struct {
 	Error  json.RawMessage `json:"error"`
 }
 
+// bulkOutcome tallies the non-durable items of one _bulk response. terminal and
+// transient are the two kinds of failure; conflicts are already-durable documents and
+// are not failures, so failed excludes them. terminal carries each poison item's
+// identity (not just a count) so a dead-letter connector can route every one back to
+// its source span (RFC 0007 §4.8).
+type bulkOutcome struct {
+	terminal  []RejectedItem
+	transient int
+	conflicts int
+	sample    []string
+}
+
+// failed reports how many items were genuinely rejected.
+func (o bulkOutcome) failed() int { return len(o.terminal) + o.transient }
+
 // classify splits the rejected items into terminal (a poison pill — a status the
-// backend will reject identically on replay, e.g. a 4xx mapping/validation error)
-// and transient (429 / 5xx / a malformed item result — worth retrying), and returns
-// a bounded, human-readable sample of their reasons (at most maxReportedFailures
-// entries, each payload truncated to maxErrorPayloadBytes) so the error stays small
-// even when an entire large batch is rejected.
+// backend will reject identically on replay, e.g. a 4xx mapping/validation error),
+// transient (429 / 5xx / a malformed item result — worth retrying), and conflicts
+// (409 — already durable, see below), and returns a bounded, human-readable sample of
+// the failures' reasons (at most maxReportedFailures entries, each payload truncated
+// to maxErrorPayloadBytes) so the error stays small even when an entire large batch is
+// rejected. Conflicts are not failures, so they contribute no sample entry.
 //
-// Durability is positively confirmed, not merely assumed from the absence of an
-// error: an item counts as durable only when it has exactly one action result with
+// A 409 is neither transient nor terminal: it means the document is already stored, so
+// retrying is pointless and dropping it as poison would discard a durable write. Jaeger
+// sends op_type: create only from the span writer, whose _id is a content hash of the
+// document, so a conflicting document is byte-identical to the one being written and
+// the write has already achieved its goal — the expected outcome of an at-least-once
+// retry rather than a failure (RFC 0007 §4.7). This matches the async indexer, whose
+// OnFailure routes 409 to onItemConflict.
+//
+// Durability is otherwise positively confirmed, not merely assumed from the absence of
+// an error: an item counts as durable only when it has exactly one action result with
 // a 2xx status and no error object. Anything else is a failure — a non-2xx status, a
 // present error, an empty item ({}), a missing status (0), or multiple action
 // entries — because none of those is an acknowledgement, and treating them as
 // success would let the writer return nil without the backend having stored the doc.
-func (r bulkResponse) classify() (terminal, transient int, sample []string) {
+func (r bulkResponse) classify() bulkOutcome {
+	var out bulkOutcome
 	for _, item := range r.Items {
 		state, durable := itemResult(item)
 		if durable {
 			continue
 		}
-		if isTransientStatus(state.Status) {
-			transient++
-		} else {
-			terminal++
+		if state.Status == http.StatusConflict {
+			out.conflicts++
+			continue
 		}
-		if len(sample) < maxReportedFailures {
-			sample = append(sample, rejectionReason(item, state))
+		if isTransientStatus(state.Status) {
+			out.transient++
+		} else {
+			// Collect the full terminal set (not the bounded sample): a dead-letter
+			// connector must route every poison document back to its source span, so
+			// it needs each item's _id, not a 20-entry excerpt.
+			out.terminal = append(out.terminal, RejectedItem{
+				Index:  state.Index,
+				ID:     state.ID,
+				Status: state.Status,
+				Reason: truncateBytes(state.Error, maxErrorPayloadBytes),
+			})
+		}
+		if len(out.sample) < maxReportedFailures {
+			out.sample = append(out.sample, rejectionReason(item, state))
 		}
 	}
-	return terminal, transient, sample
+	return out
 }
 
 // isTransientStatus reports whether a rejected item's status is worth retrying:
 // backpressure (429), server-side/gateway errors (5xx), and the zero value used for
 // a malformed item result (retry rather than risk dropping a real write). Any other
 // failing status is terminal — a 4xx the backend rejects identically on replay
-// (mapping conflict, malformed field, oversized field).
+// (mapping conflict, malformed field, oversized field). 409 never reaches here:
+// classify takes it as an already-durable conflict before consulting this.
 func isTransientStatus(status int) bool {
 	switch status {
 	case 0, // malformed/unparsed item — conservatively retry rather than drop

@@ -38,6 +38,7 @@ type Writer struct {
 	anonymizedFile *os.File
 	anonymizer     *anonymizer.Anonymizer
 	spanCount      int
+	closed         bool
 }
 
 // New creates an Writer
@@ -90,15 +91,22 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
+	if w.closed {
+		if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
+			return ErrMaxSpansCountReached
+		}
+		return errors.New("writer is closed")
+	}
+
 	out := new(bytes.Buffer)
 	if err := new(jsonpb.Marshaler).Marshal(out, msg); err != nil {
 		return err
 	}
 	if w.spanCount > 0 {
-		w.capturedFile.WriteString(",\n")
+		_, _ = w.capturedFile.WriteString(",\n")
 	}
-	w.capturedFile.Write(out.Bytes())
-	w.capturedFile.Sync()
+	_, _ = w.capturedFile.Write(out.Bytes())
+	_ = w.capturedFile.Sync()
 
 	span := w.anonymizer.AnonymizeSpan(msg)
 
@@ -107,12 +115,12 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 		return err
 	}
 	if w.spanCount > 0 {
-		w.anonymizedFile.WriteString(",\n")
+		_, _ = w.anonymizedFile.WriteString(",\n")
 	}
 	if _, err := w.anonymizedFile.Write(dat); err != nil {
 		return err
 	}
-	w.anonymizedFile.Sync()
+	_ = w.anonymizedFile.Sync()
 
 	w.spanCount++
 	if w.spanCount%100 == 0 {
@@ -121,19 +129,36 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 
 	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
-		w.Close()
+		w.closeLocked()
 		return ErrMaxSpansCountReached
 	}
 
 	return nil
 }
 
-// Close closes the captured and anonymized files.
+// Close closes the captured and anonymized files. It is safe to call multiple times.
 func (w *Writer) Close() {
-	w.capturedFile.WriteString("\n]\n")
-	w.capturedFile.Close()
-	w.anonymizedFile.WriteString("\n]\n")
-	w.anonymizedFile.Close()
-	w.anonymizer.Stop()
-	w.anonymizer.SaveMapping()
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	w.closeLocked()
+}
+
+func (w *Writer) closeLocked() {
+	if w.closed {
+		return
+	}
+	w.closed = true
+
+	if w.capturedFile != nil {
+		_, _ = w.capturedFile.WriteString("\n]\n")
+		_ = w.capturedFile.Close()
+	}
+	if w.anonymizedFile != nil {
+		_, _ = w.anonymizedFile.WriteString("\n]\n")
+		_ = w.anonymizedFile.Close()
+	}
+	if w.anonymizer != nil {
+		w.anonymizer.Stop()
+		w.anonymizer.SaveMapping()
+	}
 }

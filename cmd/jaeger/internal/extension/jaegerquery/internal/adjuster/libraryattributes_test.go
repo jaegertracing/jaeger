@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -109,6 +110,65 @@ func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *test
 	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
 	require.True(t, ok)
 	require.Equal(t, "Go", val.Str())
+}
+
+func TestResourceAttributesAdjuster_SpanAndResourceWithNonStringLibraryAttributes(t *testing.T) {
+	key := string(otelsemconv.TelemetrySDKNameKey)
+	putMap := func(s string) func(pcommon.Map) {
+		return func(attrs pcommon.Map) { attrs.PutEmptyMap(key).PutStr("name", s) }
+	}
+	putSlice := func(s string) func(pcommon.Map) {
+		return func(attrs pcommon.Map) { attrs.PutEmptySlice(key).AppendEmpty().SetStr(s) }
+	}
+	putBytes := func(s string) func(pcommon.Map) {
+		return func(attrs pcommon.Map) { attrs.PutEmptyBytes(key).FromRaw([]byte(s)) }
+	}
+	putInt := func(i int64) func(pcommon.Map) {
+		return func(attrs pcommon.Map) { attrs.PutInt(key, i) }
+	}
+	tests := []struct {
+		name     string
+		resource func(pcommon.Map)
+		span     func(pcommon.Map)
+	}{
+		{name: "equal maps", resource: putMap("opentelemetry"), span: putMap("opentelemetry")},
+		{name: "different maps", resource: putMap("opentelemetry"), span: putMap("other")},
+		{name: "equal slices", resource: putSlice("opentelemetry"), span: putSlice("opentelemetry")},
+		{name: "different slices", resource: putSlice("opentelemetry"), span: putSlice("other")},
+		{name: "equal bytes", resource: putBytes("opentelemetry"), span: putBytes("opentelemetry")},
+		{name: "different bytes", resource: putBytes("opentelemetry"), span: putBytes("other")},
+		{name: "equal ints", resource: putInt(1), span: putInt(1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rs := traces.ResourceSpans().AppendEmpty()
+			tt.resource(rs.Resource().Attributes())
+			span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			tt.span(span.Attributes())
+
+			wantResource := pcommon.NewMap()
+			tt.resource(wantResource)
+			wantSpan := pcommon.NewMap()
+			tt.span(wantSpan)
+
+			require.NotPanics(t, func() { MoveLibraryAttributes().Adjust(traces) })
+
+			require.Equal(t,
+				[]string{"conflicting values between Span and Resource for attribute " + key},
+				jptrace.GetWarnings(span))
+
+			want, _ := wantSpan.Get(key)
+			got, ok := span.Attributes().Get(key)
+			require.True(t, ok)
+			require.Equal(t, want.AsRaw(), got.AsRaw())
+
+			want, _ = wantResource.Get(key)
+			got, ok = rs.Resource().Attributes().Get(key)
+			require.True(t, ok)
+			require.Equal(t, want.AsRaw(), got.AsRaw())
+		})
+	}
 }
 
 func TestResourceAttributesAdjuster_SpanWithNonConflictingLibraryAttributes(t *testing.T) {

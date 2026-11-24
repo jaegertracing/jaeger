@@ -22,6 +22,7 @@
                       "must": {
                         "regexp": {
                           "tag.error": {
+                            "flags": "NONE",
                             "value": "true"
                           }
                         }
@@ -33,6 +34,7 @@
                       "must": {
                         "regexp": {
                           "process.tag.error": {
+                            "flags": "NONE",
                             "value": "true"
                           }
                         }
@@ -55,6 +57,7 @@
                             {
                               "regexp": {
                                 "tags.value": {
+                                  "flags": "NONE",
                                   "value": "true"
                                 }
                               }
@@ -80,6 +83,7 @@
                             {
                               "regexp": {
                                 "process.tags.value": {
+                                  "flags": "NONE",
                                   "value": "true"
                                 }
                               }
@@ -105,6 +109,7 @@
                             {
                               "regexp": {
                                 "logs.fields.value": {
+                                  "flags": "NONE",
                                   "value": "true"
                                 }
                               }
@@ -177,6 +182,7 @@
                           "must": {
                             "regexp": {
                               "tag.error": {
+                                "flags": "NONE",
                                 "value": "true"
                               }
                             }
@@ -188,6 +194,7 @@
                           "must": {
                             "regexp": {
                               "process.tag.error": {
+                                "flags": "NONE",
                                 "value": "true"
                               }
                             }
@@ -210,6 +217,7 @@
                                 {
                                   "regexp": {
                                     "tags.value": {
+                                      "flags": "NONE",
                                       "value": "true"
                                     }
                                   }
@@ -235,6 +243,7 @@
                                 {
                                   "regexp": {
                                     "process.tags.value": {
+                                      "flags": "NONE",
                                       "value": "true"
                                     }
                                   }
@@ -260,6 +269,7 @@
                                 {
                                   "regexp": {
                                     "logs.fields.value": {
+                                      "flags": "NONE",
                                       "value": "true"
                                     }
                                   }

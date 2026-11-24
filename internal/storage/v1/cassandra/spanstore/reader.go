@@ -74,8 +74,10 @@ var (
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("malformed request object")
 
-	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
-	ErrDurationAndTagQueryNotSupported = errors.New("cannot query for duration and tags simultaneously")
+	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set. It matches
+	// errors.ErrUnsupported, because the same query is valid on a backend that can intersect the
+	// two indices.
+	ErrDurationAndTagQueryNotSupported = tracestore.Unsupported("cannot query for duration and tags simultaneously")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
 	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
@@ -218,8 +220,13 @@ func validateQuery(p *tracestore.TraceQueryParams) error {
 	if p == nil {
 		return ErrMalformedRequestObject
 	}
-	if p.ServiceName == "" && p.Attributes.Len() > 0 {
-		return ErrServiceNameNotSet
+	// Every index is keyed by service name, so a query without one has no partition to
+	// read: queryByService would run with an empty partition key and return zero rows,
+	// which is indistinguishable from "no matching traces". Refusing it says what is
+	// actually true (RFC 0013 §3.3); the query service normally rejects such a query
+	// first, from the capability this reader declares.
+	if p.ServiceName == "" {
+		return fmt.Errorf("%w: %w", ErrServiceNameNotSet, errors.ErrUnsupported)
 	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
@@ -276,7 +283,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.Tr
 
 	var traceIDs []dbmodel.TraceID
 	for t := range dbTraceIDs {
-		if len(traceIDs) >= traceQuery.SearchDepth {
+		if uint64(len(traceIDs)) >= uint64(traceQuery.SearchDepth) {
 			break
 		}
 		traceIDs = append(traceIDs, t)
@@ -285,8 +292,8 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.Tr
 }
 
 func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery *tracestore.TraceQueryParams) (dbmodel.UniqueTraceIDs, error) {
-	// See docs/adr/cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
-	// and are handled as a separate path. Other query parameters (like tags) are ignored when duration is specified.
+	// See docs/adr/001-cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
+	// and are handled as a separate path. validateQuery has already refused a query that also has tags.
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}
@@ -379,10 +386,12 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 			return nil, err
 		}
 
+		// Buckets are walked from the newest, so once the search depth is
+		// filled the older buckets cannot add anything that would be returned.
 		for traceID := range t {
 			results.Add(traceID)
-			if len(results) == traceQuery.SearchDepth {
-				break
+			if uint64(len(results)) == uint64(traceQuery.SearchDepth) {
+				return results, nil
 			}
 		}
 	}

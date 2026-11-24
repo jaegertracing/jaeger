@@ -5,17 +5,24 @@ package mcptools
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
+	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -29,6 +36,17 @@ const (
 
 	metricStatusSuccess = "success"
 	metricStatusError   = "error"
+
+	// maxSpanAttrChars bounds gen_ai.tool.call.arguments/result so an oversized
+	// tool payload can't trip OTLP attribute-size limits.
+	//
+	// The SDK does not do this for us: DefaultAttributeValueLengthLimit is -1
+	// (unlimited) and Jaeger sets neither SpanLimits nor
+	// OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT, so an oversized value is exported
+	// in full. Because the batch processor packs many spans into one OTLP
+	// request, a single huge value can fail the export of every span batched
+	// with it.
+	maxSpanAttrChars = 65536
 )
 
 var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
@@ -45,9 +63,10 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			ctx = contextWithRequestMetaTraceContext(ctx, req)
 
 			toolName := toolNameFromRequest(method, req)
-			sessionID := sessionIDFromRequest(req)
 			spanName := method
-			attrs := []attribute.KeyValue{}
+			attrs := []attribute.KeyValue{
+				otelsemconv.McpMethodName(method),
+			}
 			if toolName != "" {
 				spanName = method + " " + toolName
 				attrs = append(
@@ -55,13 +74,10 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 					otelsemconv.GenAIOperationNameExecuteTool,
 					otelsemconv.GenAIToolName(toolName),
 				)
-			} else {
-				attrs = append(attrs, otelsemconv.McpMethodName(method))
+				if toolArgs := toolArgumentsFromRequest(method, req); toolArgs != "" {
+					attrs = append(attrs, otelsemconv.GenAIToolCallArguments(truncateForSpan(toolArgs, maxSpanAttrChars)))
+				}
 			}
-			if sessionID != "" {
-				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
-			}
-
 			ctx, span := tracer.Start(
 				ctx,
 				spanName,
@@ -76,10 +92,18 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				span.SetStatus(codes.Error, err.Error())
 				return result, err
 			}
-			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
-				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
-				if toolErr := callResult.GetError(); toolErr != nil {
-					span.RecordError(toolErr)
+			if callResult, ok := result.(*mcp.CallToolResult); ok {
+				if resultText := toolResultText(callResult); resultText != "" {
+					span.SetAttributes(otelsemconv.GenAIToolCallResult(truncateForSpan(resultText, maxSpanAttrChars)))
+				}
+				if callResult.IsError {
+					span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
+					if toolErr := callResult.GetError(); toolErr != nil {
+						span.RecordError(toolErr)
+						span.SetStatus(codes.Error, toolErr.Error())
+					} else {
+						span.SetStatus(codes.Error, "tool returned an error result")
+					}
 				}
 			}
 
@@ -131,6 +155,69 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 	}, nil
 }
 
+// errToolPanicked is what the client sees for a tool call that panicked; the
+// panic value and stack go to the server log only.
+var errToolPanicked = errors.New("internal error while running the tool")
+
+// createRecoveryMiddleware turns a panic in a method handler into an error for
+// that request: an error result for a tool call, or an internal JSON-RPC error
+// for any other method. The SDK runs handlers on goroutines of its own with no
+// recover, out of reach of the HTTP recovery handler, so without this a single
+// panic terminates the process.
+func createRecoveryMiddleware(logger *zap.Logger) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					return
+				}
+				logger.Error("Recovered from panic in MCP handler",
+					zap.String("method", method),
+					zap.String("tool", toolNameFromRequest(method, req)),
+					zap.Any("panic", r),
+					zap.Stack("stack"),
+				)
+				if method == mcpMethodToolsCall {
+					callResult := &mcp.CallToolResult{}
+					callResult.SetError(errToolPanicked)
+					result, err = callResult, nil
+					return
+				}
+				result, err = nil, &jsonrpc.Error{Code: jsonrpc.CodeInternalError, Message: "internal error"}
+			}()
+			return next(ctx, method, req)
+		}
+	}
+}
+
+type searchCapabilitiesQueryService interface {
+	SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error)
+}
+
+// createFindSpansFilterMiddleware removes find_spans from a tools/list result when the storage
+// backend does not declare span search, so that an agent is not offered a tool whose every
+// call the query service refuses. A backend that cannot report its capabilities is read as
+// one without span search.
+func createFindSpansFilterMiddleware(queryAPI searchCapabilitiesQueryService) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			result, err := next(ctx, method, req)
+			toolList, ok := result.(*mcp.ListToolsResult)
+			if err != nil || !ok {
+				return result, err
+			}
+			if caps, capsErr := queryAPI.SearchCapabilities(ctx); capsErr == nil && caps.SpanSearch {
+				return toolList, nil
+			}
+			toolList.Tools = slices.DeleteFunc(toolList.Tools, func(tool *mcp.Tool) bool {
+				return tool.Name == findSpansToolName
+			})
+			return toolList, nil
+		}
+	}
+}
+
 func buildMetricAttributes(method, toolName, status string) []attribute.KeyValue {
 	attrs := make([]attribute.KeyValue, 0, 3)
 	attrs = append(attrs, otelsemconv.McpMethodName(method))
@@ -152,15 +239,68 @@ func toolNameFromRequest(method string, req mcp.Request) string {
 	return params.Name
 }
 
-func sessionIDFromRequest(req mcp.Request) string {
-	if req == nil {
+// toolArgumentsFromRequest returns the raw JSON arguments a tools/call
+// request was made with, as received over the wire. Returns "" when the
+// method isn't tools/call or carries no arguments.
+func toolArgumentsFromRequest(method string, req mcp.Request) string {
+	if method != mcpMethodToolsCall || req == nil {
 		return ""
 	}
-	session := req.GetSession()
-	if isNil(session) {
+	params, ok := req.GetParams().(*mcp.CallToolParamsRaw)
+	if !ok || params == nil {
 		return ""
 	}
-	return session.ID()
+	return string(params.Arguments)
+}
+
+// toolResultText JSON-encodes a tool call result for the
+// gen_ai.tool.call.result span attribute. Falls back to a Go-syntax
+// representation if the result cannot be marshaled (defensive; the MCP wire
+// types are JSON-safe by construction).
+func toolResultText(result *mcp.CallToolResult) string {
+	if result == nil {
+		return ""
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Sprintf("%+v", result)
+	}
+	return string(data)
+}
+
+// truncateForSpan caps text at maxChars before it's set as a span attribute
+// value. See maxSpanAttrChars for why.
+//
+// The marker leads rather than trails. maxChars is already long enough that a
+// UI will clip or collapse the value, and a trailing marker is the one part a
+// reader never sees, whereas a leading one survives every rendering including a
+// one-line preview. Opening with "(" also stops a UI that special-cases
+// gen_ai.* attributes from parsing the value as JSON and reporting a parse
+// error: truncated JSON that still opens with "{" advertises itself as
+// parseable while being malformed.
+//
+// The cut lands on a rune boundary. Tool results carry arbitrary text — service
+// names, log messages, span tags — so a byte-boundary cut can split a multi-byte
+// rune and leave the value invalid UTF-8. Protobuf string fields must hold valid
+// UTF-8 and the Go marshaler enforces it, so such a value fails the OTLP export
+// of every span batched with it: precisely the failure this cap exists to
+// prevent.
+func truncateForSpan(text string, maxChars int) string {
+	if len(text) <= maxChars {
+		return text
+	}
+	prefix := fmt.Sprintf("(truncated from %d) ", len(text))
+	if maxChars <= len(prefix) {
+		// Degenerate cap: keep as much of the marker as fits. It is ASCII, so
+		// slicing it cannot produce invalid UTF-8.
+		return prefix[:maxChars]
+	}
+	keep := maxChars - len(prefix)
+	// Back off to the start of the rune straddling the cut, if any.
+	for keep > 0 && !utf8.RuneStart(text[keep]) {
+		keep--
+	}
+	return prefix + text[:keep]
 }
 
 func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {

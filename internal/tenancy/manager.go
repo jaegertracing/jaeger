@@ -5,9 +5,9 @@ package tenancy
 
 // Options describes the configuration properties for multitenancy
 type Options struct {
-	Enabled bool
-	Header  string
-	Tenants []string
+	Enabled bool     `mapstructure:"enabled"`
+	Header  string   `mapstructure:"header"`
+	Tenants []string `mapstructure:"tenants"`
 }
 
 // Manager can check tenant usage for multi-tenant Jaeger configurations
@@ -36,8 +36,10 @@ func NewManager(options *Options) *Manager {
 	}
 }
 
+// Valid reports whether the tenant may be served. An empty tenant is never
+// valid, even when no tenant allow-list is configured.
 func (tc *Manager) Valid(tenant string) bool {
-	return tc.guard.Valid(tenant)
+	return tenant != "" && tc.guard.Valid(tenant)
 }
 
 type tenantDontCare bool

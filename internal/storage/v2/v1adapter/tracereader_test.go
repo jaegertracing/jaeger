@@ -6,6 +6,7 @@ package v1adapter
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -21,6 +22,17 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+func flattenPageChunks[T any](seq iter.Seq2[tracestore.PageChunk[[]T], error]) ([]T, error) {
+	var results []T
+	for chunk, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, chunk.Results...)
+	}
+	return results, nil
+}
 
 func TestGetV1QueryParameters(t *testing.T) {
 	now := time.Now()
@@ -479,7 +491,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			}
 			attributes := pcommon.NewMap()
 			attributes.PutStr("tag-a", "val-a")
-			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
+			traceIDs, err := flattenPageChunks(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParams{
 					ServiceName:   "service",
@@ -496,4 +508,12 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			require.Equal(t, test.expectedTraceIDs, traceIDs)
 		})
 	}
+}
+
+// The v1 readers reject a query with no service name, so the adapter declares that every
+// query field is required (RFC 0013).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
 }

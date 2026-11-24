@@ -6,8 +6,9 @@
 # The example extension `query_interceptor_example` is an ordinary OTel
 # extension that implements queryinterceptor.Interceptor. jaeger_query
 # references it by ID in `query_interceptors`, and applies it around every
-# trace query: OnQuery (pre) rejects a search that filters on a forbidden
-# attribute, OnResult (post) redacts configured attributes from the results.
+# search. The pre-query hooks (OnTraceQuery, OnSpanQuery) reject a search that
+# filters on a forbidden attribute; the result hooks (OnTraceResult,
+# OnSpanResult) redact configured attributes from what is returned.
 #
 # query_interceptor_example is a demonstration extension and is NOT part of the
 # stock Jaeger distribution, so running this config requires a build that

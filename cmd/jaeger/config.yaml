@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
-      processors: [batch, adaptive_sampling]
+      processors: [adaptive_sampling]
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
@@ -42,9 +42,14 @@ extensions:
       config_file: ./cmd/jaeger/config-ui.json
     ai:
       agent_url: ws://localhost:16688
-      # Serve the Jaeger telemetry MCP tools in-process at /api/ai/mcp/ on the
-      # query port (replaces the retired standalone jaeger_mcp extension).
-      enable_mcp: true
+      # Serves the MCP endpoint for AI agents at /api/ai/mcp/ on the query port.
+      # Remove the block to disable it. The optional keys are described at
+      # https://www.jaegertracing.io/docs/latest/ai/mcp-server/.
+      mcp: {}
+      # Names an authenticator extension that gates the AI surfaces alone; see
+      # https://www.jaegertracing.io/docs/latest/deployment/security/.
+      # auth:
+      #   authenticator: proxy_identity
     # Accept OTLP/HTTP spans from the UI same-origin at /api/otlp/v1/*
     # and forward to the OTLP HTTP receiver above.
     otlp_proxy:
@@ -88,7 +93,6 @@ receivers:
   zipkin:
 
 processors:
-  batch:
   # Adaptive Sampling Processor is required to support adaptive sampling.
   # It expects remote_sampling extension with `adaptive:` config to be enabled.
   adaptive_sampling:
@@ -96,3 +100,16 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_store
+    queue:
+      enabled: true
+      sizer: requests
+      num_consumers: 1
+      queue_size: 8192
+      block_on_overflow: true
+      wait_for_result: false
+      batch:
+        enabled: true
+        sizer: items
+        min_size: 8192
+        max_size: 0
+        flush_timeout: 200ms

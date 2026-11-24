@@ -5,8 +5,11 @@ package handlers
 
 import (
 	"context"
+	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +30,7 @@ func testSkillsFS() fstest.MapFS {
 }
 
 func newTestHandler() *readSkillHandler {
-	return &readSkillHandler{skillsFS: testSkillsFS(), maxFileSize: testMaxFileSize}
+	return &readSkillHandler{builtins: testSkillsFS(), maxFileSize: testMaxFileSize}
 }
 
 func TestReadSkillHandler_RootSkillMD(t *testing.T) {
@@ -96,6 +99,96 @@ func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 }
 
 func TestNewReadSkillHandler(t *testing.T) {
-	handler := NewReadSkillHandler(testSkillsFS(), testMaxFileSize)
+	handler := NewReadSkillHandler(testSkillsFS(), nil, testMaxFileSize)
 	assert.NotNil(t, handler)
+}
+
+func testCustomFS() fstest.MapFS {
+	return fstest.MapFS{
+		"SKILL.md":              &fstest.MapFile{Data: []byte("# Operator catalog")},
+		"slow-db-call/SKILL.md": &fstest.MapFile{Data: []byte("# Slow DB Call")},
+	}
+}
+
+// With no skills_dir configured every custom/ path must report not-exist
+// rather than falling through to the built-ins.
+func TestReadSkillHandler_CustomPathWithoutOperatorFS(t *testing.T) {
+	h := newTestHandler()
+	for _, p := range []string{"custom/SKILL.md", "custom/slow-db-call/SKILL.md"} {
+		t.Run(p, func(t *testing.T) {
+			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: p})
+			require.ErrorIs(t, err, fs.ErrNotExist)
+		})
+	}
+}
+
+func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
+	h := &readSkillHandler{builtins: testSkillsFS(), custom: testCustomFS(), maxFileSize: testMaxFileSize}
+
+	t.Run("custom prefix reaches the custom tree", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Slow DB Call", out.Instructions)
+	})
+
+	t.Run("custom entry point is served", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Operator catalog", out.Instructions)
+	})
+
+	t.Run("built-ins still reachable at the root", func(t *testing.T) {
+		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Skill A\n\nContent here.", out.Instructions)
+	})
+
+	t.Run("traversal out of custom is rejected", func(t *testing.T) {
+		_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/../etc/passwd"})
+		require.Error(t, err)
+	})
+}
+
+func TestReadSkillHandler_SizeLimitBoundary(t *testing.T) {
+	fsys := fstest.MapFS{
+		"exactly.bin": &fstest.MapFile{Data: []byte(strings.Repeat("B", testMaxFileSize))},
+		"over.bin":    &fstest.MapFile{Data: []byte(strings.Repeat("A", testMaxFileSize+1))},
+	}
+	h := &readSkillHandler{builtins: fsys, maxFileSize: testMaxFileSize}
+
+	// Exactly at the limit: whole file served, no truncation notice.
+	_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "exactly.bin"})
+	require.NoError(t, err)
+	assert.Equal(t, strings.Repeat("B", testMaxFileSize), out.Instructions)
+	assert.NotContains(t, out.Instructions, "truncated")
+
+	// One byte over: content capped at exactly maxFileSize, then the notice.
+	_, out, err = h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "over.bin"})
+	require.NoError(t, err)
+	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
+	require.NotEqual(t, -1, idx)
+	assert.Equal(t, testMaxFileSize, idx)
+}
+
+// A cut landing inside a multi-byte UTF-8 rune must back off to that rune's
+// start rather than split it, so truncation never serves invalid UTF-8.
+func TestReadSkillHandler_TruncationBacksOffToRuneBoundary(t *testing.T) {
+	const maxFileSize = 4
+	// "café" is 5 bytes: "caf" (3 ASCII bytes) + the 2-byte encoding of 'é'.
+	// A 4-byte cut lands on the second byte of 'é'.
+	fsys := fstest.MapFS{
+		"skill.md": &fstest.MapFile{Data: []byte("café")},
+	}
+	h := &readSkillHandler{builtins: fsys, maxFileSize: maxFileSize}
+
+	_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill.md"})
+	require.NoError(t, err)
+
+	require.True(t, utf8.ValidString(out.Instructions), "output must be valid UTF-8: %q", out.Instructions)
+	idx := strings.Index(out.Instructions, "\n\nfile content truncated")
+	require.NotEqual(t, -1, idx)
+	// The rune straddling byte 4 is dropped entirely rather than split, so the
+	// served content is "caf" (3 bytes), and the notice reports that count.
+	assert.Equal(t, "caf", out.Instructions[:idx])
+	assert.Contains(t, out.Instructions, "truncated after 3 bytes")
 }

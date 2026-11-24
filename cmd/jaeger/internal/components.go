@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
+	storageconnector "github.com/jaegertracing/jaeger/components/connector/storageexporter"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
 	"github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector"
@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/filterprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/memorylimiterprocessor"
+	"github.com/jaegertracing/jaeger/components/ext/processor/queuebatchprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/tailsamplingprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/kafkareceiver"
@@ -83,8 +84,6 @@ func (b builders) build() (otelcol.Factories, error) {
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
-		// only for e2e testing
-		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),
 	)
 	if err != nil {
@@ -123,6 +122,7 @@ func (b builders) build() (otelcol.Factories, error) {
 	factories.Processors, err = b.processor(
 		// standard
 		batchprocessor.NewFactory(),
+		queuebatchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),
@@ -139,6 +139,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		forwardconnector.NewFactory(),
 		// add-ons
 		spanmetricsconnector.NewFactory(),
+		storageconnector.NewFactory(), // jaeger_storage_exporter declared under connectors: the storage write with a dead-letter output for rejected spans (RFC 0007)
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

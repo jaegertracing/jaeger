@@ -4,8 +4,10 @@
     "config:best-practices",
     ":gitSignOff"
   ],
-  "dependencyDashboard": true,
-  "dependencyDashboardHeader": "Project settings are at https://developer.mend.io/",
+  "dependencyDashboard": {
+    "enabled": true,
+    "header": "Project settings are at https://developer.mend.io/"
+  },
   "labels": [
     "changelog:dependencies"
   ],
@@ -31,7 +33,100 @@
       "on the first day of the month"
     ]
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update annotated Helm chart version variables in shell scripts",
+      "managerFilePatterns": [
+        "/\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>helm|docker) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[A-Z][A-Z0-9_]*=\"(?:\\$\\{[A-Z][A-Z0-9_]*:-)?(?<currentValue>[^\"}]+)\\}?\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/demo\\/jaeger-chart\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>git-refs) depName=(?<depName>\\S+)\\s+JAEGER_CHART_REF=\"(?<currentValue>[^\"]+)\"\\s+JAEGER_CHART_COMMIT=\"(?<currentDigest>[a-f0-9]+)\""
+      ],
+      "versioningTemplate": "git"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^examples\\/otel-demo\\/otel-demo-values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "imageOverride:\\s+repository: (?<depName>\\S+)\\s+tag: \"(?<currentValue>[^\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
+    {
+      "description": "Keep examples excluded except the two hosted demos",
+      "matchFileNames": [
+        "**/examples/**",
+        "!examples/oci/**",
+        "!examples/otel-demo/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Review hosted demo updates daily, independently of the monthly repository schedule",
+      "matchFileNames": [
+        "examples/oci/**",
+        "examples/otel-demo/**",
+        "scripts/demo/jaeger-chart.sh"
+      ],
+      "schedule": [
+        "at any time"
+      ],
+      "automerge": false
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/**"
+      ],
+      "groupName": "OCI demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/**"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
+    {
+      "description": "Require review for OTel Demo Helm chart upgrades",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "opentelemetry-demo"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Keep the OTel demo OpenSearch charts on supported 3.x releases and update them together",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "opensearch",
+        "opensearch-dashboards"
+      ],
+      "groupName": "OTel demo OpenSearch Helm charts",
+      "groupSlug": "otel-demo-opensearch-helm",
+      "minimumGroupSize": 2,
+      "allowedVersions": "/^3\\./",
+      "automerge": false
+    },
     {
       "description": "CI Python deps are hash-pinned in .github/requirements/*requirements.txt for OpenSSF Scorecard. Renovate bumps the version but NOT the --hash line, so the bump PR will fail --require-hashes until the hash is regenerated (see the comment in the requirements file). Label these so they are easy to spot and complete.",
       "matchManagers": [
@@ -53,6 +148,13 @@
         "major",
         "patch",
         "digest"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The codecov upload pins the js_action tag line of wretry.action, and Renovate reads only the numeric part of the pin comment, so an automatic bump would re-pin the composite variant that ignores the github_context override.",
+      "matchDepNames": [
+        "Wandalen/wretry.action"
       ],
       "enabled": false
     },
@@ -162,6 +264,16 @@
       ]
     },
     {
+      "groupName": "All Elasticsearch client packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/elastic/go-elasticsearch/**",
+        "github.com/elastic/elastic-transport-go/**"
+      ]
+    },
+    {
       "groupName": "All ClickHouse packages",
       "matchManagers": [
         "gomod"
@@ -170,6 +282,66 @@
         "github.com/ClickHouse/ch-go",
         "github.com/ClickHouse/clickhouse-go/v2"
       ]
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the March line, so only versions with minor 3 are allowed.",
+      "groupName": "ClickHouse March LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
+      ],
+      "allowedVersions": "/^\\d+\\.3\\./"
+    },
+    {
+      "description": "Only the yearly major update to the next March LTS is wanted, not the patch releases in between, so major updates are re-enabled for this file and the rest stay disabled by the docker-compose rule above.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-march.yml"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "ClickHouse publishes an LTS release in March (x.3) and in August (x.8) and supports each for a year. This file follows the August line, so only versions with minor 8 are allowed.",
+      "groupName": "ClickHouse August LTS docker image",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "allowedVersions": "/^\\d+\\.8\\./"
+    },
+    {
+      "description": "Only the yearly major update to the next August LTS is wanted, not the patch releases in between, so major updates are re-enabled for this file and the rest stay disabled by the docker-compose rule above.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose-lts-august.yml"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true
     },
     {
       "groupName": "OpenSearch 3.x docker images",
@@ -198,6 +370,106 @@
         "docker-compose/monitor/docker-compose-elasticsearch.yml"
       ],
       "allowedVersions": "9.x"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/monitoring-values.yaml"
+      ],
+      "groupName": "OCI demo monitoring"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "groupName": "OTel demo application"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/load-generator/**"
+      ],
+      "groupName": "OCI demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/load-generator*"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
+    {
+      "matchFileNames": [
+        "examples/otel-demo/jaeger-values.yaml"
+      ],
+      "groupName": "OTel demo Jaeger"
+    },
+    {
+      "matchPackageNames": [
+        "kube-prometheus-stack"
+      ],
+      "groupName": "OCI demo monitoring"
+    },
+    {
+      "matchPackageNames": [
+        "opentelemetry-demo"
+      ],
+      "matchDatasources": [
+        "helm"
+      ],
+      "groupName": "OTel demo application"
+    },
+    {
+      "matchPackageNames": [
+        "https://github.com/jaegertracing/helm-charts.git"
+      ],
+      "groupName": "Hosted demo Jaeger chart"
+    },
+    {
+      "description": "PostgreSQL major upgrades need an explicit migration before changing the supported line",
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "matchPackageNames": [
+        "docker.io/library/postgres"
+      ],
+      "allowedVersions": "/^17\\./"
+    },
+    {
+      "description": "Valkey major upgrades need an explicit compatibility review before changing the supported line",
+      "matchFileNames": [
+        "examples/otel-demo/otel-demo-values.yaml"
+      ],
+      "matchPackageNames": [
+        "docker.io/valkey/valkey"
+      ],
+      "allowedVersions": "/^8\\./"
+    },
+    {
+      "matchFileNames": [
+        "examples/oci/**",
+        "examples/otel-demo/**"
+      ],
+      "matchDatasources": [
+        "kubernetes-api"
+      ],
+      "enabled": false
     }
-  ]
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^examples\\/(?:oci|otel-demo)\\/.*\\.ya?ml$/"
+    ]
+  },
+  "helm-values": {
+    "managerFilePatterns": [
+      "/^examples\\/(?:oci|otel-demo)\\/.*values\\.yaml$/"
+    ]
+  }
 }

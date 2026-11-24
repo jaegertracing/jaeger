@@ -4,15 +4,13 @@
 package jaegerai
 
 import (
-	"io"
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
 
 const routeChat = "/api/ai/chat"
@@ -30,46 +28,62 @@ type Handler struct {
 	basePath string
 	// chat is the chat endpoint (/api/ai/chat), always present.
 	chat *chatEndpoint
-	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled
-	// MCP (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the
+	// mcp is the turn-scoped MCP endpoint. Non-nil only when the caller supplied an
+	// MCP handler (HandlerParams.MCP); otherwise the endpoint is not mounted and the
 	// gateway advertises AI chat only.
 	mcp *turnScopedEndpoint
+	// authMiddleware is HandlerParams.AuthMiddleware.
+	authMiddleware func(http.Handler) http.Handler
 }
 
 // HandlerParams carries the dependencies for the AI gateway Handler. Grouping them
-// in a struct keeps the constructor readable as the gateway gains MCP wiring (query
-// service, tenancy, telemetry) on top of the chat parameters.
+// in a struct keeps the constructor readable as the gateway gains MCP wiring on top
+// of the chat parameters.
 type HandlerParams struct {
-	Logger             *zap.Logger
-	AgentURL           string
+	Logger   *zap.Logger
+	AgentURL string
+	// AgentHeaders are sent on the agent WebSocket handshake, for agents that
+	// require authentication. See Config.AgentHeaders.
+	AgentHeaders       configopaque.MapList
 	BasePath           string
 	MaxRequestBodySize int64
-	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
-	// chat endpoint is registered.
-	EnableMCP bool
+	// MCP is the telemetry MCP endpoint the query server built. Supplying it mounts
+	// the turn-scoped endpoint on that same server, with this gateway's per-turn UI
+	// tools layered on. Nil leaves the gateway chat-only.
+	MCP *mcptools.Handler
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
-	// EnableMCP is false.
-	MCPBaseURL   string
-	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
-	Telset       telemetry.Settings
+	// MCP is nil.
+	MCPBaseURL string
+	// AuthMiddleware wraps the chat endpoint and the turn-scoped MCP endpoint
+	// before they are mounted, which is where the query server puts the ai.auth
+	// check. Nil mounts both bare. On the turn-scoped endpoint the check sees the
+	// headers the agent sends on each tool call, which are the ones the chat
+	// endpoint announced: the propagated bearer token and the header_forwarding
+	// headers. A credential outside that set, such as one in a query parameter
+	// listed under ai.auth.request_params, does not reach the check, so a tool
+	// call is refused unless the operator forwards the header ai.auth reads.
+	AuthMiddleware func(http.Handler) http.Handler
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
 // basePath is normalized once so the registered mux patterns use a single
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
-// so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
-// is set, the turn-scoped MCP endpoint is built from the supplied query service,
-// tenancy manager, and telemetry settings.
+// so a chat turn and its MCP callbacks resolve to the same turn. When p.MCP is
+// supplied, the turn-scoped MCP endpoint is layered onto that shared server.
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
-	h := &Handler{basePath: basePath, chat: chat}
-	if p.EnableMCP {
-		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+	chat := newChatEndpoint(p.Logger, turns, p.AgentURL, p.AgentHeaders, basePath, p.MaxRequestBodySize)
+	h := &Handler{basePath: basePath, chat: chat, authMiddleware: p.AuthMiddleware}
+	if p.MCP != nil {
+		h.mcp = turnScopedEndpointBuilder{
+			baseHandler: p.MCP,
+			turns:       turns,
+			basePath:    basePath,
+			logger:      p.Logger,
+		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
 		// here is what keeps the announcement off when no endpoint is mounted.
@@ -102,25 +116,16 @@ func normalizeBasePath(basePath string) string {
 //     wildcard is more specific than the shared "/api/ai/mcp/" pattern jaeger-query
 //     mounts, so all coexist.
 func (h *Handler) RegisterRoutes(router *http.ServeMux) {
-	router.HandleFunc(h.basePath+routeChat, h.chat.ServeHTTP)
+	router.Handle(h.basePath+routeChat, h.guarded(h.chat))
 	if h.mcp != nil {
-		h.mcp.registerRoutes(router)
+		h.mcp.registerRoutes(router, h.guarded(h.mcp))
 	}
 }
 
-var _ io.Closer = (*Handler)(nil)
-
-// Close shuts down the endpoints that hold resources past the request that opened
-// them. Called by the jaeger-query server's Close path (Server.Close →
-// httpServer.Close → closers.Close → here), so the gateway's MCP sessions do not
-// outlive the server that served them.
-//
-// A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
-// Handler with no turn-scoped endpoint is what it holds when only chat is enabled —
-// both close to nothing, so callers need no guard.
-func (h *Handler) Close() error {
-	if h == nil || h.mcp == nil {
-		return nil
+// guarded puts next behind the auth middleware when there is one.
+func (h *Handler) guarded(next http.Handler) http.Handler {
+	if h.authMiddleware == nil {
+		return next
 	}
-	return h.mcp.Close()
+	return h.authMiddleware(next)
 }

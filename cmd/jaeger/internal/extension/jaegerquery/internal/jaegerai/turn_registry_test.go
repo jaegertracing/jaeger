@@ -14,27 +14,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testStreamingClient() *streamingClient {
-	return newStreamingClient(context.Background(), httptest.NewRecorder(), "thread", "run")
+func testAGUIRun() *aguiRun {
+	return newAGUIRun(context.Background(), httptest.NewRecorder(), "thread", "run")
 }
 
 func TestTurnRegistryRegisterGetClose(t *testing.T) {
 	s := newTurnRegistry()
-	client := testStreamingClient()
+	client := testAGUIRun()
 
 	assert.Nil(t, s.get("missing"), "unknown id returns nil")
 
 	tools := []json.RawMessage{json.RawMessage(`{"name":"t"}`)}
-	id, closeTurn := s.register(client, tools)
-	require.NotEmpty(t, id, "register mints a route id")
+	grant, closeTurn := s.register(client, tools)
+	require.NotEmpty(t, grant.routeID, "register mints a route id")
+	require.NotEmpty(t, grant.token, "register mints a token")
 
-	got := s.get(id)
+	got := s.get(grant.routeID)
 	require.NotNil(t, got, "get returns the registered turn")
-	assert.Same(t, client, got.stream, "turn carries the registered stream")
+	assert.Same(t, client, got.run, "turn carries the registered AG-UI run")
 	assert.Equal(t, tools, got.uiTools, "turn carries the registered UI tools")
+	assert.True(t, got.authorize(grant.token), "the turn accepts its own token")
+	assert.False(t, got.authorize(""), "the turn refuses an empty token")
+	assert.False(t, got.authorize(grant.token+"x"), "the turn refuses a different token")
+
+	other, closeOther := s.register(client, nil)
+	defer closeOther()
+	assert.NotEqual(t, grant.token, other.token, "every turn gets its own token")
+	assert.False(t, got.authorize(other.token), "another turn's token does not open this turn")
 
 	closeTurn()
-	assert.Nil(t, s.get(id), "get returns nil after the closer runs")
+	assert.Nil(t, s.get(grant.routeID), "get returns nil after the closer runs")
 	require.NotPanics(t, closeTurn, "the closer is idempotent")
 }
 
@@ -44,8 +53,8 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
-			id, closeTurn := s.register(testStreamingClient(), nil)
-			s.get(id)
+			grant, closeTurn := s.register(testAGUIRun(), nil)
+			s.get(grant.routeID)
 			closeTurn()
 		})
 	}
@@ -56,7 +65,7 @@ func TestTurnRegistryConcurrent(t *testing.T) {
 // registerTurn is a test helper: it registers a turn and returns the minted route
 // id, which integration tests need to dial that turn's URL. It drops the closer —
 // the registry is a local test object, so the entry simply lives for the test.
-func registerTurn(r *turnRegistry, stream *streamingClient, uiTools []json.RawMessage) string {
-	id, _ := r.register(stream, uiTools)
-	return id
+func registerTurn(r *turnRegistry, run *aguiRun, uiTools []json.RawMessage) turnGrant {
+	grant, _ := r.register(run, uiTools)
+	return grant
 }

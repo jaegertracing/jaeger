@@ -28,6 +28,29 @@ func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	}
 }
 
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := core.FilterCapabilities()
+	return tracestore.SearchCapabilities{
+		// The query adds its process.serviceName clause only when the query carries a
+		// name, and no other clause depends on it, so an omitted name matches spans from
+		// every service.
+		WithoutServiceName: true,
+		// A search matches span documents, and the clauses of a conjunction all apply to the
+		// same document, so a conjunction is satisfied within one span rather than across a
+		// trace.
+		SameSpanConjunction: true,
+		Filter:              &filter,
+		// FindSpans reads span documents in the order the caller selects, lowering every
+		// term of the ordering contract to a single-valued document field (RFC 0016 §6).
+		SpanSearch:  true,
+		SpanSorting: true,
+		// FindSpans pages with a keyset cursor over the engine's own sort values. The
+		// capability covers the trace searches as well, which do not page yet: they serve
+		// one page bounded by the page size and refuse a token (TraceQueryParams.ReplacePaginationWithDepth).
+		Paginated: true,
+	}, nil
+}
+
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
@@ -94,25 +117,94 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+// FindSpans returns one page of the spans matching query, in the effective order, with the
+// token that resumes the search (RFC 0016 §6). The core reader owns the cursor inside the
+// token; this layer binds it to the query's fingerprint so that a token returned for one query
+// is refused by every other (RFC 0014 §3.2).
+func (r *TraceReader) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		// The query service settles the order before calling a reader, but a reader reached
+		// directly must still refuse terms it cannot execute, and the settled order is the one
+		// the fingerprint and the sort must agree on.
+		order, err := tracestore.EffectiveSpanOrder(query.OrderBy)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		query.OrderBy = order
+		fingerprint, err := query.Fingerprint()
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		var cursor []byte
+		if query.Pagination.PageToken != "" {
+			if cursor, err = query.Pagination.PageToken.Cursor(fingerprint); err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+		}
+		// The query service clamps the page size (RFC 0014 §4); a caller reaching the reader
+		// directly gets the same bound, and the conversion happens only under it.
+		pageSize := int(tracestore.MaxPageSize)
+		if query.Pagination.PageSize <= tracestore.MaxPageSize {
+			pageSize = int(query.Pagination.PageSize)
+		}
+		page, err := r.spanReader.FindSpans(ctx, dbmodel.SpanQueryParameters{
+			StartTimeMin: query.StartTimeMin,
+			StartTimeMax: query.StartTimeMax,
+			Filter:       query.Filter,
+			OrderBy:      order,
+			PageSize:     pageSize,
+			Cursor:       cursor,
+		})
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		// FromDBModel gives every span its own ResourceSpans, so the page keeps the engine's
+		// order even where consecutive spans alternate between services (RFC 0016 §6.4).
+		td, err := FromDBModel(page.Spans)
+		if err != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+			return
+		}
+		chunk := tracestore.PageChunk[ptrace.Traces]{Results: td}
+		if len(page.NextCursor) > 0 {
+			if chunk.NextPageToken, err = tracestore.NewPageToken(fingerprint, page.NextCursor); err != nil {
+				yield(tracestore.PageChunk[ptrace.Traces]{}, err)
+				return
+			}
+		}
+		yield(chunk, nil)
+	}
+}
+
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
+	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		query, err := query.ReplacePaginationWithDepth()
+		if err != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
+			return
+		}
 		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
-			yield(nil, err)
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 			return
 		}
 		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
 		for _, traceId := range traceIds {
-			dbTraceId, err := convertTraceIDFromDB(traceId)
+			dbTraceId, err := traceId.ToOTEL()
 			if err != nil {
-				yield(nil, err)
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
 				return
 			}
 			otelTraceIds = append(otelTraceIds, tracestore.FoundTraceID{
 				TraceID: dbTraceId,
 			})
 		}
-		yield(otelTraceIds, nil)
+		// The trace searches do not page yet (RFC 0014 M3), so the page is the last one.
+		yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: otelTraceIds}, nil)
 	}
 }
 
@@ -130,5 +222,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		SearchDepth:   query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
+		Filter:        query.Filter,
 	}
 }

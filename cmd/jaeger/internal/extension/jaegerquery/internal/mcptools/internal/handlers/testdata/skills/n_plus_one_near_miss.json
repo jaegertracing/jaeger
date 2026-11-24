@@ -1,0 +1,1047 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "dace079f5c8f"
+            }
+          },
+          {
+            "key": "os.type",
+            "value": {
+              "stringValue": "linux"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "frontend"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "go"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "GET /dispatch",
+              "kind": 2,
+              "startTimeUnixNano": "1786057566544612019",
+              "endTimeUnixNano": "1786057568268172213",
+              "attributes": [
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "172.29.0.1"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.body.size",
+                  "value": {
+                    "intValue": "40"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/dispatch"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "172.29.0.1"
+                  }
+                },
+                {
+                  "key": "network.peer.port",
+                  "value": {
+                    "intValue": "39454"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8080"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/dispatch"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "curl/8.5.0"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1786057568268146164",
+                  "name": "Dispatch successful",
+                  "attributes": [
+                    {
+                      "key": "driver",
+                      "value": {
+                        "stringValue": "T755636C"
+                      }
+                    },
+                    {
+                      "key": "eta",
+                      "value": {
+                        "stringValue": "2m0s"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057567854477760",
+                  "name": "Finding nearest drivers",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "location",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568079259869",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "970,218"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568079267583",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "443,537"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568079286439",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "380,579"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568128296513",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "472,369"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568138646464",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "636,259"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568153605309",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "564,831"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568163918341",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "903,659"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568176183378",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "996,380"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568207073102",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "186,252"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568207162329",
+                  "name": "Finding route",
+                  "attributes": [
+                    {
+                      "key": "dropoff",
+                      "value": {
+                        "stringValue": "577,322"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "pickup",
+                      "value": {
+                        "stringValue": "463,589"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057567854396657",
+                  "name": "Found customer",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568079174338",
+                  "name": "Found drivers",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057568268106279",
+                  "name": "Found routes",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057566544707328",
+                  "name": "Getting customer",
+                  "attributes": [
+                    {
+                      "key": "customer_id",
+                      "value": {
+                        "intValue": "392"
+                      }
+                    },
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1786057566544643859",
+                  "name": "HTTP request received",
+                  "attributes": [
+                    {
+                      "key": "level",
+                      "value": {
+                        "stringValue": "info"
+                      }
+                    },
+                    {
+                      "key": "method",
+                      "value": {
+                        "stringValue": "GET"
+                      }
+                    },
+                    {
+                      "key": "url",
+                      "value": {
+                        "stringValue": "/dispatch?customer=392&nonse=4032633"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "7d342b2860c6f004",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057566544766108",
+              "endTimeUnixNano": "1786057567854337596",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8081"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8081/customer?customer=392"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "fed60a24eb7e73c5",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568079308771",
+              "endTimeUnixNano": "1786057568138602893",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=970%2C218"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "f584a53d1c621241",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568079331173",
+              "endTimeUnixNano": "1786057568128234286",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=443%2C537"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "bae5ba5a3aa7a7df",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568079336663",
+              "endTimeUnixNano": "1786057568153564893",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=380%2C579"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "abf8a0bf1f6b716a",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568128389858",
+              "endTimeUnixNano": "1786057568163866073",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=472%2C369"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "4ac5590dd9ee21a0",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568138727607",
+              "endTimeUnixNano": "1786057568208717139",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=636%2C259"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "5333a6eca4150699",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568153674288",
+              "endTimeUnixNano": "1786057568176132473",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=564%2C831"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "b885aafeda0b8568",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568163980888",
+              "endTimeUnixNano": "1786057568207059156",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=903%2C659"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "c9a3ec0046c1c23e",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568176254201",
+              "endTimeUnixNano": "1786057568207049347",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=996%2C380"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "5594d29a5645cd4f",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568207100654",
+              "endTimeUnixNano": "1786057568268092793",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=186%2C252"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "66371dd0eafc70e48e4234803fe94d41",
+              "spanId": "5d88efaffa6ec850",
+              "parentSpanId": "f3b8606bd90ad122",
+              "flags": 257,
+              "name": "HTTP GET",
+              "kind": 3,
+              "startTimeUnixNano": "1786057568207176957",
+              "endTimeUnixNano": "1786057568268074038",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8083"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://0.0.0.0:8083/route?dropoff=577%2C322&pickup=463%2C589"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ],
+          "scope": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+            "version": "0.69.0"
+          }
+        }
+      ]
+    }
+  ]
+}

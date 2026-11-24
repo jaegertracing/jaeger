@@ -238,14 +238,28 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		{
 			name: "error finding traces",
 			query: &spanstore.TraceQueryParameters{
+				NumTraces:   10,
 				ServiceName: "service1",
 			},
 			expectedQuery: tracestore.TraceQueryParams{
+				SearchDepth: 10,
 				ServiceName: "service1",
 				Attributes:  pcommon.NewMap(),
 			},
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
+		},
+		{
+			name: "preserves search depth without clamping",
+			query: &spanstore.TraceQueryParameters{
+				NumTraces:   tracestore.MaxSearchDepth + 1,
+				ServiceName: "service1",
+			},
+			expectedQuery: tracestore.TraceQueryParams{
+				SearchDepth: tracestore.MaxSearchDepth + 1,
+				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
+			},
 		},
 		{
 			name: "no traces found",
@@ -399,8 +413,8 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 	for _, test := range tests {
 		tr := tracestoremocks.Reader{}
 		tr.On("FindTraceIDs", mock.Anything, test.expectedQuery).
-			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
-				yield(test.traceIDs, test.err)
+			Return(iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error](func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{Results: test.traceIDs}, test.err)
 			})).Once()
 
 		sr := SpanReader{

@@ -18,15 +18,17 @@ import (
 
 // stubInterceptor is both a component.Component (an OTel extension) and a public
 // Interceptor — the shape a real plugin must have.
-type stubInterceptor struct{}
+type stubInterceptor struct {
+	pub.UnsupportedSpanSearch
+}
 
 func (stubInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubInterceptor) OnQuery(ctx context.Context, q pub.Query) (context.Context, pub.Query, error) {
+func (stubInterceptor) OnTraceQuery(ctx context.Context, q pub.TraceQuery) (context.Context, pub.TraceQuery, error) {
 	return ctx, q, nil
 }
 
-func (stubInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+func (stubInterceptor) OnTraceResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	return ctx, t, nil
 }
 

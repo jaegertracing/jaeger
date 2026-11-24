@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -58,12 +57,13 @@ func main() {
 	logger.Info(version.Get().String())
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
 	tracers, shutdown := createTracers(cfg, logger)
 	defer shutdown(context.Background())
 
-	tracegen.Run(cfg, tracers, logger)
+	if err := tracegen.Run(cfg, tracers, logger); err != nil {
+		logger.Fatal("trace generation failed", zap.Error(err))
+	}
 }
 
 func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
@@ -86,7 +86,6 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 
 		res, err := resource.New(
 			context.Background(),
-			resource.WithSchemaURL(otelsemconv.SchemaURL),
 			resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
 			resource.WithTelemetrySDK(),
 			resource.WithHost(),

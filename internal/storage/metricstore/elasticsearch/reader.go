@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"time"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -36,11 +35,8 @@ type TimeRange struct {
 	startTimeMillis int64
 	endTimeMillis   int64
 	// extendedStartTimeMillis is an extended start time used for lookback periods
-	// in certain aggregations (e.g., cumulative sums or rate calculations)
-	// where data prior to startTimeMillis is needed to compute metrics accurately
-	// within the primary time range. This typically accounts for a window of
-	// preceding data (e.g., 10 minutes) to ensure that the initial data
-	// points in the primary time range have enough historical context for calculation.
+	// in rate calculations where data prior to startTimeMillis is needed to compute
+	// metrics accurately within the primary time range.
 	extendedStartTimeMillis int64
 }
 
@@ -70,6 +66,9 @@ func NewMetricsReader(searcher esclient.Searcher, cfg config.Configuration, logg
 
 // GetLatencies retrieves latency metrics
 func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
 	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
@@ -104,7 +103,10 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 
 // GetCallRates retrieves call rate metrics
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
+	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +135,10 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 
 // GetErrorRates retrieves error rate metrics
 func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
+	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +168,13 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	}
 
 	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
+}
+
+// GetDimensions returns the set of pre-configured filterable dimensions.
+// TODO(#7433): the Elasticsearch metricstore does not yet support dimension
+// filtering. Returning an empty slice tells the UI to hide the dropdowns.
+func (MetricsReader) GetDimensions(context.Context) ([]metricstore.Dimension, error) {
+	return nil, nil
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
@@ -234,15 +246,26 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, 
 
 func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
 	if params == nil || params.EndTime == nil || params.Lookback == nil {
-		return TimeRange{}, errors.New("invalid parameters")
+		return TimeRange{}, errors.New("invalid parameters: EndTime and Lookback are required")
 	}
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
-	extendedStartTime := startTime.Add(-10 * time.Minute)
 
 	return TimeRange{
 		startTimeMillis:         startTime.UnixMilli(),
 		endTimeMillis:           endTime.UnixMilli(),
-		extendedStartTimeMillis: extendedStartTime.UnixMilli(),
+		extendedStartTimeMillis: startTime.UnixMilli(),
 	}, nil
+}
+
+func calculateRateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
+	timeRange, err := calculateTimeRange(params)
+	if err != nil {
+		return TimeRange{}, err
+	}
+	if params.RatePer == nil {
+		return TimeRange{}, errors.New("invalid parameters: RatePer is required")
+	}
+	timeRange.extendedStartTimeMillis -= params.RatePer.Milliseconds()
+	return timeRange, nil
 }

@@ -1,0 +1,36 @@
+{
+  "bool": {
+    "should": [
+      {
+        "range": {
+          "tag.http@response@size.number": {
+            "gt": 500
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.response.size"
+                  }
+                },
+                {
+                  "range": {
+                    "tags.value.number": {
+                      "gt": 500
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

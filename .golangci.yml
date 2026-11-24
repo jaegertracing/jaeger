@@ -3,7 +3,7 @@
 
 version: "2"
 run:
-  go: "1.26"
+  go: "1.27"
 linters:
   enable:
     - asciicheck
@@ -108,9 +108,6 @@ linters:
           arguments:
             - 80
           disabled: true
-        # this should be enabled after fixing or disabling in a few packages
-        - name: package-directory-mismatch
-          disabled: true
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -148,6 +145,12 @@ linters:
         - name: nested-structs
           disabled: true
         - name: deep-exit
+        # these writers document that they never return an error, so checking it adds only noise
+        - name: unhandled-error
+          arguments:
+            - '^fmt\.(Print|Fprint)(f|ln)?$'
+            - 'strings\.Builder\.Write.*'
+            - 'bytes\.Buffer\.Write.*'
         # existing packages conflict with stdlib names or use underscores; cannot rename
         - name: package-naming
           disabled: true
@@ -183,6 +186,10 @@ linters:
           - revive
         text: "unhandled-error"
         path: _test\.go
+      - linters:
+          - revive
+        text: "package-directory-mismatch"
+        path: internal/storage/v[12]/api/[^/]+\.go$
     paths:
       - .*.pb.go$
       - mocks

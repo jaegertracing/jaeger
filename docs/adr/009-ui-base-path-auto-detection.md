@@ -291,7 +291,7 @@ Setup (see `examples/reverse-proxy/httpd.conf`):
 Checks:
 1. `GET /jaeger/prefix/` → `index.html` loads, inline script present, no static `<base href="/jaeger/prefix/">` injected by backend.
 2. Static assets (`/jaeger/prefix/static/index-*.js`) return 200.
-3. API `GET /jaeger/prefix/api/services` → 200.
+3. API `GET /jaeger/prefix/api/v3/services` → 200.
 4. Deep-link: `GET /jaeger/prefix/trace/<id>` → 200, serves `index.html` with inline script.
 
 **Result: PASS** ✅
@@ -308,7 +308,7 @@ Checks:
 1. `GET /` → `index.html` loads, inline script present; script detects prefix `/`.
 2. `GET /alt/` → `index.html` loads, inline script present; script detects prefix `/alt/`.
 3. Static assets load under both prefixes (`/static/index-*.js` and `/alt/static/index-*.js`).
-4. API `GET /api/services` and `GET /alt/api/services` → 200.
+4. API `GET /api/v3/services` and `GET /alt/api/v3/services` → 200.
 
 **Result: PASS** ✅
 
@@ -322,7 +322,7 @@ Setup (see `examples/reverse-proxy/httpd-uc3.conf`):
 Checks:
 1. `GET /external/` → `index.html` loads; inline script detects prefix `/external/` from `window.location.pathname`.
 2. Static assets at `/external/static/index-*.js` → proxy rewrites to `/internal/static/…` → 200.
-3. API `GET /external/api/services` → proxy rewrites to `/internal/api/services` → 200.
+3. API `GET /external/api/v3/services` → proxy rewrites to `/internal/api/v3/services` → 200.
 4. Deep-link: `GET /external/trace/<dummy-id>` → 200, serves `index.html` with inline script.
 
 **Result: PASS** ✅

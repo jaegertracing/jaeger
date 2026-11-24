@@ -110,9 +110,13 @@ func runGatewayTests(
 	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)
+	t.Run("GetCapabilities", gw.runGatewayGetCapabilities)
 	t.Run("GetTrace", gw.runGatewayGetTrace)
 	t.Run("FindTraces", gw.runGatewayFindTraces)
 	t.Run("FindTraceSummaries", gw.runGatewayFindTraceSummaries)
+	// Last: it replaces the reader's default expectations (FindSpans needs SpanSearch
+	// capability, unlike the trace-side subtests above) rather than adding to them.
+	t.Run("FindSpans", gw.runGatewayFindSpans)
 }
 
 func (gw *testGateway) runGatewayGetServices(t *testing.T) {
@@ -125,6 +129,17 @@ func (gw *testGateway) runGatewayGetServices(t *testing.T) {
 	var response api_v3.GetServicesResponse
 	parseResponse(t, body, &response)
 	assert.Equal(t, []string{"foo"}, response.Services)
+}
+
+// runGatewayGetCapabilities runs against the harness baseline, a reader that declares
+// nothing; TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration.
+func (gw *testGateway) runGatewayGetCapabilities(t *testing.T) {
+	body, statusCode := gw.execRequest(t, "/api/v3/capabilities")
+	require.Equal(t, http.StatusOK, statusCode)
+
+	var response api_v3.GetCapabilitiesResponse
+	parseResponse(t, body, &response)
+	assert.Equal(t, &api_v3.SearchCapabilities{}, response.GetSearch())
 }
 
 func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
@@ -195,6 +210,34 @@ func (gw *testGateway) runGatewayFindTraceSummaries(t *testing.T) {
 	body, statusCode := gw.execRequest(t, "/api/v3/trace-summaries?"+q.Encode())
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	gw.verifySnapshot(t, body)
+}
+
+func (gw *testGateway) runGatewayFindSpans(t *testing.T) {
+	q, qp := mockFindSpansQuery()
+	// FindSpans is refused unless the backend declares SpanSearch, unlike the trace-side
+	// subtests above, so it needs its own reader expectations rather than the shared defaults.
+	gw.reader.ExpectedCalls = nil
+	gw.reader.On("SearchCapabilities", matchContext).
+		Return(tracestore.SearchCapabilities{SpanSearch: true}, nil).Maybe()
+	gw.reader.
+		On("FindSpans", matchContext, qp).
+		Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+			yield(tracestore.PageChunk[ptrace.Traces]{Results: makeTestTrace()}, nil)
+		})).Once()
+
+	body, statusCode := gw.execRequest(t, "/api/v3/spans?"+q.Encode())
+	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
+	body = gw.verifySnapshot(t, body)
+
+	// RFC 0018 §6.1: FindSpans has no proto message typed to carry it as GRPCGatewayWrapper.Result
+	// does for the trace endpoints, so the buffered response is wrapped at the JSON level.
+	var wrapper struct {
+		Result json.RawMessage `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(body, &wrapper))
+	var resp api_v3.FindSpansResponse
+	require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(wrapper.Result), &resp))
+	assert.Equal(t, 1, resp.GetSpans().ToTraces().SpanCount())
 }
 
 func (gw *testGateway) verifyGetTraces(t *testing.T, url string, expectedTraceID pcommon.TraceID) {

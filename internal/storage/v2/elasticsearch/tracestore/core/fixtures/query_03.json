@@ -6,6 +6,7 @@
           "must":{
             "regexp":{
               "tag.bat@foo":{
+                "flags":"NONE",
                 "value":"spo\\*"
               }
             }
@@ -17,6 +18,7 @@
           "must":{
             "regexp":{
               "process.tag.bat@foo":{
+                "flags":"NONE",
                 "value":"spo\\*"
               }
             }
@@ -39,6 +41,7 @@
                 {
                   "regexp":{
                     "tags.value":{
+                      "flags":"NONE",
                       "value":"spo\\*"
                     }
                   }
@@ -64,6 +67,7 @@
                 {
                   "regexp":{
                     "process.tags.value":{
+                      "flags":"NONE",
                       "value":"spo\\*"
                     }
                   }
@@ -89,6 +93,7 @@
                 {
                   "regexp":{
                     "logs.fields.value":{
+                      "flags":"NONE",
                       "value":"spo\\*"
                     }
                   }

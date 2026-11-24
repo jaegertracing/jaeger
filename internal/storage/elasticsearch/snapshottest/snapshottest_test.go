@@ -61,6 +61,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	sentBody := []byte(`{"index":{"_index":"jaeger-span","_id":"1"}}` + "\n" + `{"traceID":"abc"}` + "\n")
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_bulk", bytes.NewReader(sentBody))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-ndjson")
 	resp, err := server.Client().Do(req)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
@@ -69,6 +70,8 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	require.Len(t, requests, 1)
 	got := requests[0]
 	assert.Equal(t, "/_bulk", got.Path)
+	// The Content-Type is recorded so NDJSON bodies can be validated against it.
+	assert.Equal(t, "application/x-ndjson", got.ContentType)
 	// The newline-delimited body is recorded verbatim.
 	assert.Equal(t, sentBody, got.Body)
 
@@ -334,9 +337,79 @@ func TestMarshalMultipleRequests(t *testing.T) {
 }
 
 func TestParseNDJSONMalformed(t *testing.T) {
-	// The leading blank line is skipped; the malformed line surfaces the error.
-	_, err := parseNDJSON([]byte("\n{not json}"))
+	_, err := parseNDJSON([]byte("{not json}"))
 	assert.Error(t, err)
+}
+
+// TestParseNDJSONRejectsBlankLines covers the blank line a backend would reject.
+// Skipping it instead would let "{a}\n\n{b}" snapshot identically to "{a}\n{b}",
+// hiding the difference from both the snapshot and the reviewer.
+func TestParseNDJSONRejectsBlankLines(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{name: "leading", body: "\n" + `{"a":1}`},
+		{name: "interior", body: `{"a":1}` + "\n\n" + `{"b":2}`},
+		{name: "whitespace only", body: `{"a":1}` + "\n  \n" + `{"b":2}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseNDJSON([]byte(tt.body))
+			require.ErrorContains(t, err, "must not contain empty lines")
+		})
+	}
+
+	docs, err := parseNDJSON([]byte(`{"a":1}` + "\n" + `{"b":2}`))
+	require.NoError(t, err)
+	assert.Len(t, docs, 2)
+}
+
+func TestIsNDJSONEndpoint(t *testing.T) {
+	assert.True(t, isNDJSONEndpoint("/_bulk"))
+	assert.True(t, isNDJSONEndpoint("/_msearch"))
+	assert.True(t, isNDJSONEndpoint("/jaeger-span-read/_msearch"))
+	assert.False(t, isNDJSONEndpoint("/_search"))
+	assert.False(t, isNDJSONEndpoint("/jaeger-span/_doc"))
+}
+
+// TestValidateNDJSON covers the wire-level rules the canonicalized snapshot cannot
+// express: the accepted media types, and a body ending in exactly one newline.
+func TestValidateNDJSON(t *testing.T) {
+	const body = `{"index":{}}` + "\n" + `{"a":1}` + "\n"
+	for _, tt := range []struct {
+		name        string
+		contentType string
+		body        string
+		wantErr     string
+	}{
+		{name: "x-ndjson", contentType: "application/x-ndjson", body: body},
+		{name: "json is also accepted", contentType: "application/json", body: body},
+		{name: "media type with charset", contentType: "application/x-ndjson; charset=utf-8", body: body},
+		{name: "mixed case is normalized and accepted", contentType: "Application/X-NDJSON", body: body},
+		{name: "missing content type", contentType: "", body: body, wantErr: "invalid Content-Type"},
+		{name: "malformed parameter", contentType: "application/x-ndjson; garbage", body: body, wantErr: "invalid Content-Type"},
+		{name: "wrong content type", contentType: "text/plain", body: body, wantErr: "is not one of"},
+		{name: "empty body", contentType: "application/x-ndjson", body: "", wantErr: "must not be empty"},
+		{name: "newline only", contentType: "application/x-ndjson", body: "\n", wantErr: "at least one JSON document"},
+		{name: "whitespace only", contentType: "application/x-ndjson", body: "  \n", wantErr: "at least one JSON document"},
+		{
+			name: "no trailing newline", contentType: "application/x-ndjson",
+			body: `{"index":{}}` + "\n" + `{"a":1}`, wantErr: "must end with a newline",
+		},
+		{
+			name: "extra trailing newline", contentType: "application/x-ndjson",
+			body: body + "\n", wantErr: "must end with exactly one newline",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateNDJSON(tt.contentType, []byte(tt.body))
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestSplitPrefixDefaultsDir(t *testing.T) {
