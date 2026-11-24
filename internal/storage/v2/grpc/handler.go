@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -271,7 +272,7 @@ func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) 
 	ptraceotlp.ExportResponse,
 	error,
 ) {
-	err := h.traceWriter.WriteTraces(ctx, request.Traces())
+	err := h.traceWriter.WriteTraces(ctx, sanitizer.Sanitize(request.Traces()))
 	if err != nil {
 		return ptraceotlp.NewExportResponse(), err
 	}
@@ -348,6 +349,9 @@ func (h *Handler) GetCapabilities(
 // are InvalidArgument. It does not validate Pagination or consult the reader's capabilities:
 // converting a query toward what the reader supports is the query service's job (ADR-013).
 func (*Handler) toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
+	if t == nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
 	filter, err := expressionproto.CallFromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = tracestore.FinalizeFilter(filter)

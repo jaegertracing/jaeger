@@ -21,7 +21,7 @@ import (
 func buildSpanOrderingTraces() []ptrace.Traces {
 	base := time.Now().Add(-time.Hour).Truncate(time.Second)
 	var traces []ptrace.Traces
-	for _, f := range []struct {
+	for i, f := range []struct {
 		name, service         string
 		trace, span           byte
 		start, duration, rank int
@@ -31,6 +31,8 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		{"c", "ordering-a", 2, 1, 2, 3, 4},
 		{"d", "ordering-a", 1, 1, 3, 1, 1},
 		{"e", "ordering-b", 3, 1, 4, 0, 3},
+		// The second copy of "a" ties with the first on every sort key, so paging through the
+		// corpus has to carry both occurrences across a page boundary (RFC 0016 §6.4).
 		{"a", "ordering-a", 2, 3, 1, 4, 5},
 	} {
 		trace := ptrace.NewTraces()
@@ -46,13 +48,35 @@ func buildSpanOrderingTraces() []ptrace.Traces {
 		// The rank orders the corpus differently from every intrinsic field, so ordering by it
 		// cannot pass by accident.
 		span.Attributes().PutInt("ordering-rank", int64(f.rank))
+		// The row index keeps the two copies of "a" from being byte-identical. The Elasticsearch
+		// writer derives a document's _id from the span's content, so identical copies would
+		// collapse onto one document and the corpus would lose its duplicate.
+		span.Attributes().PutInt("ordering-row", int64(i))
 		traces = append(traces, trace)
 	}
 	return traces
 }
 
-func orderingTerm(field string, direction tracestore.SortDirection) tracestore.SpanSortOrder {
-	return tracestore.SpanSortOrder{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field}, Direction: direction}
+// withoutRepeats is the expected page sequence for a reader that drops the later occurrences of
+// a tied run at a page boundary: the two copies of "a" tie on every sort key, so only the first
+// comes back when each page holds one span.
+func withoutRepeats(names []string) []string {
+	out := make([]string, 0, len(names))
+	for i, name := range names {
+		if i == 0 || name != names[i-1] {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// finalizedFilter resolves filter the way the query service does before dispatch, so a direct
+// suite hands the reader the shape it sees in production.
+func finalizedFilter(t *testing.T, filter *expression.Call) *expression.Call {
+	t.Helper()
+	finalized, err := tracestore.FinalizeFilter(filter)
+	require.NoError(t, err)
+	return finalized
 }
 
 // spanOrderingFirstSpan returns the first span of the ordering corpus, whose start time anchors
@@ -68,7 +92,7 @@ func (s *StorageIntegration) spanOrderingSearch(t *testing.T) (tracestore.SpanQu
 	query := tracestore.SpanQueryParams{
 		StartTimeMin: first.StartTimestamp().AsTime().Add(-time.Minute),
 		StartTimeMax: first.StartTimestamp().AsTime().Add(time.Minute),
-		Filter:       (builder.Predicate{}).Span().Attr("ordering-corpus").Eq("yes"),
+		Filter:       finalizedFilter(t, (builder.Predicate{}).Span().Attr("ordering-corpus").Eq("yes")),
 		Pagination:   tracestore.Pagination{PageSize: 10},
 	}
 	search := func(q tracestore.SpanQueryParams) ([]string, tracestore.PageToken, error) {
@@ -115,17 +139,17 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 		want  []string
 	}{
 		{"Default", nil, []string{"e", "d", "b", "c", "a", "a"}},
-		{"StartAsc", []tracestore.SpanSortOrder{orderingTerm("startTime", "asc")}, []string{"a", "a", "c", "d", "b", "e"}},
-		{"StartDesc", []tracestore.SpanSortOrder{orderingTerm("startTime", "desc")}, []string{"e", "d", "b", "c", "a", "a"}},
-		{"DurationAsc", []tracestore.SpanSortOrder{orderingTerm("duration", "")}, []string{"e", "d", "b", "c", "a", "a"}},
-		{"DurationDesc", []tracestore.SpanSortOrder{orderingTerm("duration", "desc")}, []string{"a", "a", "c", "b", "d", "e"}},
-		{"TraceAsc", []tracestore.SpanSortOrder{orderingTerm("traceID", "asc")}, []string{"d", "b", "c", "a", "a", "e"}},
-		{"TraceDesc", []tracestore.SpanSortOrder{orderingTerm("traceID", "desc")}, []string{"e", "c", "a", "a", "d", "b"}},
-		{"SpanAsc", []tracestore.SpanSortOrder{orderingTerm("spanID", "asc")}, []string{"e", "d", "c", "b", "a", "a"}},
-		{"SpanDesc", []tracestore.SpanSortOrder{orderingTerm("spanID", "desc")}, []string{"a", "a", "b", "e", "d", "c"}},
-		{"MixedDirections", []tracestore.SpanSortOrder{orderingTerm("startTime", "asc"), orderingTerm("spanID", "desc")}, []string{"a", "a", "c", "b", "d", "e"}},
-		{"TraceThenTime", []tracestore.SpanSortOrder{orderingTerm("traceID", "asc"), orderingTerm("startTime", "asc")}, []string{"d", "b", "a", "a", "c", "e"}},
-		{"AllFields", []tracestore.SpanSortOrder{orderingTerm("spanID", "asc"), orderingTerm("traceID", "desc"), orderingTerm("duration", "desc"), orderingTerm("startTime", "asc")}, []string{"e", "c", "d", "b", "a", "a"}},
+		{"StartAsc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("startTime", "asc")}, []string{"a", "a", "c", "d", "b", "e"}},
+		{"StartDesc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("startTime", "desc")}, []string{"e", "d", "b", "c", "a", "a"}},
+		{"DurationAsc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "")}, []string{"e", "d", "b", "c", "a", "a"}},
+		{"DurationDesc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "desc")}, []string{"a", "a", "c", "b", "d", "e"}},
+		{"TraceAsc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("traceID", "asc")}, []string{"d", "b", "c", "a", "a", "e"}},
+		{"TraceDesc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("traceID", "desc")}, []string{"e", "c", "a", "a", "d", "b"}},
+		{"SpanAsc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("spanID", "asc")}, []string{"e", "d", "c", "b", "a", "a"}},
+		{"SpanDesc", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("spanID", "desc")}, []string{"a", "a", "b", "e", "d", "c"}},
+		{"MixedDirections", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("startTime", "asc"), tracestore.OrderBySpanField("spanID", "desc")}, []string{"a", "a", "c", "b", "d", "e"}},
+		{"TraceThenTime", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("traceID", "asc"), tracestore.OrderBySpanField("startTime", "asc")}, []string{"d", "b", "a", "a", "c", "e"}},
+		{"AllFields", []tracestore.SpanSortOrder{tracestore.OrderBySpanField("spanID", "asc"), tracestore.OrderBySpanField("traceID", "desc"), tracestore.OrderBySpanField("duration", "desc"), tracestore.OrderBySpanField("startTime", "asc")}, []string{"e", "c", "d", "b", "a", "a"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -136,17 +160,31 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 			assert.Equal(t, tc.want, names)
 			assert.Empty(t, token)
 			q.Pagination.PageSize = 1
-			for i, want := range tc.want {
+			paged := tc.want
+			trailingEmptyPage := false
+			if s.Capabilities.PagingDropsTiedSpans() {
+				paged = withoutRepeats(tc.want)
+				// When the tied run closes the order, the page holding its first copy sees the
+				// second as its lookahead hit and announces another page, which the cursor
+				// cannot reach, so that page is empty.
+				trailingEmptyPage = tc.want[len(tc.want)-1] == tc.want[len(tc.want)-2]
+			}
+			for i, want := range paged {
 				names, token, err = search(q)
 				require.NoError(t, err)
 				require.Equal(t, []string{want}, names)
-				if i == len(tc.want)-1 {
-					require.Empty(t, token)
-				} else {
+				if i < len(paged)-1 {
 					require.NotEmpty(t, token)
+				} else if trailingEmptyPage {
+					require.NotEmpty(t, token)
+					q.Pagination.PageToken = token
+					names, token, err = search(q)
+					require.NoError(t, err)
+					require.Empty(t, names)
 				}
 				q.Pagination.PageToken = token
 			}
+			require.Empty(t, token)
 		})
 	}
 	for _, tc := range []struct {
@@ -158,6 +196,7 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 		{"TimestampFilter", expression.SpanFieldStartTime, &expression.TimestampValue{Value: first.StartTimestamp().AsTime()}, []string{"c", "b", "d", "e"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			s.skipIfNeeded(t)
 			q := query
 			q.Filter = &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 				query.Filter,
@@ -165,7 +204,7 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 					&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field}, tc.value,
 				}},
 			}}
-			q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("duration", "desc")}
+			q.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "desc")}
 			names, token, err := search(q)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, names)
@@ -180,18 +219,18 @@ func (s *StorageIntegration) testSpanOrderingBasic(t *testing.T) {
 		require.NotEmpty(t, token)
 		q.Pagination.PageToken = token
 		q.Pagination.PageSize = 2
-		q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("startTime", "desc")}
+		q.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField("startTime", "desc")}
 		names, _, err := search(q)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"d", "b"}, names)
-		q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("startTime", "asc")}
+		q.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField("startTime", "asc")}
 		_, _, err = search(q)
 		require.ErrorContains(t, err, "different query")
 	})
 	t.Run("Empty", func(t *testing.T) {
 		q := query
-		q.OrderBy = []tracestore.SpanSortOrder{orderingTerm("duration", "desc")}
-		q.Filter = (builder.Predicate{}).Span().Name.Eq("absent-ordering-span")
+		q.OrderBy = []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "desc")}
+		q.Filter = finalizedFilter(t, (builder.Predicate{}).Span().Name.Eq("absent-ordering-span"))
 		names, token, err := search(q)
 		require.NoError(t, err)
 		assert.Empty(t, names)

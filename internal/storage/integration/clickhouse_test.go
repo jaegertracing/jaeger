@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -22,11 +23,24 @@ type ClickHouseStorageIntegration struct {
 	factory *ch.Factory
 }
 
-func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
+func (s *ClickHouseStorageIntegration) initialize(t *testing.T, database string, attributeLayout string, hoistedAttributes []ch.HoistedAttribute) {
 	cfg := ch.DefaultConfiguration()
 	cfg.Addresses = []string{"127.0.0.1:9000"}
-	cfg.Database = "jaeger"
+	cfg.Database = database
+	cfg.AttributeLayout = attributeLayout
+	cfg.HoistedAttributes = hoistedAttributes
 	cfg.CreateSchema = true
+	// The compose file runs a single replica with an embedded Keeper, so this suite creates
+	// the schema with the replicated engines, and requireReplicatedTables checks that it did.
+	// The e2e suite creates the local engines through cmd/jaeger/config-clickhouse.yaml; in CI
+	// the two suites run in separate containers, and against one shared server whichever
+	// suite creates the tables first fixes their engine, which the check then reports.
+	cfg.TableEngine = ch.TableEngine{
+		Replicated: configoptional.Some(ch.ReplicatedEngine{
+			KeeperPath:  "/clickhouse/tables/{shard}/{database}/{table}",
+			ReplicaName: "{replica}",
+		}),
+	}
 	cfg.Auth = ch.Authentication{
 		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 			Username: "default",
@@ -37,6 +51,7 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	s.factory = f
+	requireReplicatedTables(t, cfg)
 
 	s.TraceReader, err = f.CreateTraceReader()
 	require.NoError(t, err)
@@ -48,11 +63,50 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// requireReplicatedTables asserts that every table the factory created carries a Replicated*
+// engine. Every CREATE TABLE is IF NOT EXISTS, so without this check a schema rendered with
+// the local engines would pass the suite unnoticed.
+func requireReplicatedTables(t *testing.T, cfg ch.Configuration) {
+	basic := cfg.Auth.Basic.Get()
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: cfg.Addresses,
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+			Username: basic.Username,
+			Password: string(basic.Password),
+		},
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+	rows, err := conn.Query(context.Background(),
+		"SELECT name, engine FROM system.tables WHERE database = ? AND engine != 'MaterializedView' ORDER BY name",
+		cfg.Database)
+	require.NoError(t, err)
+	defer rows.Close()
+	engines := map[string]string{}
+	for rows.Next() {
+		var name, engine string
+		require.NoError(t, rows.Scan(&name, &engine))
+		engines[name] = engine
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, map[string]string{
+		"attribute_metadata":  "ReplicatedAggregatingMergeTree",
+		"dependencies":        "ReplicatedMergeTree",
+		"operations":          "ReplicatedAggregatingMergeTree",
+		"services":            "ReplicatedAggregatingMergeTree",
+		"spans":               "ReplicatedMergeTree",
+		"trace_id_timestamps": "ReplicatedAggregatingMergeTree",
+	}, engines)
+}
+
 func (s *ClickHouseStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func TestClickHouseStorage(t *testing.T) {
+// runClickHouseStorageSuite runs the storage suite against the tables of database, which the
+// backend creates in attributeLayout and with hoistedAttributes.
+func runClickHouseStorageSuite(t *testing.T, database string, attributeLayout string, hoistedAttributes []ch.HoistedAttribute) {
 	SkipUnlessEnv(t, StorageClickHouse)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
@@ -63,6 +117,33 @@ func TestClickHouseStorage(t *testing.T) {
 		},
 	}
 	s.CleanUp = s.cleanUp
-	s.initialize(t)
+	s.initialize(t, database, attributeLayout, hoistedAttributes)
 	s.RunAll(t)
+}
+
+func TestClickHouseStorage(t *testing.T) {
+	runClickHouseStorageSuite(t, "jaeger", "nested", nil)
+}
+
+// runClickHouseStorageSuiteWithLayout runs the storage suite against a database that it
+// creates anew, whose tables are in attributeLayout and have the hoisted columns. Each such
+// run needs a database of its own, because the backend neither adds a column to an existing
+// table nor converts its layout.
+func runClickHouseStorageSuiteWithLayout(t *testing.T, database string, attributeLayout string) {
+	SkipUnlessEnv(t, StorageClickHouse)
+	RecreateClickHouseDatabase(t, database)
+	runClickHouseStorageSuite(t, database, attributeLayout, ClickHouseHoistedAttributes)
+}
+
+// TestClickHouseStorage_HoistedAttributes runs the same suite against tables with hoisted
+// columns, so every search must return what it returns without them.
+func TestClickHouseStorage_HoistedAttributes(t *testing.T) {
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_hoisted", "nested")
+}
+
+// TestClickHouseStorage_MapLayout runs the same suite against tables in the map layout, so
+// every search must return what it returns from the nested layout. The tables also have the
+// hoisted columns, which in this layout are computed from a map.
+func TestClickHouseStorage_MapLayout(t *testing.T) {
+	runClickHouseStorageSuiteWithLayout(t, "jaeger_map", "map")
 }

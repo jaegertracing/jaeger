@@ -67,7 +67,13 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			}
 			dedupedSpans.CopyTo(spans)
 		}
+		scopeSpans.RemoveIf(func(ss ptrace.ScopeSpans) bool {
+			return ss.Spans().Len() == 0
+		})
 	}
+	resourceSpans.RemoveIf(func(rs ptrace.ResourceSpans) bool {
+		return rs.ScopeSpans().Len() == 0
+	})
 }
 
 func (s *SpanHashDeduper) computeHashCode(
@@ -78,6 +84,6 @@ func (s *SpanHashDeduper) computeHashCode(
 		return 0, err
 	}
 	hasher := fnv.New64a()
-	hasher.Write(b) // the writer in the Hash interface never returns an error
+	_, _ = hasher.Write(b) // the writer in the Hash interface never returns an error
 	return hasher.Sum64(), nil
 }

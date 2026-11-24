@@ -11,29 +11,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 )
 
+// constantFirst writes the constant on the left of an ordered comparison, which the builder's
+// chained form cannot.
+func constantFirst(op expression.Operator, value string, ref builder.Ref) *expression.Call {
+	return p.Compare(op, p.RefOf(&expression.AnyValue{Value: value}), ref)
+}
+
 func TestFinalize(t *testing.T) {
-	filter := &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-		&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-			&expression.AnyValue{Value: "2s"}, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-		}},
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.method"}, &expression.AnyValue{Value: "GET"},
-		}},
-	}}
+	filter := p.And(
+		constantFirst(expression.OpGt, "2s", p.Span().Duration),
+		p.Attr("http.method").Eq("GET"),
+	)
 
 	finalized, err := FinalizeFilter(filter)
 	require.NoError(t, err)
-	assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-		&expression.Call{Op: expression.OpLt, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-			&expression.DurationValue{Value: 2 * time.Second},
-		}},
-		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.AttributeRef{Key: "http.method"}, &expression.AnyValue{Value: "GET"},
-		}},
-	}}, finalized, "the constant is read, and the reference comes first")
+	assert.Equal(t, p.And(
+		p.Span().Duration.Lt(p.Duration(2*time.Second)),
+		p.Attr("http.method").Eq("GET"),
+	), finalized, "the constant is read, and the reference comes first")
 }
 
 // TestFinalize_IsIdempotent is what lets every boundary finalize a filter it did not build: the
@@ -41,26 +39,11 @@ func TestFinalize(t *testing.T) {
 // client may already have finalized.
 func TestFinalize_IsIdempotent(t *testing.T) {
 	filters := map[string]*expression.Call{
-		"an ordered comparison against a duration field": {Op: expression.OpGt, Args: []expression.Expression{
-			&expression.AnyValue{Value: "2s"}, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-		}},
-		"an equality against a word-valued field": {Op: expression.OpEq, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan}, &expression.AnyValue{Value: "server"},
-		}},
-		"a timestamp bound": {Op: expression.OpLte, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-			&expression.AnyValue{Value: "2026-08-18T00:00:00Z"},
-		}},
-		"membership": {Op: expression.OpIn, Args: []expression.Expression{
-			&expression.FieldRef{Name: expression.SpanFieldStatus, Level: expression.LevelSpan},
-			&expression.List{Values: []string{"error"}, Type: expression.ValueTypeString},
-		}},
-		"a quantified predicate": {Op: expression.OpSome, Args: []expression.Expression{
-			&expression.NestedRef{Level: expression.LevelEvent},
-			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent}, &expression.AnyValue{Value: "exception"},
-			}},
-		}},
+		"an ordered comparison against a duration field": constantFirst(expression.OpGt, "2s", p.Span().Duration),
+		"an equality against a word-valued field":        p.Span().Kind.Eq("server"),
+		"a timestamp bound":                              p.Span().StartTime.Lte("2026-08-18T00:00:00Z"),
+		"membership":                                     p.Span().Status.In(p.List(expression.ValueTypeString, "error")),
+		"a quantified predicate":                         p.Some(p.Event(), p.Event().Name.Eq("exception")),
 	}
 	for name, filter := range filters {
 		t.Run(name, func(t *testing.T) {
@@ -76,22 +59,21 @@ func TestFinalize_IsIdempotent(t *testing.T) {
 // TestFinalize_RefusesADepthNoConsumerCouldWalk covers the bound at the entry point every boundary
 // calls, since that is where a tree arriving off a wire is stopped.
 func TestFinalize_RefusesADepthNoConsumerCouldWalk(t *testing.T) {
-	deep := eq(&expression.AttributeRef{Key: "a"}, &expression.AnyValue{Value: "1"})
+	deep := p.Attr("a").Eq("1")
 	for range expression.MaxNestingDepth {
-		deep = &expression.Call{Op: expression.OpNot, Args: []expression.Expression{deep}}
+		deep = p.Not(deep)
 	}
 	_, err := FinalizeFilter(deep)
 	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 }
 
 func TestFinalize_RefusesWhatValidationRefuses(t *testing.T) {
+	// The builder has no method for an operator the vocabulary lacks, so that tree is built by hand.
 	_, err := FinalizeFilter(&expression.Call{Op: "matches", Args: []expression.Expression{
 		&expression.AttributeRef{Key: "a"}, &expression.AnyValue{Value: "b"},
 	}})
 	require.ErrorContains(t, err, `unknown filter operator "matches"`)
 
-	_, err = FinalizeFilter(&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, &expression.AnyValue{Value: "banana"},
-	}})
+	_, err = FinalizeFilter(p.Span().Duration.Gt("banana"))
 	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/gorilla/websocket"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
 
 // WsReadWriteCloser adapts a WebSocket connection to io.ReadWriteCloser so the
@@ -48,16 +50,17 @@ func NewWsAdapter(conn *websocket.Conn, logger *zap.Logger) *WsReadWriteCloser {
 // each name their own header, so the caller supplies whatever the agent expects
 // rather than this choosing a scheme. The values are credentials, which is why
 // they are configopaque.String: it keeps them out of logs and config dumps by
-// construction rather than by everyone remembering not to print them.
+// construction rather than by everyone remembering not to print them. The
+// request headers that header_forwarding captured in ctx go on the same
+// handshake, after the static ones, so the agent receives the caller's own
+// identity and a captured header replaces a static one of the same name.
 func DialWsAdapter(ctx context.Context, url string, headers configopaque.MapList, logger *zap.Logger) (*WsReadWriteCloser, error) {
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	var header http.Header
-	if len(headers) > 0 {
-		header = make(http.Header, len(headers))
-		for name, value := range headers.Iter {
-			header.Set(name, string(value))
-		}
+	header := make(http.Header, len(headers))
+	for name, value := range headers.Iter {
+		header.Set(name, string(value))
 	}
+	headerforwarding.SetForwardedHTTPHeaders(ctx, header)
 	conn, resp, err := dialer.DialContext(ctx, url, header) //nolint:bodyclose // gorilla wraps resp.Body in io.NopCloser; no close needed
 	if err != nil {
 		if resp != nil {

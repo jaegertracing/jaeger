@@ -37,13 +37,17 @@ type BatchResponse struct {
 type Driver struct {
 	driver.Conn
 
-	QueryResponses  map[string]*QueryResponse
-	BatchResponses  map[string]*BatchResponse
+	QueryResponses map[string]*QueryResponse
+	BatchResponses map[string]*BatchResponse
+	// RecordedQueries and RecordedArgs hold every query and batch statement in call order, and
+	// the arguments of each query. A batch statement records nil arguments.
 	RecordedQueries []string
+	RecordedArgs    [][]any
 }
 
-func (d *Driver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
+func (d *Driver) Query(_ context.Context, query string, args ...any) (driver.Rows, error) {
 	d.RecordedQueries = append(d.RecordedQueries, query)
+	d.RecordedArgs = append(d.RecordedArgs, args)
 
 	// Normalize whitespace so substring matching works regardless of indentation.
 	normalized := strings.Join(strings.Fields(query), " ")
@@ -63,6 +67,7 @@ func (d *Driver) PrepareBatch(
 	_ ...driver.PrepareBatchOption,
 ) (driver.Batch, error) {
 	d.RecordedQueries = append(d.RecordedQueries, query)
+	d.RecordedArgs = append(d.RecordedArgs, nil)
 
 	// Normalize whitespace so substring matching works regardless of indentation.
 	normalized := strings.Join(strings.Fields(query), " ")
@@ -116,6 +121,8 @@ type Rows[T any] struct {
 	ScanFn   func(dest any, src T) error
 	CloseErr error
 	RowsErr  error
+	// Closed reports whether Close was called.
+	Closed bool
 }
 
 func (r *Rows[T]) Reset() {
@@ -123,6 +130,7 @@ func (r *Rows[T]) Reset() {
 }
 
 func (r *Rows[T]) Close() error {
+	r.Closed = true
 	return r.CloseErr
 }
 

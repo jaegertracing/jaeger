@@ -62,9 +62,11 @@ type SyncBulkWriter struct {
 	// the batch, so the write completes and the offset advances. Transient failures
 	// (429 / 5xx / transport) still fail the batch. When false, any rejection fails
 	// the batch (retry-forever). Set from config.PoisonHandling by the factory.
-	dropPoison bool
-	metrics    *spanstoremetrics.WriteMetrics
-	logger     *zap.Logger
+	dropPoison    bool
+	metrics       *spanstoremetrics.WriteMetrics
+	poisonDropped metrics.Counter
+	requestBytes  metrics.Histogram
+	logger        *zap.Logger
 }
 
 // NewSyncBulkWriter returns a SyncBulkWriter that sends each _bulk chunk over the
@@ -77,12 +79,19 @@ func NewSyncBulkWriter(client *Client, maxBytes int, dropPoison bool, metricsFac
 	if maxBytes <= 0 {
 		maxBytes = defaultSyncBulkMaxBytes
 	}
+	poisonDropped := metricsFactory.Namespace(metrics.NSOptions{Name: "bulk_index"}).Counter(metrics.Options{
+		Name: "poison-dropped",
+		Help: "Terminally rejected documents discarded in synchronous drop mode, including repeated drops on retries",
+	})
+	poisonDropped.Inc(0)
 	return &SyncBulkWriter{
-		client:     client,
-		maxBytes:   maxBytes,
-		dropPoison: dropPoison,
-		metrics:    spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger:     logger,
+		client:        client,
+		maxBytes:      maxBytes,
+		dropPoison:    dropPoison,
+		metrics:       spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		poisonDropped: poisonDropped,
+		requestBytes:  newRequestBytesHistogram(metricsFactory),
+		logger:        logger,
 	}
 }
 
@@ -194,6 +203,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		}
 	}()
 
+	w.requestBytes.Record(float64(len(body)))
 	raw, err := w.client.request(ctx, elasticRequest{
 		endpoint:    "_bulk",
 		method:      http.MethodPost,
@@ -247,6 +257,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	// retry the whole batch; any terminal items ride along and are re-dropped each
 	// retry until the transient ones clear.
 	if w.dropPoison && len(out.terminal) > 0 {
+		w.poisonDropped.Inc(int64(len(out.terminal)))
 		w.logger.Warn("dropping poison-pill documents the backend rejected terminally",
 			zap.Int("dropped", len(out.terminal)), zap.Int("total", count), zap.String("sample", msg))
 	}

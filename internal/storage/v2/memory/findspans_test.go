@@ -5,6 +5,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -77,13 +78,7 @@ func writeTwoTraceStore(t *testing.T) (*Store, time.Time) {
 func TestFindSpans_MatchesAcrossTraces(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpRegex,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "^(GET /|handle-request)$"},
-		},
-	}
+	filter := p.Compare(expression.OpRegex, p.Span().Name, p.String("^(GET /|handle-request)$"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -131,13 +126,7 @@ func TestFindSpans_NilFilterReturnsEverySpan(t *testing.T) {
 func TestFindSpans_NoMatchesYieldsEmptyChunk(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "nonexistent"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("nonexistent"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -232,13 +221,7 @@ func TestFindSpans_PreservesSchemaURLs(t *testing.T) {
 
 	require.NoError(t, store.WriteTraces(context.Background(), traces))
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldSchemaURL},
-			&expression.StringValue{Value: "https://opentelemetry.io/schemas/1.9.0"},
-		},
-	}
+	filter := p.Resource().SchemaURL.Eq(p.String("https://opentelemetry.io/schemas/1.9.0"))
 
 	var results []ptrace.Traces
 	for chunk, err := range store.FindSpans(context.Background(), tracestore.SpanQueryParams{Filter: filter}) {
@@ -281,7 +264,30 @@ func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 	assert.True(t, caps.SpanSearch)
 	require.NotNil(t, caps.Filter)
 	assert.ElementsMatch(t, expression.Levels(), caps.Filter.Levels)
-	assert.ElementsMatch(t, expression.Operators(), caps.Filter.Operators)
+	assert.Subset(t, expression.Operators(), caps.Filter.Operators)
+	assert.Len(t, caps.Filter.Operators, len(expression.Operators())-len(unsupportedOperators),
+		"the store declares the vocabulary minus the operators it withholds")
+	for _, op := range unsupportedOperators {
+		assert.NotContains(t, caps.Filter.Operators, op, "the store does not evaluate %q yet", op)
+	}
+}
+
+// TestDeclaredOperatorsAreEvaluated pins that the declared capabilities and the evaluator agree:
+// every operator the store declares has a case in the validateFilterShape function, and every
+// operator it withholds is refused by that function as unsupported. An operator with the wrong
+// arguments is enough to tell the two apart, since only an unknown operator is refused that way.
+func TestDeclaredOperatorsAreEvaluated(t *testing.T) {
+	for _, op := range expression.Operators() {
+		t.Run(string(op), func(t *testing.T) {
+			err := validateFilterShape(&expression.Call{Op: op})
+			if slices.Contains(unsupportedOperators, op) {
+				require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+				return
+			}
+			assert.NotErrorIs(t, err, tracestore.ErrFilterUnsupported,
+				"operator %q is declared but the store does not evaluate it", op)
+		})
+	}
 }
 
 // TestFindTraces_StructuredFilter pins that a TraceQueryParams.Filter reaches
@@ -290,13 +296,7 @@ func TestSearchCapabilities_DeclareSpanSearchAndFilter(t *testing.T) {
 func TestFindTraces_StructuredFilter(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "call-backend"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("call-backend"))
 
 	var traces []ptrace.Traces
 	for batch, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -316,13 +316,7 @@ func TestFindTraces_StructuredFilter(t *testing.T) {
 func TestFindTraces_StructuredFilterNoMatch(t *testing.T) {
 	store, _ := writeTwoTraceStore(t)
 
-	filter := &expression.Call{
-		Op: expression.OpEq,
-		Args: []expression.Expression{
-			&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldName},
-			&expression.StringValue{Value: "nonexistent"},
-		},
-	}
+	filter := p.Span().Name.Eq(p.String("nonexistent"))
 
 	var traces []ptrace.Traces
 	for batch, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -345,19 +339,13 @@ func TestFindSpans_UnhintedTimeConstants(t *testing.T) {
 		{"timestamp", expression.SpanFieldStartTime, base.Add(time.Hour).Format(time.RFC3339Nano), []string{"handle-request"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			query := tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.FieldRef{Level: expression.LevelSpan, Name: tc.field},
-				&expression.AnyValue{Value: tc.value},
-			}}}
+			query := tracestore.SpanQueryParams{Filter: p.Span().Field(tc.field).Gt(tc.value)}
 			chunk, err := findSpansPage(t, store, query)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, spanNames(chunk.Results))
 			assert.IsType(t, &expression.AnyValue{}, query.Filter.Args[1])
 		})
 	}
-	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-		&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-		&expression.AnyValue{Value: "invalid"},
-	}}})
+	_, err := findSpansPage(t, store, tracestore.SpanQueryParams{Filter: p.Span().Duration.Gt("invalid")})
 	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 }

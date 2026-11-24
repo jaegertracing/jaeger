@@ -4,6 +4,7 @@
 package bearertoken
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -74,4 +75,22 @@ func Test_PropagationHandler(t *testing.T) {
 			stop.Wait()
 		})
 	}
+}
+
+func TestSetAuthorizationHeader(t *testing.T) {
+	header := http.Header{
+		"Authorization": {"Basic other"},
+		"X-User":        {"alice"},
+	}
+	SetAuthorizationHeader(context.Background(), header)
+	assert.Equal(t, http.Header{
+		"Authorization": {"Basic other"},
+		"X-User":        {"alice"},
+	}, header)
+
+	SetAuthorizationHeader(ContextWithBearerToken(context.Background(), "blah"), header)
+	assert.Equal(t, http.Header{
+		"Authorization": {"Bearer blah"},
+		"X-User":        {"alice"},
+	}, header)
 }

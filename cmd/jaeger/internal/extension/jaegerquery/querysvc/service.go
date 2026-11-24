@@ -88,6 +88,11 @@ type SpanQueryParams struct {
 	OrderBy []tracestore.SpanSortOrder
 	// Pagination is the only bound on the result (RFC 0016 §6): a zero PageSize means the default.
 	Pagination Pagination
+	// Projection lists the columns the caller selected, as references (RFC 0016 §5.2). Sparse
+	// spans, the result a reference-only projection shapes, are not implemented yet (RFC 0016
+	// §13), so the service refuses a non-empty one rather than serve the statement as if it were
+	// not there.
+	Projection []expression.Expression
 }
 
 // TraceQueryParams is a trace search as the caller sent it. prepareSearchQuery turns it into the
@@ -245,16 +250,21 @@ func (qs QueryService) FindTraces(
 	}
 }
 
-// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
-// service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked every time
-// rather than once, because a remote backend answers for itself and may not have been
-// reachable when jaeger-query started; a reader for which that costs a round trip caches its
-// own answer.
+// SearchCapabilities reports what the trace reader declares it can search (ADR-013). The
+// reader is asked every time rather than once, because a remote backend answers for itself and
+// may not have been reachable when jaeger-query started; a reader for which that costs a round
+// trip caches its own answer.
 //
-// A reader that cannot say returns an error, which callers read as the least capable
-// backend.
+// A reader that cannot say returns an error wrapping errors.ErrUnsupported, which callers read
+// as the least capable backend.
+func (qs QueryService) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	return qs.traceReader.SearchCapabilities(ctx)
+}
+
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
+// service name and reads it as "any service" (RFC 0013 §3.3).
 func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, error) {
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.SearchCapabilities(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -327,9 +337,9 @@ func (qs QueryService) prepareSearchQuery(
 // only translate their wire shape into the request; what a query must satisfy is decided here,
 // once (the same reasoning as toReaderQuery, for the one field a span query's envelope has).
 //
-// The capabilities are read once. The caller's filter validation and the span-search refusal
-// come before the interceptors, so an interceptor is never shown a request this deployment or
-// its backend refuses outright; the filter capability check comes after them, so a predicate an
+// The capabilities are read once. The projection refusal, the caller's filter validation and the
+// span-search refusal come before the interceptors, so an interceptor is never shown a request
+// this deployment or its backend refuses outright; the filter capability check comes after them, so a predicate an
 // interceptor adds is held to the same check as one the caller sent.
 func (qs QueryService) prepareSpanSearchQuery(
 	ctx context.Context,
@@ -338,6 +348,9 @@ func (qs QueryService) prepareSpanSearchQuery(
 	query, err := request.toReaderQuery()
 	if err != nil {
 		return ctx, query, err
+	}
+	if len(request.Projection) > 0 {
+		return ctx, query, ErrProjectionUnsupported
 	}
 	// A search over the time range alone carries no filter and is the base case of a span query
 	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither

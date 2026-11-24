@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 
@@ -394,6 +395,21 @@ func TestAttributeConversion(t *testing.T) {
 					Type:  dbmodel.StringType,
 					Value: "service-name",
 				},
+			},
+		},
+		{
+			name: "non-finite double attributes",
+			setupAttr: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.PutDouble("nan", math.NaN())
+				attributes.PutDouble("pos-inf", math.Inf(1))
+				attributes.PutDouble("neg-inf", math.Inf(-1))
+				return attributes
+			},
+			expected: []dbmodel.KeyValue{
+				{Key: "nan", Type: dbmodel.Float64Type, Value: "NaN"},
+				{Key: "pos-inf", Type: dbmodel.Float64Type, Value: "Infinity"},
+				{Key: "neg-inf", Type: dbmodel.Float64Type, Value: "-Infinity"},
 			},
 		},
 		{

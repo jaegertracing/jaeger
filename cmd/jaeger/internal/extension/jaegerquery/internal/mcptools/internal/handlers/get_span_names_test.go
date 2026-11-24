@@ -123,6 +123,26 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			},
 		},
 		{
+			name: "same name ordered by span kind",
+			input: types.GetSpanNamesInput{
+				ServiceName: "frontend",
+				Limit:       2,
+			},
+			mockOps: []tracestore.Operation{
+				{Name: "HTTP GET", SpanKind: "server"},
+				{Name: "HTTP GET", SpanKind: "producer"},
+				{Name: "HTTP GET", SpanKind: "client"},
+			},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{
+					{Name: "HTTP GET", SpanKind: "client"},
+					{Name: "HTTP GET", SpanKind: "producer"},
+				},
+				TotalCount: 3,
+				Truncated:  true,
+			},
+		},
+		{
 			name: "default limit 100",
 			input: types.GetSpanNamesInput{
 				ServiceName: "frontend",

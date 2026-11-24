@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -511,9 +512,9 @@ func TestHandler_Export(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
-			writer := new(tracestoremocks.Writer)
+			writer := tracestoremocks.NewWriter(t)
 			depReader := new(depstoremocks.Reader)
-			writer.On("WriteTraces", mock.Anything, makeTestTrace()).Return(test.writeTracesErr).Once()
+			writer.On("WriteTraces", mock.Anything, sanitizer.Sanitize(makeTestTrace())).Return(test.writeTracesErr).Once()
 			server := NewHandler(reader, writer, depReader)
 
 			response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
@@ -857,6 +858,39 @@ func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 		"the client reads the status back as the missing capability the reader reported")
 }
 
+func TestHandler_MissingQueryReturnsInvalidArgument(t *testing.T) {
+	// An omitted nested query message is valid protobuf. All three search handlers
+	// must refuse it before they dereference it, without calling the storage reader.
+	assertMissingQuery := func(t *testing.T, err error) {
+		t.Helper()
+		require.Error(t, err)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, "missing query", status.Convert(err).Message())
+	}
+	t.Run("FindTraces", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		assertMissingQuery(t, handler.FindTraces(&storage.FindTracesRequest{}, &testStream{}))
+		reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{})
+		assertMissingQuery(t, err)
+		reader.AssertNotCalled(t, "FindTraceIDs", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+		assertMissingQuery(t, handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{}, &summaryStream{}))
+		reader.AssertNotCalled(t, "FindTraceSummaries", mock.Anything, mock.Anything)
+		reader.AssertExpectations(t)
+	})
+}
+
 func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	now := time.Unix(1000, 0).UTC()
 	want := []tracestore.TraceSummary{
@@ -1162,7 +1196,7 @@ func TestHandler_FindSpansPreservesQuery(t *testing.T) {
 		Filter:       &expression.Call{Op: "custom", Args: []expression.Expression{}},
 		OrderBy: []tracestore.SpanSortOrder{
 			{Expression: &expression.AttributeRef{Level: expression.LevelSpan, Key: "priority"}},
-			{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "custom"}, Direction: "custom"},
+			tracestore.OrderBySpanField("custom", "custom"),
 		},
 		Pagination: tracestore.Pagination{PageSize: 5, PageToken: "cursor"},
 	}

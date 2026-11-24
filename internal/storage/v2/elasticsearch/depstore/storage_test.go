@@ -84,6 +84,11 @@ func TestGetDependencies(t *testing.T) {
 				{ "parent": "hello",
 				  "child": "world",
 				  "callCount": 12
+				},
+				{ "parent": "hello",
+				  "child": "world",
+				  "callCount": 3,
+				  "source": "mesh"
 				}
 			]
 		}`
@@ -101,6 +106,12 @@ func TestGetDependencies(t *testing.T) {
 			searchResult: hitsResponse(goodDependencies),
 			expectedOutput: []dbmodel.DependencyLink{
 				{Parent: "hello", Child: "world", CallCount: 12},
+				{
+					Parent:    "hello",
+					Child:     "world",
+					CallCount: 3,
+					Source:    "mesh",
+				},
 			},
 		},
 		{
@@ -234,6 +245,12 @@ func TestDependencyStoreRequestSnapshots(t *testing.T) {
 	const lookback = time.Hour
 	dependencies := []dbmodel.DependencyLink{
 		{Parent: "svcA", Child: "svcB", CallCount: 1},
+		{
+			Parent:    "svcA",
+			Child:     "svcB",
+			CallCount: 2,
+			Source:    "mesh",
+		},
 	}
 
 	getDependencies := map[es.BackendVersion]string{}

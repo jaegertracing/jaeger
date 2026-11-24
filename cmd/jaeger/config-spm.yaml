@@ -6,7 +6,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [queue_batch]
       exporters: [jaeger_storage_exporter, spanmetrics]
     metrics/spanmetrics:
       receivers: [spanmetrics]
@@ -41,6 +41,19 @@ extensions:
           endpoint: http://prometheus:9090
           normalize_calls: true
           normalize_duration: true
+          # extra_dimensions declares the pre-configured set of additional
+          # Prometheus labels the SPM API can filter on. Names must match the
+          # `dimensions:` declared in the spanmetrics connector below, so the
+          # labels exist on the stored time series. Attributes discarded during
+          # aggregation cannot be recovered by a metrics query.
+          # Stored labels must use underscore translation: the dimension
+          # deployment.environment is queried as deployment_environment.
+          # Pipelines preserving dotted label names are not supported.
+          # See docs/rfc/0021-spm-dimension-filtering.md for the proposal.
+          # extra_dimensions:
+          #   - name: deployment.environment
+          #     display_name: Environment
+          #     values: [prod, staging, dev]
 
 connectors:
   spanmetrics:
@@ -54,10 +67,25 @@ receivers:
         endpoint: "0.0.0.0:4318"
 
 processors:
-  batch:
+  queue_batch:
+    sizer: requests
+    num_consumers: 1
+    queue_size: 8192
+    block_on_overflow: true
+    wait_for_result: false
+    batch:
+      enabled: true
+      sizer: items
+      min_size: 8192
+      max_size: 0
+      flush_timeout: 200ms
 
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
+    queue:
+      enabled: false
   prometheus:
     endpoint: "0.0.0.0:8889"
+    # Dimension filtering requires underscore-translated labels, for example:
+    # translation_strategy: UnderscoreEscapingWithSuffixes

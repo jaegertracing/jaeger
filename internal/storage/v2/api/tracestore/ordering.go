@@ -22,6 +22,16 @@ type SpanSortOrder struct {
 	Direction  SortDirection
 }
 
+// OrderBySpanField is the ordering term that sorts by a built-in span field, such as
+// expression.SpanFieldDuration, in the given direction. An empty direction is ascending once
+// NormalizeSpanOrder has settled the term.
+func OrderBySpanField(name string, direction SortDirection) SpanSortOrder {
+	return SpanSortOrder{
+		Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: name},
+		Direction:  direction,
+	}
+}
+
 // NormalizeSpanOrder validates explicit terms without adding implicit tie-breakers.
 // An omitted order stays empty so readers can distinguish it from an explicit default.
 func NormalizeSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
@@ -77,10 +87,7 @@ func EffectiveSpanOrder(order []SpanSortOrder) ([]SpanSortOrder, error) {
 		if field == "startTime" {
 			direction = SortDescending
 		}
-		out = append(out, SpanSortOrder{
-			Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: field},
-			Direction:  direction,
-		})
+		out = append(out, OrderBySpanField(field, direction))
 	}
 	return out, nil
 }

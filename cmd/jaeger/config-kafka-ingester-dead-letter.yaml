@@ -142,6 +142,9 @@ connectors:
         # arrives and merges nothing. Below 1 MiB the batch waits for flush_timeout.
         min_size: 1048576
         max_size: 4194304 # 4 MiB, at most half of bulk_processing.max_bytes above
+        # partition is omitted. A present batch fills it from the exporterhelper
+        # defaults (idle_timeout 90s, cache_size 10000). metadata_keys stays empty,
+        # so this remains one batcher.
 
 exporters:
   otlphttp/dead_letter:

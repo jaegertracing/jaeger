@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -87,10 +88,31 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 	rec.Assert(t, "testdata/sync_bulk_chunk_split")
 }
 
+// TestSyncBulkWriter_RecordsRequestBytes is the sync peer of
+// TestBulkIndexerRecordsRequestBytes: one multi-item chunk records exactly the
+// length of the _bulk body the server received.
+func TestSyncBulkWriter_RecordsRequestBytes(t *testing.T) {
+	rec, url := bulkServer(t, okBulkN(3))
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	w := newSyncWriter(t, url, 0, mf, zap.NewNop())
+
+	items := make([]BulkItem, 3)
+	for i := range items {
+		items[i] = BulkItem{Index: "idx", ID: strconv.Itoa(i), Body: map[string]any{"payload": strings.Repeat("x", 100*(i+1))}}
+	}
+	require.NoError(t, w.WriteBatch(context.Background(), items))
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1, "the batch fits in one chunk")
+	assert.Equal(t, 3, strings.Count(string(reqs[0].Body), `"_index":"idx"`))
+	assertRequestBytes(t, mf, len(reqs[0].Body))
+}
+
 func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
-	_, url := bulkServer(t, func(w http.ResponseWriter) {
+	rec, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":2,"errors":true,"items":[` +
 			`{"index":{"_index":"idx","status":201}},` +
 			`{"index":{"_index":"idx","_id":"bad-1","status":400,"error":{"type":"mapper_parsing_exception","reason":"boom"}}}` +
@@ -118,6 +140,9 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
+	// The chunk records the size of the _bulk body the server received.
+	require.Len(t, rec.Requests(), 1)
+	assertRequestBytes(t, mf, len(rec.Requests()[0].Body))
 }
 
 // TestSyncBulkWriter_ConflictIsIdempotent asserts a 409 version_conflict (op_type:
@@ -209,6 +234,74 @@ func TestSyncBulkWriter_DropPoison_MixedRetries(t *testing.T) {
 	require.Error(t, err, "a transient failure in the batch still fails it for retry")
 	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected", "only the transient item is reported as retryable")
 	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len(), "the terminal item is still dropped and logged")
+}
+
+func TestSyncBulkWriter_PoisonDroppedMetric(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		dropPoison bool
+		statuses   []int
+		wantDrops  int
+		wantError  bool
+	}{
+		{
+			name:       "successful and conflicting documents",
+			dropPoison: true,
+			statuses:   []int{201, 409},
+		},
+		{
+			name:      "terminal documents in fail mode",
+			statuses:  []int{400, 400},
+			wantError: true,
+		},
+		{
+			name:       "transient failures in drop mode",
+			dropPoison: true,
+			statuses:   []int{429, 503},
+			wantError:  true,
+		},
+		{
+			name:       "terminal documents in drop mode",
+			dropPoison: true,
+			statuses:   []int{400, 400},
+			wantDrops:  2,
+		},
+		{
+			name:       "mixed terminal and transient failures",
+			dropPoison: true,
+			statuses:   []int{400, 429},
+			wantDrops:  1,
+			wantError:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			results := make([]string, len(tt.statuses))
+			items := make([]BulkItem, len(tt.statuses))
+			for i, status := range tt.statuses {
+				results[i] = fmt.Sprintf(`{"index":{"status":%d}}`, status)
+				items[i] = BulkItem{Index: "idx", Body: map[string]any{"value": i}}
+			}
+			_, url := bulkServer(t, func(w http.ResponseWriter) {
+				fmt.Fprintf(w, `{"items":[%s]}`, strings.Join(results, ","))
+			})
+			mf := metricstest.NewFactory(time.Second)
+			t.Cleanup(mf.Stop)
+			w := NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), 0, tt.dropPoison, mf, zap.NewNop())
+
+			for attempt := 1; attempt <= 2; attempt++ {
+				err := w.WriteBatch(context.Background(), items)
+				if tt.wantError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{
+					Name:  "bulk_index.poison-dropped",
+					Value: attempt * tt.wantDrops,
+				})
+			}
+		})
+	}
 }
 
 func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {

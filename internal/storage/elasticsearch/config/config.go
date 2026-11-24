@@ -285,12 +285,17 @@ type Configuration struct {
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
 	// SpanSearchTieBreakByID makes a span search (RFC 0016) sort on the document _id after the
-	// caller's ordering terms, which lets a page resume exactly after its last span even when
-	// several stored spans share every other sort value. Sorting on _id needs the cluster
-	// setting indices.id_field_data.enabled, which OpenSearch and Elasticsearch 7 turn on by
-	// default and Elasticsearch 8 and later turn off. When false, a span search sorts on the
-	// ordering terms alone and spans that tie on all of them while straddling a page boundary may
-	// be skipped when retrieving the next page.
+	// caller's ordering terms and the backing index, which lets a page resume exactly after its
+	// last span even when several stored documents share every other sort value. It is off by
+	// default because _id has no doc values: to sort on it the engine builds _id field data on
+	// the heap for every document in every segment the search touches, keeps it resident, and
+	// counts it against the parent circuit breaker, so a few searches over a day of spans can
+	// take tens of gigabytes of heap and fail every other query on the cluster. The sort also
+	// needs the cluster setting indices.id_field_data.enabled, which Elasticsearch 8 and later
+	// turn off. When false, the sort ends at the backing index, and documents that tie on the
+	// ordering terms within one index while straddling a page boundary are skipped by the next
+	// page, which may then come back empty; the effective order already ends in traceID and
+	// spanID, so those are duplicates of one span.
 	SpanSearchTieBreakByID bool `mapstructure:"span_search_tie_break_by_id"`
 	// MaxSpanAge configures the maximum lookback on span reads.
 	// For alias-based rotation (manual_rollover/auto_rollover), this should be set

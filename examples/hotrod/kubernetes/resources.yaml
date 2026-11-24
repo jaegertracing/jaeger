@@ -1,0 +1,114 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: hotrod-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: localhost:5000/jaegertracing/jaeger:__IMAGE_TAG__
+          imagePullPolicy: Never
+          args: [--config=/etc/jaeger/config.yaml]
+          ports:
+            - name: query
+              containerPort: 16686
+            - name: otlp-http
+              containerPort: 4318
+          readinessProbe:
+            httpGet:
+              path: /jaeger/
+              port: query
+          volumeMounts:
+            - name: config
+              mountPath: /etc/jaeger
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: jaeger-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: hotrod-test
+spec:
+  selector:
+    app.kubernetes.io/name: jaeger
+  ports:
+    - name: query
+      port: 16686
+      targetPort: query
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: hotrod-test
+spec:
+  selector:
+    app.kubernetes.io/name: jaeger
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-hotrod
+  namespace: hotrod-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hotrod
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hotrod
+    spec:
+      containers:
+        - name: hotrod
+          image: localhost:5000/jaegertracing/example-hotrod:__IMAGE_TAG__
+          imagePullPolicy: Never
+          args:
+            - all
+            - --otel-exporter=otlp
+            - --basepath=/hotrod
+            - --jaeger-ui=http://localhost:16686/jaeger
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger-collector:4318
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /hotrod
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-hotrod
+  namespace: hotrod-test
+spec:
+  selector:
+    app.kubernetes.io/name: hotrod
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

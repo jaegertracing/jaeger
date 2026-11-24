@@ -55,7 +55,8 @@ dump_logs() {
 
   echo "::group:: Logs"
   if [ "$runtime" == "k8s" ]; then
-    kubectl logs -l app.kubernetes.io/name=jaeger
+    kubectl --namespace hotrod-test logs -l app.kubernetes.io/name=jaeger
+    kubectl --namespace hotrod-test logs -l app.kubernetes.io/name=hotrod
   else
     docker compose -f "$compose_file" logs
   fi
@@ -65,7 +66,7 @@ dump_logs() {
 teardown() {
   echo "::group::Tearing down..."
   if [[ "$success" == "false" ]]; then
-      dump_logs "${runtime}" "${docker_compose_file}"
+      dump_logs "${runtime}" "${docker_compose_file}" || true
   fi
   if [[ "${runtime}" == "k8s" ]]; then
     if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
@@ -74,8 +75,7 @@ teardown() {
     if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
       kill "$JAEGER_PORT_FWD_PID" || true
     fi
-    helm uninstall jaeger --ignore-not-found || true
-    helm uninstall prometheus --ignore-not-found || true
+    bash ./examples/hotrod/kubernetes/deploy.sh delete || true
   else
     docker compose -f "$docker_compose_file" down
   fi
@@ -128,13 +128,13 @@ if [[ "${runtime}" == "k8s" ]]; then
     exit 1
   fi
 
-  bash ./examples/oci/deploy-all.sh local "${GITHUB_SHA}"
-  kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
-  kubectl wait --for=condition=available --timeout=180s deployment/jaeger
+  bash ./examples/hotrod/kubernetes/deploy.sh apply "${GITHUB_SHA}"
+  kubectl --namespace hotrod-test wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
+  kubectl --namespace hotrod-test wait --for=condition=available --timeout=180s deployment/jaeger
 
-  kubectl port-forward svc/jaeger-hotrod 8080:80 &
+  kubectl --namespace hotrod-test port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!
-  kubectl port-forward svc/jaeger-query 16686:16686 &
+  kubectl --namespace hotrod-test port-forward svc/jaeger-query 16686:16686 &
   JAEGER_PORT_FWD_PID=$!
   echo '::endgroup::'
 
@@ -187,9 +187,9 @@ SLEEP_INTERVAL=3
 
 poll_jaeger() {
   local trace_id=$1
-  local url="${JAEGER_QUERY_URL}/api/traces/${trace_id}"
+  local url="${JAEGER_QUERY_URL}/api/v3/traces/${trace_id}"
 
-  curl -s "${url}" | jq '.data[0].spans | length' || echo "0"
+  curl -s "${url}" | jq '[.result.resourceSpans[]?.scopeSpans[]?.spans[]?] | length' || echo "0"
 }
 
 # Poll Jaeger until trace with desired number of spans is loaded or we timeout.

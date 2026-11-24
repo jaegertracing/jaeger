@@ -49,7 +49,7 @@ PROTO_INCLUDES := \
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
-		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/protoc-gen-gogo/descriptor \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
@@ -57,6 +57,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
 		Mgnostic/openapiv3/annotations.proto=github.com/google/gnostic-models/openapiv3 \
 		Mexpression/v1/expression.proto=github.com/jaegertracing/jaeger/$(EXPRESSION_PATH) \
+		Mexpression/v1/vocabulary.proto=github.com/jaegertracing/jaeger/$(EXPRESSION_PATH) \
 	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
@@ -127,7 +128,11 @@ proto-expression:
 		> $(EXPRESSION_PATCHED)
 	# protoc appends the file's path relative to its include root, expression/v1/, to the
 	# output directory, so the output root is $(EXPRESSION_ROOT), not $(EXPRESSION_PATH).
-	$(call proto_compile, $(EXPRESSION_ROOT), $(EXPRESSION_PATCHED), -I$(PROTO_GEN)/.patched -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
+	# vocabulary.proto declares the option through which expression.proto defines the
+	# operators; it extends google.protobuf.FieldOptions, which is why descriptor.proto
+	# maps to gogo's descriptor package above. It needs no patch, having no gnostic import.
+	$(call proto_compile, $(EXPRESSION_ROOT), idl/proto/expression/v1/vocabulary.proto, -Iidl/proto)
+	$(call proto_compile, $(EXPRESSION_ROOT), $(EXPRESSION_PATCHED), -I$(PROTO_GEN)/.patched -Iidl/proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 
 .PHONY: proto-pagetoken
 proto-pagetoken:
@@ -170,7 +175,7 @@ patch-storage-v2:
 		idl/proto/storage/v2/capabilities.proto \
 		> $(STORAGE_V2_PATCHED_CAPABILITIES)
 
-STORAGE_V2_INCLUDES=-I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/ -I$(PROTO_GEN)/.patched -I/gnostic -I/gnostic/gnostic
+STORAGE_V2_INCLUDES=-I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/ -I$(PROTO_GEN)/.patched -Iidl/proto -I/gnostic -I/gnostic/gnostic
 
 .PHONY: proto-storage-v2
 proto-storage-v2: patch-storage-v2 proto-expression
@@ -198,17 +203,22 @@ proto-zipkin:
 # where a manually defined traces.go file is located.
 API_V3_PATH=internal/proto/api_v3
 API_V3_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v3
-API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
+# api_v3 is two files, query_service.proto and capabilities.proto, which share one package
+# and one output directory.
+API_V3_PROTO_NAMES=query_service.proto capabilities.proto
+API_V3_PATCHED=$(addprefix $(API_V3_PATCHED_DIR)/,$(API_V3_PROTO_NAMES))
 .PHONY: patch-api-v3
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
-	$(SED) -f ./$(PROTO_GEN)/patch.sed \
-		idl/proto/api_v3/query_service.proto \
-		> $(API_V3_PATCHED)
+	for name in $(API_V3_PROTO_NAMES); do \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+			idl/proto/api_v3/$$name \
+			> $(API_V3_PATCHED_DIR)/$$name; \
+	done
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3 proto-expression
-	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -I$(PROTO_GEN)/.patched -Iidl/opentelemetry-proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
+	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -I$(PROTO_GEN)/.patched -Iidl/proto -Iidl/opentelemetry-proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 	@echo "🏗️  replace first instance of OTEL import with internal type"
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
@@ -230,7 +240,7 @@ PYTHON_SDK_DIR=sdk/python
 PYTHON_SDK_PATH=$(PYTHON_SDK_DIR)/src
 API_V3_PYTHON_PATCHED_ROOT=$(PROTO_GEN)/.patched/api_v3_python
 API_V3_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/api_v3
-API_V3_PYTHON_PATCHED=$(API_V3_PYTHON_PATCHED_DIR)/query_service.proto
+API_V3_PYTHON_PATCHED=$(addprefix $(API_V3_PYTHON_PATCHED_DIR)/,$(API_V3_PROTO_NAMES))
 # api_v3 imports the shared filter AST, so Python needs a patched copy of that too.
 EXPRESSION_PYTHON_PATCHED_DIR=$(API_V3_PYTHON_PATCHED_ROOT)/expression/v1
 EXPRESSION_PYTHON_PATCHED=$(EXPRESSION_PYTHON_PATCHED_DIR)/expression.proto
@@ -239,14 +249,16 @@ API_V3_PYTHON_PROTOS=$(API_V3_PYTHON_PATCHED) $(EXPRESSION_PYTHON_PATCHED)
 .PHONY: patch-api-v3-python
 patch-api-v3-python:
 	mkdir -p $(API_V3_PYTHON_PATCHED_DIR) $(EXPRESSION_PYTHON_PATCHED_DIR)
-	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
-		idl/proto/api_v3/query_service.proto \
-		> $(API_V3_PYTHON_PATCHED)
+	for name in $(API_V3_PROTO_NAMES); do \
+		$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
+			idl/proto/api_v3/$$name \
+			> $(API_V3_PYTHON_PATCHED_DIR)/$$name; \
+	done
 	$(SED) -f ./$(PROTO_GEN)/patch-python.sed \
 		idl/proto/expression/v1/expression.proto \
 		> $(EXPRESSION_PYTHON_PATCHED)
 	@echo "🏗️  verifying that no annotation survived the patch"
-	@! grep -nE 'google\.api|openapi\.v3|gnostic' $(API_V3_PYTHON_PROTOS) || \
+	@! grep -nE 'google\.api|openapi\.v3|gnostic|jaeger\.expression\.v1\.(operators|levels)|vocabulary\.proto' $(API_V3_PYTHON_PROTOS) || \
 		(echo "ERROR: $(PROTO_GEN)/patch-python.sed did not remove every annotation"; exit 1)
 
 # protoc comes from grpcio-tools rather than $(PROTOC), because the shared
@@ -269,7 +281,7 @@ proto-api-v3-python: patch-api-v3-python
 		--python_out=$(PYTHON_SDK_PATH) \
 		--pyi_out=$(PYTHON_SDK_PATH) \
 		--grpc_python_out=$(PYTHON_SDK_PATH) \
-		api_v3/query_service.proto
+		$(addprefix api_v3/,$(API_V3_PROTO_NAMES))
 	@# expression.proto declares no service, so it needs no gRPC stub.
 	$(PYTHON_PROTOC) \
 		-I$(API_V3_PYTHON_PATCHED_ROOT) \
@@ -283,6 +295,6 @@ proto-api-v3-python: patch-api-v3-python
 	@# on PyPI already ships them, and a second copy would register the same protos
 	@# twice in the descriptor pool. So the generated modules must import them, and
 	@# must import nothing from the stripped annotations.
-	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/query_service_pb2.py || \
+	@! grep -qE '^from (google\.api|gnostic|openapiv3) ' $(PYTHON_SDK_PATH)/api_v3/*_pb2.py || \
 		(echo "ERROR: an annotation import survived into the generated Python"; exit 1)
 	@echo "🏗️  OK: generated Python imports only the protobuf runtime and opentelemetry-proto"

@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
-	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 )
@@ -53,8 +52,6 @@ func onInitialize() {
 		)
 	}
 	logger, _ = zap.NewDevelopment(zapOptions...)
-
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
 	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 

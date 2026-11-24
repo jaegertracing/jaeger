@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"regexp/syntax"
 	"slices"
+	"unicode"
+	"unicode/utf16"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
@@ -92,6 +94,11 @@ func validateCall(call *expression.Call, quantified []expression.Level, depth in
 			return fmt.Errorf("operator %q takes a constant string as its pattern, got %s", call.Op, termName(call.Args[1]))
 		}
 		return validatePattern(pattern)
+	case expression.OpPhrase, expression.OpFulltext:
+		if err := wantArgs(call, 2); err != nil {
+			return err
+		}
+		return validateTextSearch(call)
 	case expression.OpEq, expression.OpNe:
 		if err := wantArgs(call, 2); err != nil {
 			return err
@@ -291,6 +298,60 @@ func validateFieldRef(ref *expression.FieldRef) error {
 	return nil
 }
 
+// maxWordLength is the longest word a text-search list may hold, in UTF-16 code units. The
+// constant comes from Elasticsearch and holds for every backend, so that no permitted analyzer
+// splits a listed element on length (RFC 0005 §5.3).
+const maxWordLength = 255
+
+// validateTextSearch checks the two text-search operators, which take an attribute reference and
+// a list of words (RFC 0005 §5.3). The subject is an attribute only: a built-in field is a short
+// identifier that eq and regex already search. The list declares the string type or none, and
+// every element is one word, so that no element can smuggle in the search syntax of a backend.
+func validateTextSearch(call *expression.Call) error {
+	if err := validateReference(call.Op, call.Args[0]); err != nil {
+		return err
+	}
+	if field, ok := call.Args[0].(*expression.FieldRef); ok {
+		return fmt.Errorf("operator %q searches an attribute, not the built-in field %q of the %q level", call.Op, field.Name, field.Level)
+	}
+	list, ok := call.Args[1].(*expression.List)
+	if !ok || list == nil {
+		return fmt.Errorf("operator %q takes a list of words as its second argument, got %s", call.Op, termName(call.Args[1]))
+	}
+	if len(list.Values) == 0 {
+		return fmt.Errorf("operator %q takes a list with at least one word", call.Op)
+	}
+	if list.Type != "" && list.Type != expression.ValueTypeString {
+		return fmt.Errorf("operator %q takes a list of strings, not of %q", call.Op, list.Type)
+	}
+	for _, word := range list.Values {
+		if err := validateWord(word); err != nil {
+			return fmt.Errorf("operator %q: %w", call.Op, err)
+		}
+	}
+	return nil
+}
+
+// validateWord checks one element of a text-search list: a non-empty run of letters, combining
+// marks and digits of at most maxWordLength UTF-16 code units. Whitespace is refused because the
+// caller splits the words; punctuation and symbols because tokenizers disagree on them.
+func validateWord(word string) error {
+	if word == "" {
+		return errors.New("a word is empty")
+	}
+	units := 0
+	for _, r := range word {
+		if !unicode.IsLetter(r) && !unicode.IsMark(r) && !unicode.IsDigit(r) {
+			return fmt.Errorf("a word holds letters, marks and digits only, got %q", word)
+		}
+		units += utf16.RuneLen(r)
+	}
+	if units > maxWordLength {
+		return fmt.Errorf("a word is at most %d UTF-16 code units long, got one of %d", maxWordLength, units)
+	}
+	return nil
+}
+
 // errCollectionOutOfPlace refuses a collection reference anywhere but the one place it means
 // something. A collection is many values rather than one, so nothing else can read it.
 func errCollectionOutOfPlace() error {
@@ -430,8 +491,8 @@ func orderable(e expression.Expression) bool {
 }
 
 // validatePattern checks a regular expression. RFC 0005 §5.3 makes it RE2 syntax, matched anywhere
-// in the value and case-sensitively, so a pattern that will not parse is refused here rather than
-// by whichever backend received it.
+// in the value unless the pattern anchors itself and case-sensitively unless it folds case with (?i),
+// so a pattern that will not parse is refused here rather than by whichever backend received it.
 func validatePattern(pattern string) error {
 	parsed, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
@@ -440,24 +501,54 @@ func validatePattern(pattern string) error {
 	return checkPortable(parsed)
 }
 
-// checkPortable refuses the constructs the backends this lowers to do not all have. Elasticsearch,
-// for one, reads `^` as a literal caret rather than as an anchor, so a pattern using it would be
-// answered differently by each backend instead of being refused by the ones that cannot honor it.
+// checkPortable refuses the constructs that not every backend can evaluate, so that no pattern is
+// answered differently by each backend. Anchors at the ends and case folding are portable; an anchor
+// anywhere else, the line anchors of (?m), word boundaries and lazy quantifiers are not.
 func checkPortable(re *syntax.Regexp) error {
+	parts, _, _ := SplitPatternAnchors(re)
+	for _, part := range parts {
+		if err := checkPortableInside(part); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SplitPatternAnchors takes the anchors off the ends of a parsed pattern and reports which ends they
+// were on. The parts are the elements of the pattern's top-level sequence that remain, which a
+// backend that matches whole terms wraps in its own wildcards on the sides the pattern leaves open.
+// Every anchor a pattern may carry stands at one of its ends, since checkPortable refuses the rest.
+func SplitPatternAnchors(re *syntax.Regexp) (parts []*syntax.Regexp, atStart, atEnd bool) {
+	parts = []*syntax.Regexp{re}
+	if re.Op == syntax.OpConcat {
+		parts = re.Sub
+	}
+	for len(parts) > 0 && parts[0].Op == syntax.OpBeginText {
+		atStart, parts = true, parts[1:]
+	}
+	for len(parts) > 0 && parts[len(parts)-1].Op == syntax.OpEndText {
+		atEnd, parts = true, parts[:len(parts)-1]
+	}
+	return parts, atStart, atEnd
+}
+
+// checkPortableInside applies checkPortable's rules to a node inside the pattern, where every anchor
+// is refused.
+func checkPortableInside(re *syntax.Regexp) error {
 	switch re.Op {
-	case syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText:
-		return fmt.Errorf("operator %q matches anywhere in the value, so a pattern cannot anchor itself", expression.OpRegex)
+	case syntax.OpBeginText, syntax.OpEndText:
+		return fmt.Errorf("operator %q honors an anchor only as the first or the last element of the pattern", expression.OpRegex)
+	case syntax.OpBeginLine, syntax.OpEndLine:
+		return fmt.Errorf("operator %q matches the value as a whole, so a pattern cannot use multi-line anchors", expression.OpRegex)
 	case syntax.OpWordBoundary, syntax.OpNoWordBoundary:
 		return fmt.Errorf("operator %q takes a pattern without word boundaries", expression.OpRegex)
+	default:
 	}
 	if re.Flags&syntax.NonGreedy != 0 {
 		return fmt.Errorf("operator %q asks whether the value matches, so a quantifier cannot be lazy", expression.OpRegex)
 	}
-	if re.Flags&syntax.FoldCase != 0 {
-		return fmt.Errorf("operator %q matches case-sensitively, so a pattern cannot fold case", expression.OpRegex)
-	}
 	for _, sub := range re.Sub {
-		if err := checkPortable(sub); err != nil {
+		if err := checkPortableInside(sub); err != nil {
 			return err
 		}
 	}

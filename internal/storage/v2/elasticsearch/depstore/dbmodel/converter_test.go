@@ -15,19 +15,49 @@ import (
 
 func TestConvertDependencies(t *testing.T) {
 	tests := []struct {
-		dLinks []model.DependencyLink
+		dLinks   []model.DependencyLink
+		expected []model.DependencyLink
 	}{
 		{
-			dLinks: []model.DependencyLink{{CallCount: 1, Parent: "foo", Child: "bar"}},
+			dLinks: []model.DependencyLink{
+				{
+					Parent:    "foo",
+					Child:     "bar",
+					CallCount: 1,
+					Source:    "mesh",
+				},
+			},
+			expected: []model.DependencyLink{
+				{
+					Parent:    "foo",
+					Child:     "bar",
+					CallCount: 1,
+					Source:    "mesh",
+				},
+			},
 		},
 		{
-			dLinks: []model.DependencyLink{{CallCount: 3, Parent: "foo"}},
+			dLinks: []model.DependencyLink{
+				{
+					Parent:    "foo",
+					CallCount: 3,
+				},
+			},
+			expected: []model.DependencyLink{
+				{
+					Parent:    "foo",
+					CallCount: 3,
+					Source:    model.JaegerDependencyLinkSource,
+				},
+			},
 		},
 		{
-			dLinks: []model.DependencyLink{},
+			dLinks:   []model.DependencyLink{},
+			expected: []model.DependencyLink{},
 		},
 		{
-			dLinks: nil,
+			dLinks:   nil,
+			expected: nil,
 		},
 	}
 
@@ -35,7 +65,7 @@ func TestConvertDependencies(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			got := FromDomainDependencies(test.dLinks)
 			a := ToDomainDependencies(got)
-			assert.Equal(t, test.dLinks, a)
+			assert.Equal(t, test.expected, a)
 		})
 	}
 }

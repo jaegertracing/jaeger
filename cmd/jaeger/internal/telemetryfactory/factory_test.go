@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/nopexporter"
@@ -164,8 +163,7 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 	nopExp := nopexporter.NewFactory()
 
 	set := colservice.Settings{
-		BuildInfo:     component.NewDefaultBuildInfo(),
-		CollectorConf: confmap.New(),
+		BuildInfo: component.NewDefaultBuildInfo(),
 		ReceiversConfigs: map[component.ID]component.Config{
 			component.NewID(recvType): &struct{}{},
 		},

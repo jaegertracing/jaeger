@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -75,8 +76,10 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 	}
 
 	type indexInfo struct {
-		Aliases  map[string]any    `json:"aliases"`
-		Settings map[string]string `json:"settings"`
+		Aliases  map[string]any `json:"aliases"`
+		Settings struct {
+			CreationDate string `json:"index.creation_date"`
+		} `json:"settings"`
 	}
 	var indicesInfo map[string]indexInfo
 	if err = json.Unmarshal(body, &indicesInfo); err != nil {
@@ -90,7 +93,7 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 			aliases[alias] = true
 		}
 		// ignoring error, ES should return valid date
-		creationDate, _ := strconv.ParseInt(v.Settings["index.creation_date"], 10, 64)
+		creationDate, _ := strconv.ParseInt(v.Settings.CreationDate, 10, 64)
 
 		indices = append(indices, Index{
 			Index:        k,
@@ -138,11 +141,14 @@ func (i *IndicesClient) indexDeleteRequest(ctx context.Context, concatIndices st
 func (i *IndicesClient) DeleteIndices(ctx context.Context, indices []Index) error {
 	concatIndices := ""
 	for j, index := range indices {
+		// The backend percent-decodes the path before splitting it on commas, so
+		// an unescaped name containing e.g. "%2c" would expand into more targets.
+		name := url.PathEscape(index.Index)
 		// verify the length of the concatIndices
 		// An HTTP line is should not be larger than 4096 bytes
 		// a line contains other than concatIndices data in the request, ie: master_timeout
 		// for a safer side check the line length should not exceed 4000
-		if (len(concatIndices) + len(index.Index)) > 4000 {
+		if (len(concatIndices) + len(name)) > 4000 {
 			err := i.indexDeleteRequest(ctx, concatIndices)
 			if err != nil {
 				return err
@@ -150,7 +156,7 @@ func (i *IndicesClient) DeleteIndices(ctx context.Context, indices []Index) erro
 			concatIndices = ""
 		}
 
-		concatIndices += index.Index
+		concatIndices += name
 		concatIndices += ","
 
 		// if it is last index, delete request should be executed

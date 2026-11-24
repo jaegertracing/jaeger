@@ -619,6 +619,31 @@ func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
 	}
 }
 
+func TestGetDependenciesFailureInvertedTimeRangeGRPC(t *testing.T) {
+	now := time.Now().UTC()
+	timeInputs := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{"end before start", now, now.Add(-time.Hour)},
+		{"end equal to start", now, now},
+	}
+
+	for _, input := range timeInputs {
+		t.Run(input.name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
+					StartTime: input.startTime,
+					EndTime:   input.endTime,
+				})
+
+				assertGRPCError(t, err, codes.InvalidArgument, "end_time must be after start_time")
+			})
+		})
+	}
+}
+
 // test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
 func TestGetDependenciesNilRequestOnHandlerGRPC(t *testing.T) {
 	grpcHandler := &GRPCHandler{}
@@ -707,6 +732,20 @@ func TestSearchTenancyGRPC(t *testing.T) {
 
 		spanResChunk, err := res.Recv()
 		assertGRPCError(t, err, codes.Unauthenticated, "missing tenant header")
+		assert.Nil(t, spanResChunk)
+
+		// An empty tenant is rejected even though there is no tenant allow-list
+		res, err = client.GetTrace(
+			withOutgoingMetadata(t, context.Background(), tm.Header, ""),
+			&api_v2.GetTraceRequest{
+				TraceID: mockTraceID,
+			},
+		)
+
+		require.NoError(t, err, "could not initiate GetTraceRequest")
+
+		spanResChunk, err = res.Recv()
+		assertGRPCError(t, err, codes.PermissionDenied, "unknown tenant")
 		assert.Nil(t, spanResChunk)
 
 		// Next try with tenancy

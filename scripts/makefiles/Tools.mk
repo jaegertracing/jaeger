@@ -23,13 +23,16 @@ OCB           := $(TOOLS_BIN_DIR)/builder
 install-tools: $(TOOLS_BIN_NAMES)
 
 .PHONY: install-test-tools
-install-test-tools: $(LINT) $(GOFUMPT) $(GOTESTSUM)
+install-test-tools: $(GOTESTSUM)
+
+.PHONY: install-lint-tools
+install-lint-tools: $(LINT) $(GOFUMPT)
 
 .PHONY: install-coverage-tools
 install-coverage-tools: $(GOCOVMERGE)
 
 .PHONY: install-ci
-install-ci: install-test-tools
+install-ci: install-test-tools install-lint-tools
 
 list-internal-tools:
 	@echo Third party tool modules:

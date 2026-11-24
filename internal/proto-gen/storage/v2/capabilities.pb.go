@@ -171,12 +171,13 @@ type FilterCapabilities struct {
 	// unqualified (empty-level) references reach it — which is support, not the absence of it, as
 	// long as operators names something (see the table above).
 	Levels []string `protobuf:"bytes,1,rep,name=levels,proto3" json:"levels,omitempty"`
-	// operators lists the op values the backend evaluates
-	// (and|or|not|eq|ne|gt|lt|gte|lte|regex|exists|in|not_in|some). A predicate whose op is
-	// not listed is refused. The boolean combinators are listed here like any other
-	// operator: a flat inverted index declares `and` and omits `or` and `not`, which is
-	// what confines it to the conjunctive subset. Nesting is not separately declared,
-	// because `and` is associative and a caller flattens it before asking.
+	// operators lists the op values the backend evaluates. The vocabulary, and what each
+	// operator means, is defined in the comment on the `op` field of the expression/v1
+	// Call message. A predicate whose op is not listed is refused. The
+	// boolean combinators are listed here like any other operator: a flat inverted index
+	// declares `and` and omits `or` and `not`, which is what confines it to the conjunctive
+	// subset. Nesting is not separately declared, because `and` is associative and a caller
+	// flattens it before asking.
 	Operators            []string `protobuf:"bytes,2,rep,name=operators,proto3" json:"operators,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
