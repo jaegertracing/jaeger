@@ -15,7 +15,7 @@
 
 services:
   jaeger:
-    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:latest}
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:3823829974ccfc2485d2e48b165579091f32295022ae80ca49704e2f4834116e}
     command: ["--config", "/etc/jaeger/config.yaml"]
     volumes:
       - "./jaeger-config.yaml:/etc/jaeger/config.yaml:ro"
