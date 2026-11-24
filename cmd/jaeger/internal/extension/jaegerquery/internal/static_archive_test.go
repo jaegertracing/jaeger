@@ -200,7 +200,7 @@ func TestLoadAssetsArchiveSkipsEntries(t *testing.T) {
 		archiveEntry{name: uiArchivePrefix + "/absolute.txt", typeflag: tar.TypeReg, body: "absolute"},
 		archiveEntry{name: uiArchivePrefix + "link.txt", typeflag: tar.TypeSymlink, body: "/etc/passwd"},
 	)
-	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))), zap.NewNop())
+	fsys, _, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))))
 	require.NoError(t, err)
 
 	assert.Equal(t, "<html>archived JAEGER_VERSION = DEFAULT_VERSION;</html>", readFromFS(t, fsys, "/index.html"))
@@ -223,7 +223,7 @@ func TestLoadAssetsArchiveWithoutDirectoryEntries(t *testing.T) {
 		{name: uiArchivePrefix + "index.html", typeflag: tar.TypeReg, body: "index"},
 		{name: uiArchivePrefix + "static/nested/app.js", typeflag: tar.TypeReg, body: "app"},
 	}
-	fsys, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))), zap.NewNop())
+	fsys, _, err := loadAssetsArchive(writeArchive(t, gzipBytes(t, buildTar(t, entries))))
 	require.NoError(t, err)
 	assert.Equal(t, "index", readFromFS(t, fsys, "/index.html"))
 	assert.Equal(t, "app", readFromFS(t, fsys, "/static/nested/app.js"))
@@ -260,18 +260,18 @@ func TestLoadAssetsArchiveErrors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := loadAssetsArchive(writeArchive(t, tc.data), zap.NewNop())
+			_, _, err := loadAssetsArchive(writeArchive(t, tc.data))
 			require.ErrorContains(t, err, tc.expected)
 		})
 	}
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := loadAssetsArchive(filepath.Join(t.TempDir(), "missing.tar.gz"), zap.NewNop())
+		_, _, err := loadAssetsArchive(filepath.Join(t.TempDir(), "missing.tar.gz"))
 		require.ErrorContains(t, err, "cannot open UI assets archive")
 	})
 
 	t.Run("missing archive", func(t *testing.T) {
-		_, err := openAssetsFS(filepath.Join(t.TempDir(), "missing.tar.gz"), zap.NewNop())
+		_, _, err := openAssetsFS(filepath.Join(t.TempDir(), "missing.tar.gz"))
 		require.ErrorContains(t, err, "cannot open UI assets archive")
 	})
 
@@ -297,8 +297,42 @@ func TestOpenAssetsFSFallsBackToDirectory(t *testing.T) {
 		notArchive,
 		archiveDir,
 	} {
-		fsys, err := openAssetsFS(p, zap.NewNop())
+		fsys, files, err := openAssetsFS(p)
 		require.NoError(t, err)
 		assert.Equal(t, http.Dir(p), fsys, p)
+		assert.Zero(t, files, p)
 	}
+}
+
+func TestStaticHandlerArchiveWithoutIndexLogsNothing(t *testing.T) {
+	entries := []archiveEntry{
+		{name: uiArchivePrefix + "static/app.js", typeflag: tar.TypeReg, body: "app"},
+	}
+	zapCore, logs := observer.New(zap.InfoLevel)
+	_, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: writeArchive(t, gzipBytes(t, buildTar(t, entries)))}},
+		noBackendCaps,
+		zap.New(zapCore),
+	)
+	require.ErrorContains(t, err, "cannot load index.html")
+	assert.Zero(t, logs.FilterMessage("Serving UI assets from archive").Len())
+}
+
+func TestOpenAssetsFSStatsAndOpensTheSamePath(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "a", "b")
+	require.NoError(t, os.MkdirAll(target, 0o755))
+	if err := os.Symlink(target, filepath.Join(dir, "link")); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+	// The OS resolves link/.. to dir/a, where assets.tar.gz is a directory.
+	// filepath.Clean resolves it to dir, where assets.tar.gz is the archive.
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "a", "assets.tar.gz"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets.tar.gz"),
+		gzipBytes(t, buildTar(t, releaseEntries())), 0o600))
+
+	fsys, files, err := openAssetsFS(filepath.Join(dir, "link") + "/../assets.tar.gz")
+	require.NoError(t, err)
+	assert.Equal(t, 2, files)
+	assert.Equal(t, "console.log('archived');", readFromFS(t, fsys, "/static/app.js"))
 }
