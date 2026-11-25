@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // findSpansPage returns the single chunk one FindSpans call yields.
@@ -37,7 +39,7 @@ func findTraceIDsPage(t *testing.T, store *Store, query tracestore.TraceQueryPar
 	t.Helper()
 	var chunks []tracestore.PageChunk[[]tracestore.FoundTraceID]
 	var errs []error
-	for chunk, err := range store.FindTraceIDs(context.Background(), query) {
+	for chunk, err := range store.FindTraceIDs(t.Context(), query) {
 		chunks = append(chunks, chunk)
 		errs = append(errs, err)
 	}
@@ -382,7 +384,7 @@ func writeTracesStartingAt(t *testing.T, store *Store, n int, base time.Time) {
 		span.SetSpanID(pcommon.SpanID{1})
 		span.SetName("op")
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Duration(i) * time.Minute)))
-		require.NoError(t, store.WriteTraces(context.Background(), traces))
+		require.NoError(t, store.WriteTraces(t.Context(), traces))
 	}
 }
 
@@ -458,6 +460,189 @@ func TestFindTraceIDs_PositionIsTheLatestMatchingSpan(t *testing.T) {
 	chunk, err = findTraceIDsPage(t, store, onlyA)
 	require.NoError(t, err)
 	assert.Equal(t, []byte{2, 1}, traceIDBytes(chunk.Results), "trace 1 is positioned by its only matching span")
+}
+
+func TestCappedTraceSearchOrdersByLatestMatchingSpan(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	ctx := t.Context()
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	write := func(id byte, matchingStarts ...time.Duration) {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("service.name", "svc")
+		spans := rs.ScopeSpans().AppendEmpty().Spans()
+		for i, start := range matchingStarts {
+			span := spans.AppendEmpty()
+			span.SetTraceID(pcommon.TraceID{id})
+			span.SetSpanID(pcommon.SpanID{byte(i + 1)})
+			span.SetName("match")
+			span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(start)))
+		}
+		span := spans.AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{id})
+		span.SetSpanID(pcommon.SpanID{byte(len(matchingStarts) + 1)})
+		span.SetName("other")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(10 * time.Minute)))
+		require.NoError(t, store.WriteTraces(ctx, traces))
+	}
+	write(1, time.Minute, 5*time.Minute)
+	write(2, 5*time.Minute) // same position as trace 1, higher trace ID
+	write(3, 2*time.Minute)
+	write(4) // only contains a nonmatching span
+
+	for _, test := range []struct {
+		depth uint32
+		want  []byte
+	}{
+		{depth: 1, want: []byte{1}},
+		{depth: 2, want: []byte{1, 2}},
+		{depth: 10, want: []byte{1, 2, 3}},
+	} {
+		t.Run(strconv.FormatUint(uint64(test.depth), 10), func(t *testing.T) {
+			query := tracestore.TraceQueryParams{
+				ServiceName:   "svc",
+				OperationName: "match",
+				Attributes:    pcommon.NewMap(),
+				SearchDepth:   test.depth,
+			}
+			chunk, err := findTraceIDsPage(t, store, query)
+			require.NoError(t, err)
+			assert.Equal(t, test.want, traceIDBytes(chunk.Results))
+			assert.Empty(t, chunk.NextPageToken)
+
+			paged := query
+			paged.SearchDepth = 0
+			paged.Pagination = &tracestore.Pagination{PageSize: test.depth}
+			page, err := findTraceIDsPage(t, store, paged)
+			require.NoError(t, err)
+			assert.Equal(t, chunk.Results, page.Results)
+
+			var got []byte
+			for traces, err := range store.FindTraces(t.Context(), query) {
+				require.NoError(t, err)
+				require.Len(t, traces, 1)
+				spans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+				id := spans.At(0).TraceID()[0]
+				got = append(got, id)
+				if id == 1 {
+					assert.Equal(t, 3, spans.Len(), "return the entire trace, including the nonmatching span")
+				}
+			}
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestCappedTraceSearchUpdatesBoundsOnAppendAndEviction(t *testing.T) {
+	const capacity = traceBlockSize*2 + 1
+	store, err := NewStore(Configuration{MaxTraces: capacity})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	writeTracesStartingAt(t, store, capacity, base)
+
+	write := func(id byte, op string, start time.Time) {
+		t.Helper()
+		td := ptrace.NewTraces()
+		rs := td.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("service.name", "svc")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{id})
+		span.SetSpanID(pcommon.SpanID{2})
+		span.SetName(op)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+		require.NoError(t, store.WriteTraces(t.Context(), td))
+	}
+	assertFirst := func(id byte) {
+		t.Helper()
+		query := tracestore.TraceQueryParams{
+			ServiceName: "svc", OperationName: "op", Attributes: pcommon.NewMap(), SearchDepth: 1,
+		}
+		chunk, err := findTraceIDsPage(t, store, query)
+		require.NoError(t, err)
+		assert.Equal(t, []byte{id}, traceIDBytes(chunk.Results))
+	}
+
+	assertFirst(capacity)
+	latest := base.Add(capacity * time.Minute)
+	write(1, "op", latest)
+	assertFirst(1)
+	// This improves the upper bound without changing the latest matching span.
+	write(2, "other", latest.Add(time.Minute))
+	assertFirst(1)
+	// Overwrite both growing traces and wrap into the oldest block.
+	write(capacity+1, "op", base)
+	assertFirst(capacity)
+	write(capacity+2, "op", base)
+	assertFirst(capacity)
+
+	tenant := store.getTenant(tenancy.GetTenant(t.Context()))
+	assert.Equal(t, traceKey{
+		startTime: pcommon.NewTimestampFromTime(base.Add(traceBlockSize * time.Minute)),
+		traceID:   pcommon.TraceID{traceBlockSize},
+	}, tenant.blockMax[0])
+}
+
+func TestCappedTraceSearchCancellation(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	writeTracesStartingAt(t, store, 2, time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	query := tracestore.TraceQueryParams{SearchDepth: 2, Attributes: pcommon.NewMap()}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	traces := store.FindTraces(ctx, query)
+	ids := store.FindTraceIDs(ctx, query)
+	var count int
+	for result, err := range traces {
+		count++
+		if count == 1 {
+			require.NoError(t, err)
+			require.Len(t, result, 1)
+			cancel()
+		} else {
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Empty(t, result)
+		}
+	}
+	assert.Equal(t, 2, count)
+	count = 0
+	for chunk, err := range ids {
+		count++
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Empty(t, chunk.Results)
+	}
+	assert.Equal(t, 1, count)
+
+	tenant := store.getTenant(tenancy.GetTenant(ctx))
+	matches, err := tenant.selectMatchingTraces(ctx, query, preparedFilter{})
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, matches)
+	require.True(t, tenant.mu.TryLock(), "a canceled scan must release the read lock")
+	tenant.mu.Unlock()
+}
+
+func TestCappedTraceSearchEvictsEmptyIDIndex(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 2})
+	require.NoError(t, err)
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	emptyID := ptrace.NewTraces()
+	span := emptyID.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(base))
+	require.NoError(t, store.WriteTraces(t.Context(), emptyID))
+	tenant := store.getTenant(tenancy.GetTenant(t.Context()))
+	query := tracestore.TraceQueryParams{SearchDepth: 1, Attributes: pcommon.NewMap()}
+
+	chunk, err := findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Empty(t, chunk.Results)
+	writeTracesStartingAt(t, store, 1, base)
+	require.Contains(t, tenant.ids, pcommon.TraceID{}, "keep the index until the empty trace is evicted")
+	writeTracesStartingAt(t, store, 2, base)
+	assert.NotContains(t, tenant.ids, pcommon.TraceID{}, "allow block pruning again once the sentinel is gone")
+	assert.Len(t, tenant.ids, 2)
+	chunk, err = findTraceIDsPage(t, store, query)
+	require.NoError(t, err)
+	assert.Equal(t, []byte{2}, traceIDBytes(chunk.Results))
 }
 
 func TestFindTraceIDs_PaginationRefusals(t *testing.T) {

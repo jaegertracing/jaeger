@@ -4,6 +4,8 @@
 package memory
 
 import (
+	"container/heap"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -23,6 +25,10 @@ import (
 
 var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 
+// A block groups consecutive ring slots so capped searches can skip runs of
+// older traces while keeping the cost of updating an overwritten maximum small.
+const traceBlockSize = 64
+
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	mu     sync.RWMutex
@@ -31,16 +37,20 @@ type Tenant struct {
 	ids        map[pcommon.TraceID]int // maps trace id to index in traces[]
 	traces     []traceAndId            // ring buffer to store traces
 	mostRecent int                     // position in traces[] of the most recently added trace
+	blockMax   []traceKey              // best possible key in each block of traces
 
 	services   map[string]struct{}
 	operations map[string]map[tracestore.Operation]struct{}
 }
 
 type traceAndId struct {
-	id        pcommon.TraceID
-	trace     ptrace.Traces
-	startTime time.Time
-	endTime   time.Time
+	id           pcommon.TraceID
+	trace        ptrace.Traces
+	maxSpanStart pcommon.Timestamp
+}
+
+func (t traceAndId) upperBound() traceKey {
+	return traceKey{startTime: t.maxSpanStart, traceID: t.id}
 }
 
 // matchedSpan is a matching span with its resource and scope.
@@ -55,6 +65,23 @@ type matchedSpan struct {
 type matchedTrace struct {
 	key   traceKey
 	entry traceAndId
+}
+
+// matchedTraceHeap keeps the lowest-ranked trace at the root so it can be
+// replaced when a better match arrives after the search reaches its cap.
+type matchedTraceHeap []matchedTrace
+
+func (h matchedTraceHeap) Len() int { return len(h) }
+func (h matchedTraceHeap) Less(i, j int) bool {
+	return compareTraceKeys(h[i].key, h[j].key) > 0
+}
+func (h matchedTraceHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *matchedTraceHeap) Push(x any)   { *h = append(*h, x.(matchedTrace)) }
+func (h *matchedTraceHeap) Pop() any {
+	last := len(*h) - 1
+	match := (*h)[last]
+	*h = (*h)[:last]
+	return match
 }
 
 func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.Time) bool {
@@ -72,11 +99,13 @@ func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.
 }
 
 func newTenant(cfg *Configuration) *Tenant {
+	size := int(cfg.MaxTraces)
 	return &Tenant{
 		config:     cfg,
 		ids:        make(map[pcommon.TraceID]int),
-		traces:     make([]traceAndId, cfg.MaxTraces),
+		traces:     make([]traceAndId, size),
 		mostRecent: -1,
+		blockMax:   make([]traceKey, 1+(size-1)/traceBlockSize),
 		services:   map[string]struct{}{},
 		operations: map[string]map[tracestore.Operation]struct{}{},
 	}
@@ -86,8 +115,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for traceId, sameTraceIDResourceSpan := range tracesById {
-		var startTime time.Time
-		var endTime time.Time
+		var maxSpanStart pcommon.Timestamp
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
 			if serviceName != "" {
@@ -105,74 +133,140 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 						}
 						t.operations[serviceName][operation] = struct{}{}
 					}
-					if startTime.IsZero() || span.StartTimestamp().AsTime().Before(startTime) {
-						startTime = span.StartTimestamp().AsTime()
-					}
-					if endTime.IsZero() || span.EndTimestamp().AsTime().After(endTime) {
-						endTime = span.EndTimestamp().AsTime()
-					}
+					maxSpanStart = max(maxSpanStart, span.StartTimestamp())
 				}
 			}
 		}
 		if index, ok := t.ids[traceId]; ok {
-			sameTraceIDResourceSpan.MoveAndAppendTo(t.traces[index].trace.ResourceSpans())
-			if startTime.Before(t.traces[index].startTime) {
-				t.traces[index].startTime = startTime
-			}
-			if endTime.After(t.traces[index].endTime) {
-				t.traces[index].endTime = endTime
+			entry := t.traces[index]
+			sameTraceIDResourceSpan.MoveAndAppendTo(entry.trace.ResourceSpans())
+			if maxSpanStart > entry.maxSpanStart {
+				entry.maxSpanStart = maxSpanStart
+				t.setTrace(index, entry)
 			}
 			continue
 		}
 		traces := ptrace.NewTraces()
 		sameTraceIDResourceSpan.MoveAndAppendTo(traces.ResourceSpans())
 		t.mostRecent = (t.mostRecent + 1) % len(t.traces)
-		// if there is already a trace in lastEvicted position, remove its ID from ids map
-		if !t.traces[t.mostRecent].id.IsEmpty() {
-			delete(t.ids, t.traces[t.mostRecent].id)
+		evictedID := t.traces[t.mostRecent].id
+		// A zero ID doubles as the unused-slot sentinel. Remove its index
+		// only when it belongs to the slot being overwritten.
+		if !evictedID.IsEmpty() || t.ids[evictedID] == t.mostRecent {
+			delete(t.ids, evictedID)
 		}
 		// update the ring with the trace id
 		t.ids[traceId] = t.mostRecent
-		t.traces[t.mostRecent] = traceAndId{
-			id:        traceId,
-			trace:     traces,
-			startTime: startTime,
-			endTime:   endTime,
+		t.setTrace(t.mostRecent, traceAndId{
+			id:           traceId,
+			trace:        traces,
+			maxSpanStart: maxSpanStart,
+		})
+	}
+}
+
+// setTrace updates the block maximum when a trace grows or occupies a ring
+// slot. Only replacing the current maximum with a worse key requires a rescan.
+func (t *Tenant) setTrace(index int, entry traceAndId) {
+	previous := t.traces[index]
+	t.traces[index] = entry
+	block := index / traceBlockSize
+	best := t.blockMax[block]
+	if !entry.id.IsEmpty() && (best.traceID.IsEmpty() || compareTraceKeys(entry.upperBound(), best) <= 0) {
+		t.blockMax[block] = entry.upperBound()
+		return
+	}
+	if previous.id.IsEmpty() || previous.upperBound() != best {
+		return
+	}
+	first := block * traceBlockSize
+	last := min(first+traceBlockSize, len(t.traces))
+	best = traceKey{}
+	for _, candidate := range t.traces[first:last] {
+		if !candidate.id.IsEmpty() && (best.traceID.IsEmpty() || compareTraceKeys(candidate.upperBound(), best) < 0) {
+			best = candidate.upperBound()
 		}
 	}
+	t.blockMax[block] = best
 }
 
 // findTraceAndIds returns references to the traces the store holds, not copies,
 // so that FindTraceIDs pays nothing for trace data it discards. Anything that
 // hands the traces to a reader must pass them through cloneTrace first.
-func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
+func (t *Tenant) findTraceAndIds(ctx context.Context, query tracestore.TraceQueryParams) ([]traceAndId, error) {
 	if query.SearchDepth == 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	filter, err := prepareFilter(query.Filter)
 	if err != nil {
 		return nil, err
 	}
+	matches, err := t.selectMatchingTraces(ctx, query, filter)
+	if err != nil {
+		return nil, err
+	}
+	traceAndIds := make([]traceAndId, len(matches))
+	for i := len(traceAndIds) - 1; i >= 0; i-- {
+		traceAndIds[i] = heap.Pop(&matches).(matchedTrace).entry
+	}
+	return traceAndIds, ctx.Err()
+}
+
+func (t *Tenant) selectMatchingTraces(ctx context.Context, query tracestore.TraceQueryParams, filter preparedFilter) (matchedTraceHeap, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
-	n := len(t.traces)
-	for i := range t.traces {
-		if uint64(len(traceAndIds)) == uint64(query.SearchDepth) {
-			break
+	done := ctx.Done()
+	depth := int(query.SearchDepth)
+	matches := make(matchedTraceHeap, 0, min(depth, len(t.ids)))
+	// A zero ID is the ring's empty-slot sentinel. Keep checking for it
+	// individually if a caller has written one into an occupied slot.
+	_, hasEmptyID := t.ids[pcommon.TraceID{}]
+	index := t.mostRecent
+	remaining := len(t.ids)
+	if hasEmptyID {
+		remaining = len(t.traces)
+	}
+	for remaining > 0 {
+		if searchCanceled(done) {
+			return nil, ctx.Err()
 		}
-		index := (t.mostRecent - i + n) % n
-		traceById := t.traces[index]
-		if traceById.id.IsEmpty() {
-			// Finding an empty ID means we reached a gap in the ring buffer
-			// that has not yet been filled with traces.
-			break
+		if index < 0 {
+			index = len(t.traces) - 1
 		}
-		if validTrace(traceById.trace, query, filter) {
-			traceAndIds = append(traceAndIds, traceById)
+		count := min(index%traceBlockSize+1, remaining)
+		block := index / traceBlockSize
+		entries := t.traces[index+1-count : index+1]
+		index -= count
+		remaining -= count
+		if !hasEmptyID && len(matches) == depth && compareTraceKeys(t.blockMax[block], matches[0].key) >= 0 {
+			continue
+		}
+		for _, entry := range slices.Backward(entries) {
+			if entry.id.IsEmpty() {
+				return matches, ctx.Err()
+			}
+			// The bound uses the same timestamp and trace ID ordering
+			// as the heap, including when timestamps tie.
+			if len(matches) == depth && compareTraceKeys(entry.upperBound(), matches[0].key) >= 0 {
+				continue
+			}
+			startTime, ok := latestMatchingSpanStart(entry.trace, query, filter, done)
+			if !ok {
+				continue
+			}
+			match := matchedTrace{key: traceKey{startTime: startTime, traceID: entry.id}, entry: entry}
+			if len(matches) < depth {
+				heap.Push(&matches, match)
+			} else if compareTraceKeys(match.key, matches[0].key) < 0 {
+				matches[0] = match
+				heap.Fix(&matches, 0)
+			}
 		}
 	}
-	return traceAndIds, nil
+	return matches, ctx.Err()
 }
 
 // findSpans returns one page of the spans, across all traces, that start
@@ -277,7 +371,7 @@ func (t *Tenant) findTraceAndIdsPage(query tracestore.TraceQueryParams, after *c
 		if entry.id.IsEmpty() {
 			continue
 		}
-		startTime, ok := latestMatchingSpanStart(entry.trace, query, filter)
+		startTime, ok := latestMatchingSpanStart(entry.trace, query, filter, nil)
 		if !ok {
 			continue
 		}
@@ -378,33 +472,27 @@ func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (stri
 	return "", false
 }
 
-// validTrace reports whether any span of the trace matches the query.
-func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter) bool {
-	matched := false
-	forEachMatchingSpan(td, query, filter, func(ptrace.Span) bool {
-		matched = true
+func searchCanceled(done <-chan struct{}) bool {
+	if done == nil {
 		return false
-	})
-	return matched
+	}
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
 }
 
 // latestMatchingSpanStart returns the latest start time among the trace's
-// matching spans, and false if none matches.
-func latestMatchingSpanStart(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter) (pcommon.Timestamp, bool) {
+// matching spans, and false if none matches or done is closed.
+func latestMatchingSpanStart(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter, done <-chan struct{}) (pcommon.Timestamp, bool) {
 	var latest pcommon.Timestamp
 	matched := false
-	forEachMatchingSpan(td, query, filter, func(span ptrace.Span) bool {
-		matched = true
-		latest = max(latest, span.StartTimestamp())
-		return true
-	})
-	return latest, matched
-}
-
-// forEachMatchingSpan calls visit on each span of the trace that matches the
-// query, stopping when visit returns false.
-func forEachMatchingSpan(td ptrace.Traces, query tracestore.TraceQueryParams, filter preparedFilter, visit func(ptrace.Span) bool) {
 	for _, resourceSpan := range td.ResourceSpans().All() {
+		if searchCanceled(done) {
+			return 0, false
+		}
 		// query.ServiceName is always empty when query.Filter is set (the two are
 		// mutually exclusive, enforced before a Reader ever sees the query), so this
 		// resource pre-check is a no-op for a filter query rather than something
@@ -414,13 +502,18 @@ func forEachMatchingSpan(td ptrace.Traces, query tracestore.TraceQueryParams, fi
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
+				if searchCanceled(done) {
+					return 0, false
+				}
 				if validSpan(resourceSpan.Resource(), scopeSpan.Scope(), span, query, filter,
-					resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) && !visit(span) {
-					return
+					resourceSpan.SchemaUrl(), scopeSpan.SchemaUrl()) {
+					matched = true
+					latest = max(latest, span.StartTimestamp())
 				}
 			}
 		}
 	}
+	return latest, matched
 }
 
 func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {

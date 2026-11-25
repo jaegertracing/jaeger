@@ -793,7 +793,6 @@ func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 		SearchDepth: 5,
 		Attributes:  pcommon.NewMap(),
 	})
-	// This test whether the traces are fetched in Reverse Chronological Order
 	iterLength := 0
 	for traces, err := range iter {
 		require.NoError(t, err)
@@ -1126,10 +1125,14 @@ func TestGetDependencies_TimeRangeFiltering(t *testing.T) {
 }
 
 func writeTenTraces(t *testing.T, store *Store) {
+	t.Helper()
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))
 		traces := ptrace.NewTraces()
-		traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceID)
+		span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(traceID)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(base.Add(time.Duration(i) * time.Second)))
 		err := store.WriteTraces(context.Background(), traces)
 		require.NoError(t, err)
 	}
