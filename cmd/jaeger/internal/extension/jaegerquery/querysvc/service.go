@@ -267,8 +267,16 @@ func (qs QueryService) FindTraces(
 //
 // A reader that cannot say returns an error wrapping errors.ErrUnsupported, which callers read
 // as the least capable backend.
+//
+// Paginated is reported as false while PaginationGate is disabled, whatever the reader declares.
+// The gate refuses every continuation token, and a client that was told the search pages would
+// take a full page without a token for the last one.
 func (qs QueryService) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
-	return qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if !PaginationGate.IsEnabled() {
+		caps.Paginated = false
+	}
+	return caps, err
 }
 
 // SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
@@ -414,7 +422,7 @@ func ensureSpanPaginationSupported(caps tracestore.SearchCapabilities, paginatio
 // its capabilities reads as the least capable one, which serves only the legacy predicate fields
 // and no span search.
 func (qs QueryService) readerSearchCapabilitiesOrDefault(ctx context.Context) tracestore.SearchCapabilities {
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.SearchCapabilities(ctx)
 	if err != nil {
 		caps = tracestore.SearchCapabilities{}
 	}

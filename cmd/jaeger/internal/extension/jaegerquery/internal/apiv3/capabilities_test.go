@@ -21,6 +21,7 @@ import (
 )
 
 func TestGetCapabilities(t *testing.T) {
+	enablePagination(t)
 	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{
 		WithoutServiceName:  true,
 		SameSpanConjunction: true,

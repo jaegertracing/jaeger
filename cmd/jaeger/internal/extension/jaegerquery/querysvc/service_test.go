@@ -1868,3 +1868,26 @@ func TestSearchCapabilitiesForwardsTheReaderDeclaration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
+
+func TestSearchCapabilities_PaginatedFollowsTheGate(t *testing.T) {
+	tests := []struct {
+		name        string
+		gateEnabled bool
+		paginated   bool
+	}{
+		{name: "gate disabled", gateEnabled: false, paginated: false},
+		{name: "gate enabled", gateEnabled: true, paginated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setPagination(t, tt.gateEnabled)
+			tqs := initializeBareTestQueryService()
+			tqs.traceReader.On("SearchCapabilities", mock.Anything).
+				Return(tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}, nil)
+
+			got, err := tqs.queryService.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tracestore.SearchCapabilities{SpanSearch: true, Paginated: tt.paginated}, got)
+		})
+	}
+}
