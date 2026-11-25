@@ -140,6 +140,32 @@ func makeTraces() (td ptrace.Traces, ids [3]tracestore.RejectedSpan) {
 	return td, ids
 }
 
+func TestConsumeTraces_PermanentStorageErrorDoesNotRetry(
+	t *testing.T,
+) {
+	cfg := directConfig()
+	cfg.RetryConfig.Enabled = true
+	cfg.RetryConfig.InitialInterval = time.Millisecond
+	cfg.RetryConfig.MaxInterval = time.Millisecond
+	cfg.RetryConfig.MaxElapsedTime = time.Second
+
+	sink := new(consumertest.TracesSink)
+	td, _ := makeTraces()
+
+	rejected := consumererror.NewPermanent(
+		errors.New("remote storage rejected spans (count=1)"),
+	)
+	w := &fakeWriter{err: rejected}
+	c := newTestConnector(t, cfg, sink, w)
+
+	err := c.ConsumeTraces(t.Context(), td)
+
+	require.ErrorIs(t, err, rejected)
+	assert.True(t, consumererror.IsPermanent(err))
+	assert.Equal(t, 1, w.calls)
+	assert.Empty(t, sink.AllTraces())
+}
+
 // rejectedErr builds the error a writer returns for the given rejected spans.
 func rejectedErr(transient bool, spans ...tracestore.RejectedSpan) *tracestore.RejectedSpansError {
 	return &tracestore.RejectedSpansError{Spans: spans, Transient: transient, Err: errors.New("2 of 3 bulk items rejected")}
