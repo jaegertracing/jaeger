@@ -12,9 +12,28 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 )
 
 var _ tracestore.Writer = (*TraceWriter)(nil)
+
+// partialWriteError preserves an OTLP partial-success response across a storage hop.
+// OTLP reports a count, not the identities of the rejected spans.
+type partialWriteError struct {
+	rejectedSpans int64
+	message       string
+}
+
+func (e *partialWriteError) Error() string {
+	message := fmt.Sprintf(
+		"remote storage rejected spans (count=%d)",
+		e.rejectedSpans,
+	)
+	if e.message != "" {
+		message += ": " + e.message
+	}
+	return message
+}
 
 type TraceWriter struct {
 	client ptraceotlp.GRPCClient
@@ -30,11 +49,24 @@ func NewTraceWriter(conn *grpc.ClientConn) *TraceWriter {
 	}
 }
 
-func (tw *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
+func (tw *TraceWriter) WriteTraces(
+	ctx context.Context,
+	td ptrace.Traces,
+) error {
 	req := ptraceotlp.NewExportRequestFromTraces(td)
-	_, err := tw.client.Export(ctx, req)
+
+	response, err := tw.client.Export(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to export traces: %w", err)
 	}
+
+	partial := response.PartialSuccess()
+	if partial.RejectedSpans() > 0 {
+		return consumererror.NewPermanent(&partialWriteError{
+			rejectedSpans: partial.RejectedSpans(),
+			message:       partial.ErrorMessage(),
+		})
+	}
+
 	return nil
 }
