@@ -18,6 +18,19 @@ Note: In this example, the `TraceService` is configured to run on a different po
 The integration tests also require a POST HTTP endpoint that can be called to purge the storage backend,
 ensuring a clean state before each test run.
 
+## Partial write responses
+
+If an OTLP write response reports rejected spans, the remote-storage writer
+returns a non-retryable error containing the rejection count and backend
+explanation. The batch must not be retried: OTLP partial-success responses
+do not identify the rejected spans, and the other spans may already have
+been accepted. A warning-only response with zero rejected spans remains
+successful.
+
+When the remote-storage server forwards writes to another gRPC storage
+backend, it preserves that backend's partial-success count and explanation
+in its OTLP response.
+
 ## Certifying compliance
 
 To verify that your remote storage backend works correctly with Jaeger, you can run the integration tests provided by the Jaeger project.
