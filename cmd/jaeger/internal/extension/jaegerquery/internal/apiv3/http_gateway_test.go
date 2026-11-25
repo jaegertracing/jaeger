@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -888,6 +889,12 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 // service (here, the feature gate) reaches the HTTP caller as a 501, since another deployment
 // serves the same query, and not as a 500.
 func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
+	gate := querysvc.PaginationGate
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), false))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
 	q, _ := mockFindSpansQuery()
 	q.Set("query.pagination.pageToken", "opaque-cursor")
 	gw := setupHTTPGatewayNoServer(t, "")
