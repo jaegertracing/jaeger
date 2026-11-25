@@ -185,6 +185,8 @@ requires connection to Cassandra
 
 Jaeger changes are reviewed through GitHub pull requests. Reviewers are expected to evaluate whether a change is appropriate for the project, whether the implementation is correct and maintainable, and whether it is covered by suitable tests and documentation.
 
+[REVIEW.md](./REVIEW.md) states what a review reports, including how the operational risk of a change is assessed. It applies to a human reviewer and to an AI agent alike.
+
 Before approving a pull request, reviewers should check that:
 
 * the change is understandable, scoped to the stated problem, and consistent with the project's architecture and coding style,
