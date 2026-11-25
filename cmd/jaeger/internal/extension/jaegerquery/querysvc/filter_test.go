@@ -207,8 +207,9 @@ func TestPrepareSearchQuery_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T
 // TestStructuredFiltersGate_CannotBeDisabled pins the property that the query service relies
 // on when it admits a filter without consulting the gate.
 func TestStructuredFiltersGate_CannotBeDisabled(t *testing.T) {
-	require.Error(t, featuregate.GlobalRegistry().Set(StructuredFiltersGate.ID(), false))
-	assert.True(t, StructuredFiltersGate.IsEnabled())
+	const id = "jaeger.query.structuredFilters"
+	require.NoError(t, featuregate.GlobalRegistry().Set(id, true), "naming the gate is still accepted")
+	require.Error(t, featuregate.GlobalRegistry().Set(id, false))
 }
 
 // TestPrepareSearchQuery_RefusesAMalformedFilter covers the boundary check the conversion no

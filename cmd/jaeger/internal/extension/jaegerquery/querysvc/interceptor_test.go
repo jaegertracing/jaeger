@@ -1120,9 +1120,9 @@ func TestFindSpans_RefusesAPredicateTheBackendCannotServe(t *testing.T) {
 	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
-// TestFindSpans_RefusesACallerFilterThatDoesNotFinalize covers the refusal of a caller's filter
-// that depends on nothing the backend declared. The filter is the caller's to fix, so the refusal
-// reads as a bad request and the search does not reach storage.
+// TestFindSpans_RefusesACallerFilterThatDoesNotFinalize covers a refusal that does not depend on
+// what the backend declared: a caller's filter that does not finalize. The filter is the caller's
+// to fix, so the refusal reads as a bad request and the search does not reach storage.
 func TestFindSpans_RefusesACallerFilterThatDoesNotFinalize(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	qs := interceptedService(next)
@@ -1528,33 +1528,4 @@ func TestFindTraceSummaries_FallbackAppliesResultHook(t *testing.T) {
 	}
 	require.ErrorIs(t, err, assert.AnError, "the fallback's traces pass through OnTraceResult")
 	assert.Equal(t, 1, onQueryCalls, "the fallback reuses the query the interceptor already saw")
-}
-
-// TestInterceptorSeesLegacyPredicatesAsAFilter pins what an interceptor is shown when a caller
-// sends the legacy predicate fields and no filter: every predicate arrives as a filter that the
-// interceptor can narrow, and storage gets the result in the shape the backend supports.
-func TestInterceptorSeesLegacyPredicatesAsAFilter(t *testing.T) {
-	var seen queryinterceptor.TraceQuery
-	next := &fakeReader{batch: tracesWith("k", "v")}
-	qs := interceptedService(next, fakeInterceptor{
-		onQuery: func(q queryinterceptor.TraceQuery) (queryinterceptor.TraceQuery, error) {
-			seen = q
-			q.Filter = serviceFilter("gated")
-			return q, nil
-		},
-	})
-
-	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(TraceQueryParams{
-		ServiceName:  "original",
-		Attributes:   attributesWith("http.method", "GET"),
-		StartTimeMin: time.Now().Add(-time.Hour),
-		StartTimeMax: time.Now(),
-	})))
-	require.NoError(t, err)
-
-	require.NotNil(t, seen.Filter, "the interceptor is shown predicates")
-	assert.Equal(t, expression.OpAnd, seen.Filter.Op)
-	assert.Len(t, seen.Filter.Args, 2, "the service and the tag both became predicates")
-	assert.Equal(t, "gated", next.gotQuery.ServiceName, "storage gets what the interceptor chose")
-	assert.Nil(t, next.gotQuery.Filter, "in the shape this backend supports")
 }

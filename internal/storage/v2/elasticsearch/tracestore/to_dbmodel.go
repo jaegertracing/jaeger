@@ -229,8 +229,8 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	return tags
 }
 
-// linksToDbSpanRefs converts span links into jaeger span references. The parent span ID is
-// not among them: it is stored in the parentSpanID field of the span.
+// linksToDbSpanRefs converts span links into jaeger span references. It adds no reference
+// for the parent span ID, which is stored in the parentSpanID field of the span.
 func linksToDbSpanRefs(links ptrace.SpanLinkSlice) []dbmodel.Reference {
 	if links.Len() == 0 {
 		return nil

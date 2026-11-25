@@ -757,7 +757,9 @@ func TestSpanToDbSpan_OmitsParentSpanIDReference(t *testing.T) {
 // TestOmitParentSpanIDReferenceGate_CannotBeDisabled pins the property that the write path
 // relies on when it omits the parent reference without consulting the gate.
 func TestOmitParentSpanIDReferenceGate_CannotBeDisabled(t *testing.T) {
-	require.Error(t, featuregate.GlobalRegistry().Set("jaeger.es.omitParentSpanIDReference", false))
+	const id = "jaeger.es.omitParentSpanIDReference"
+	require.NoError(t, featuregate.GlobalRegistry().Set(id, true), "naming the gate is still accepted")
+	require.Error(t, featuregate.GlobalRegistry().Set(id, false))
 }
 
 func BenchmarkInternalTracesToDbSpans(b *testing.B) {
