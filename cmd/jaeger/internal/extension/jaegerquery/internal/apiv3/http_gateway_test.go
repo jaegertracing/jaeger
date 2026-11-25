@@ -890,6 +890,7 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 // service (here, the feature gate) reaches the HTTP caller as a 501, since another deployment
 // serves the same query, and not as a 500.
 func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
+	setPagination(t, false)
 	q, _ := mockFindSpansQuery()
 	q.Set("query.pagination.pageToken", "opaque-cursor")
 	gw := setupHTTPGatewayNoServer(t, "")
