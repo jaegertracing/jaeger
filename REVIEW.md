@@ -38,7 +38,7 @@ The first line of the review rates the risk, with the reason in one sentence. Th
 - **Medium:** the change takes effect on upgrade and can be undone, or it takes effect only when enabled and cannot be undone.
 - **High:** the change takes effect on upgrade, in every deployment that it applies to, and it cannot be undone.
 
-A change to the build or the release reaches a deployment only through the next release, so it is rated by what that release would do if the change were wrong. A High rating asks for the maintainer review that [Code review requirements](./CONTRIBUTING.md#code-review-requirements) describes, whatever the size of the diff.
+The two questions do not fit a change to the build, to CI or to release tooling. Rate such a change by the damage that a mistake in it does before it is reverted. It is High when a revert does not undo the damage, such as a leaked secret or a published artifact. A High rating asks for the maintainer review that [Code review requirements](./CONTRIBUTING.md#code-review-requirements) describes, whatever the size of the diff.
 
 When no item applies, the review says nothing about risk.
 
