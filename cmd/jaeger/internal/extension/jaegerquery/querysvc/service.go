@@ -311,10 +311,6 @@ func (qs QueryService) prepareSearchQuery(
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
-		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrFilterDisabled, StructuredFiltersGate.ID())
-		}
 		if err := query.EnsureFilterStandsAlone(); err != nil {
 			return ctx, query, err
 		}
@@ -371,13 +367,9 @@ func (qs QueryService) prepareSpanSearchQuery(
 		return ctx, query, ErrProjectionUnsupported
 	}
 	// A search over the time range alone carries no filter and is the base case of a span query
-	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
-	// depends on the backend, so both come before the capability call rather than after it.
+	// (RFC 0016 §5.1), so finalization applies only when the caller sent one. It does not depend
+	// on the backend, so it comes before the capability call rather than after it.
 	if query.Filter != nil {
-		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrFilterDisabled, StructuredFiltersGate.ID())
-		}
 		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
 			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)

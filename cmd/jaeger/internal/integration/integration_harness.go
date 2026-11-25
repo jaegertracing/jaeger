@@ -74,6 +74,10 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
+// paginationGates enables the RFC 0014 pagination gate. The gate is beta and on by default, and
+// it is still passed explicitly so that the suites do not depend on the default and keep working
+// against a binary that pins the gate off. The pagination and span ordering tests send page
+// tokens through the query service.
 var paginationGates = []string{querysvc.PaginationGate.ID()}
 
 // numericAttributesEnvVar is the environment variable the Elasticsearch and OpenSearch e2e
@@ -81,14 +85,6 @@ var paginationGates = []string{querysvc.PaginationGate.ID()}
 // the ordinary suites range over the numeric sub-field; the backward-compatibility scenarios set
 // it to describe the deployment each one stands for.
 const numericAttributesEnvVar = "ES_NUMERIC_ATTRIBUTES"
-
-// searchGates enables the RFC 0005 filter gate and the RFC 0014 pagination gate, for a suite
-// whose backend declares both the filter and pagination capabilities. Both gates are beta and on
-// by default, and they are still passed explicitly so that the suites do not depend on the
-// default and keep working against a binary that pins a gate off. The filter battery and the
-// rewrite test send a filter, and the pagination and span ordering tests send page tokens
-// through the query service.
-var searchGates = []string{querysvc.StructuredFiltersGate.ID(), querysvc.PaginationGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

@@ -169,7 +169,6 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 // request is malformed whatever the backend can do, so the reader is asked for nothing — it has
 // no expectations set, and any call to it would fail the test.
 func TestPrepareSearchQuery_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	filter := tag(expression.OpEq, "http.method", "GET")
 	tests := []struct {
 		name     string
@@ -205,37 +204,11 @@ func TestPrepareSearchQuery_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T
 	}
 }
 
-// enableStructuredFilters turns the filter feature gate on for one test and restores it
-// afterwards. The gate is off by default, so a test that dispatches a filter has to ask for it —
-// which is the isolation the gate exists to give a deployment that has not opted in.
-func enableStructuredFilters(t *testing.T) {
-	setStructuredFilters(t, true)
-}
-
-func setStructuredFilters(t *testing.T, enabled bool) {
-	original := StructuredFiltersGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(StructuredFiltersGate.ID(), enabled))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(StructuredFiltersGate.ID(), original))
-	})
-}
-
-// TestPrepareSearchQuery_FilterDisabled pins what a deployment that has opted out does with
-// a query carrying a filter: it is refused where every other unserviceable query is refused,
-// and the reader is never asked for its capabilities, let alone dispatched to. The gate is on by
-// default, which TestStructuredFiltersGate_IsBeta pins separately, so this is the opted-out path.
-func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
-	setStructuredFilters(t, false)
-
-	reader := new(tracestoremocks.Reader)
-	qs := NewQueryService(reader, nil, QueryServiceOptions{})
-	query := filterQuery(tag(expression.OpEq, "a", "1"))
-
-	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
-	require.ErrorIs(t, err, ErrFilterDisabled)
-	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
-	require.ErrorIs(t, err, errors.ErrUnsupported, "the API layers answer 501")
-	reader.AssertExpectations(t)
+// TestStructuredFiltersGate_CannotBeDisabled pins the property that the query service relies
+// on when it admits a filter without consulting the gate.
+func TestStructuredFiltersGate_CannotBeDisabled(t *testing.T) {
+	require.Error(t, featuregate.GlobalRegistry().Set(StructuredFiltersGate.ID(), false))
+	assert.True(t, StructuredFiltersGate.IsEnabled())
 }
 
 // TestPrepareSearchQuery_RefusesAMalformedFilter covers the boundary check the conversion no
@@ -243,7 +216,6 @@ func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 // service is where a tree this build has no meaning for is refused — before the reader is asked
 // anything, since it has no expectations set here.
 func TestPrepareSearchQuery_RefusesAMalformedFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	reader := new(tracestoremocks.Reader)
 	qs := NewQueryService(reader, nil, QueryServiceOptions{})
 	query := filterQuery(tag("matches", "a", "b"))
@@ -260,7 +232,6 @@ func TestPrepareSearchQuery_RefusesAMalformedFilter(t *testing.T) {
 // nobody can read is answered at the query boundary rather than handed to a backend to
 // interpret. The reader has no expectations set, so a call to it would fail the test.
 func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T) {
-	enableStructuredFilters(t)
 	tests := []struct {
 		name        string
 		filter      *expression.Call
@@ -295,7 +266,6 @@ func TestPrepareSearchQuery_RefusesAConstantThatDoesNotFitItsField(t *testing.T)
 // rewrite that depends on it: a caller writes a duration as a spelling, and the bound reaches a
 // reader that serves only the legacy fields as the length of time it names.
 func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
-	enableStructuredFilters(t)
 	filter := p.Span().Duration.Gte("1m30s")
 
 	var dispatched tracestore.TraceQueryParams
@@ -308,11 +278,6 @@ func TestPrepareSearchQuery_ResolvesADurationBeforeDispatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 90*time.Second, dispatched.DurationMin)
 	reader.AssertExpectations(t)
-}
-
-func TestStructuredFiltersGate_IsBeta(t *testing.T) {
-	assert.Equal(t, featuregate.StageBeta, StructuredFiltersGate.Stage(),
-		"Beta is what makes the filter available unless a deployment turns it off")
 }
 
 // TestRefusalFamilies pins every query-service refusal to exactly one of the two families the
@@ -330,7 +295,6 @@ func TestRefusalFamilies(t *testing.T) {
 	unsupported := []error{
 		ErrServiceNameRequired,
 		ErrSpanSearchUnsupported,
-		ErrFilterDisabled,
 		tracestore.ErrFilterUnsupported,
 		tracestore.ErrSpanOrderUnsupported,
 		ErrPaginationDisabled,
