@@ -111,10 +111,14 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return nil
 	})
 
-	// Do cache refresh here to release the transaction earlier
+	if err != nil {
+		return err
+	}
+
+	// Do cache refresh here to release the transaction earlier.
 	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
 
-	return err
+	return nil
 }
 
 func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID model.TraceID) []byte {

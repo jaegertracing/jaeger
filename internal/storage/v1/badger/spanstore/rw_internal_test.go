@@ -80,6 +80,21 @@ func TestEncodingTypes(t *testing.T) {
 	})
 }
 
+func TestWriteSpanDoesNotCacheFailedWrite(t *testing.T) {
+	// Not parallel: it closes the shared Badger store.
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		testSpan := createDummySpan()
+		cache := NewCacheStore(store, time.Hour)
+		sw := NewSpanWriter(store, cache, time.Hour)
+
+		require.NoError(t, store.Close())
+		err := sw.WriteSpan(context.Background(), &testSpan)
+		require.Error(t, err)
+		assert.Empty(t, cache.services)
+		assert.Empty(t, cache.operations)
+	})
+}
+
 func TestDecodeErrorReturns(t *testing.T) {
 	t.Parallel()
 	garbage := []byte{0x08}
