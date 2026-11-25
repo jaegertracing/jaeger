@@ -274,6 +274,15 @@ func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) 
 ) {
 	err := h.traceWriter.WriteTraces(ctx, sanitizer.Sanitize(request.Traces()))
 	if err != nil {
+		var rejected *tracestore.RejectedSpansError
+		if errors.As(err, &rejected) && !rejected.Transient && rejected.Unidentified == 0 {
+			response := ptraceotlp.NewExportResponse()
+			response.PartialSuccess().SetRejectedSpans(int64(len(rejected.Spans)))
+			if rejected.Err != nil {
+				response.PartialSuccess().SetErrorMessage(rejected.Err.Error())
+			}
+			return response, nil
+		}
 		return ptraceotlp.NewExportResponse(), err
 	}
 	return ptraceotlp.NewExportResponse(), nil

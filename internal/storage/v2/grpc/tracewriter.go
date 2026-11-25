@@ -7,6 +7,9 @@ import (
 	"context"
 	"fmt"
 
+	"errors"
+
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
@@ -32,9 +35,18 @@ func NewTraceWriter(conn *grpc.ClientConn) *TraceWriter {
 
 func (tw *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	req := ptraceotlp.NewExportRequestFromTraces(td)
-	_, err := tw.client.Export(ctx, req)
+	resp, err := tw.client.Export(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to export traces: %w", err)
 	}
+
+	if partial := resp.PartialSuccess(); partial.RejectedSpans() > 0 {
+		rejectedErr := &tracestore.RejectedSpansError{Unidentified: int(partial.RejectedSpans())}
+		if msg := partial.ErrorMessage(); msg != "" {
+			rejectedErr.Err = errors.New(msg)
+		}
+		return consumererror.NewPermanent(rejectedErr)
+	}
+
 	return nil
 }

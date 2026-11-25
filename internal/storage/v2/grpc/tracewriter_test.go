@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
@@ -19,14 +20,19 @@ import (
 type testWriterServer struct {
 	ptraceotlp.UnimplementedGRPCServer
 
-	err error
+	err        error
+	rejected   int64
+	errMessage string
 }
 
 func (s *testWriterServer) Export(
 	context.Context,
 	ptraceotlp.ExportRequest,
 ) (ptraceotlp.ExportResponse, error) {
-	return ptraceotlp.NewExportResponse(), s.err
+	resp := ptraceotlp.NewExportResponse()
+	resp.PartialSuccess().SetRejectedSpans(s.rejected)
+	resp.PartialSuccess().SetErrorMessage(s.errMessage)
+	return resp, s.err
 }
 
 func startWriterServer(t *testing.T, testServer *testWriterServer) *grpc.ClientConn {
@@ -61,7 +67,10 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	tests := []struct {
 		name        string
 		serverErr   error
+		rejected    int64
+		errMessage  string
 		expectedErr string
+		permanent   bool
 	}{
 		{
 			name: "no error",
@@ -71,11 +80,22 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 			serverErr:   assert.AnError,
 			expectedErr: "failed to export traces",
 		},
+		{
+			name:        "partial success with rejected spans",
+			rejected:    1,
+			errMessage:  "backend rejected one span",
+			expectedErr: `storage rejected 0 spans terminally and 1 unidentified documents (transient failures: false): backend rejected one span`,
+			permanent:   true,
+		},
+		{
+			name:       "warning-only partial success",
+			errMessage: "informational warning",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server := &testWriterServer{err: test.serverErr}
+			server := &testWriterServer{err: test.serverErr, rejected: test.rejected, errMessage: test.errMessage}
 			conn := startWriterServer(t, server)
 
 			writer := NewTraceWriter(conn)
@@ -84,6 +104,7 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, test.expectedErr)
+				require.Equal(t, test.permanent, consumererror.IsPermanent(err))
 			}
 		})
 	}

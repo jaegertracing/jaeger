@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -526,6 +527,32 @@ func TestHandler_Export(t *testing.T) {
 			require.Equal(t, ptraceotlp.NewExportResponse(), response)
 		})
 	}
+}
+
+func TestHandler_ExportPartialRejection(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := tracestoremocks.NewWriter(t)
+	depReader := new(depstoremocks.Reader)
+	rejected := &tracestore.RejectedSpansError{Spans: []tracestore.RejectedSpan{{}}, Err: errors.New("backend rejected one span")}
+	writer.On("WriteTraces", mock.Anything, sanitizer.Sanitize(makeTestTrace())).Return(consumererror.NewPermanent(rejected)).Once()
+	server := NewHandler(reader, writer, depReader)
+
+	response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
+	require.NoError(t, err)
+	require.Equal(t, int64(1), response.PartialSuccess().RejectedSpans())
+	require.Equal(t, "backend rejected one span", response.PartialSuccess().ErrorMessage())
+}
+
+func TestHandler_ExportUnidentifiedRejectionReturnsError(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := tracestoremocks.NewWriter(t)
+	depReader := new(depstoremocks.Reader)
+	rejected := &tracestore.RejectedSpansError{Unidentified: 1, Err: errors.New("backend rejected one span")}
+	writer.On("WriteTraces", mock.Anything, sanitizer.Sanitize(makeTestTrace())).Return(consumererror.NewPermanent(rejected)).Once()
+	server := NewHandler(reader, writer, depReader)
+
+	_, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
+	require.Error(t, err)
 }
 
 func TestHandler_GetDependencies(t *testing.T) {
