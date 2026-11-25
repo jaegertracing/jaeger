@@ -148,14 +148,15 @@ func TestTraceWriter_RemoteWriteResponse(t *testing.T) {
 
 			err := writer.WriteTraces(ctx, partialWriteTestTraces())
 
-			if test.rpcErr != nil {
+			switch {
+			case test.rpcErr != nil:
 				require.ErrorContains(
 					t,
 					err,
 					"failed to export traces",
 				)
 				assert.False(t, consumererror.IsPermanent(err))
-			} else if test.rejectedSpans > 0 {
+			case test.rejectedSpans > 0:
 				require.Error(t, err)
 				assert.True(t, consumererror.IsPermanent(err))
 
@@ -173,8 +174,8 @@ func TestTraceWriter_RemoteWriteResponse(t *testing.T) {
 				if test.message != "" {
 					expected += ": " + test.message
 				}
-				assert.EqualError(t, partial, expected)
-			} else {
+				require.EqualError(t, partial, expected)
+			default:
 				require.NoError(t, err)
 			}
 
