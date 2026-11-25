@@ -969,9 +969,14 @@ func enableStructuredFilters(t *testing.T) {
 // enablePagination turns the pagination feature gate on for one test and restores it afterwards.
 // The query service returns a reader's continuation token only while the gate is enabled.
 func enablePagination(t *testing.T) {
+	setPagination(t, true)
+}
+
+// setPagination sets the pagination feature gate for one test and restores it afterwards.
+func setPagination(t *testing.T, enabled bool) {
 	gate := querysvc.PaginationGate
 	original := gate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
 	t.Cleanup(func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
 	})
