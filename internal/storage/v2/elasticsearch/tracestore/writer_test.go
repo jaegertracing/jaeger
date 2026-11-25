@@ -34,12 +34,9 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestTraceWriter_WriteTraces_OmitParentSpanIDReference pins that enabling the
-// omitParentSpanIDReference gate makes WriteTraces write spans whose parent span ID
-// is not also encoded as a synthetic CHILD_OF reference.
-func TestTraceWriter_WriteTraces_OmitParentSpanIDReference(t *testing.T) {
-	setOmitParentSpanIDReferenceGate(t, true)
-
+// TestTraceWriter_WriteTraces_OmitsParentSpanIDReference pins that WriteTraces writes
+// spans whose parent span ID is not also encoded as a synthetic CHILD_OF reference.
+func TestTraceWriter_WriteTraces_OmitsParentSpanIDReference(t *testing.T) {
 	// Use NewWriter(t) so the WriteSpans expectation is asserted on cleanup, proving
 	// WriteTraces actually forwards the omit-computed spans to the core writer.
 	coreWriter := mocks.NewWriter(t)
