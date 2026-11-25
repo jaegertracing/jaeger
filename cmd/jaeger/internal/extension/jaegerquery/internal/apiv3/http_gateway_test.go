@@ -569,6 +569,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 // TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
 // client or the UI reads.
 func TestHTTPGatewayGetCapabilities(t *testing.T) {
+	enablePagination(t)
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
 	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
@@ -795,6 +796,7 @@ func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
 }
 
 func TestHTTPGatewayFindSpans(t *testing.T) {
+	enablePagination(t)
 	q, qp := mockFindSpansQuery()
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
