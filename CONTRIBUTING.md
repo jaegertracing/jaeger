@@ -268,4 +268,15 @@ Conventions for Jaeger feature gates:
 
 The current inventory of registered gates and their recommended transitions is tracked in https://github.com/jaegertracing/jaeger/issues/9057.
 
+## Storage Options That Change What Is Stored
+
+Some storage settings change the on-disk or in-index shape of spans (for example ClickHouse `attribute_layout`). The backward-compatibility workflow writes a corpus with a Jaeger built from the latest release and from `main`, then reads it back with the pull request's binary. A new format can only be written by a baseline that already knows the option, so a scenario for that option has to wait until the release that first ships it — and is easy to forget until then.
+
+Compatibility promise by stability level:
+
+  * **Experimental** — no compatibility promise. A scenario is not required. Direct and e2e coverage of the option is enough.
+  * **Leaving experimental (promoted / becoming the supported default)** — a backward-compatibility scenario is required as a condition of the promotion. The scenario names the first release that can write the format via `MinWriterVersion`, so the latest-release baseline skips until that release exists and the `main` baseline can run as soon as the option merges. When the scenario's config is generated inside the test rather than checked in under `cmd/jaeger`, pass it through `WriteConfigFile` so the write phase does not look for that file in the earlier checkout.
+
+When adding such an option, record it in the [storage-option compatibility tracker](https://github.com/jaegertracing/jaeger/issues/10254) with the release that first ships it. The release checklist in `RELEASE.md` reviews that tracker the same way it reviews feature-gate transitions.
+
 [feature_gates]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md

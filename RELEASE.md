@@ -30,7 +30,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
 2. Perform UI release according to <https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md>
 3. Perform Backend release (see below)
 4. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
-5. [Wrap up](#wrap-up): update the feature gate tracker and close the tracking issue.
+5. [Wrap up](#wrap-up): update the feature gate and storage-option trackers and close the tracking issue.
 
 # ⚙️ Jaeger Backend Release Process
 
@@ -51,12 +51,15 @@ Throughout this issue, tick each item when it is done, or when it does not apply
     diff <(git grep -h -A1 'GlobalRegistry().MustRegister(' -- '*.go' ':!*_test.go' | grep -o '"[^"]*"' | tr -d '"' | sort -u) \
       <(gh issue view 9057 -R jaegertracing/jaeger --json body --jq .body | grep -o '^| `[^`]*`' | tr -d '|` ' | sort -u)
     ```
-3. Run `make changelog`. It takes about 2 minutes. It fails when a PR in the release has no `changelog:` label or more than one; fix the labels on those PRs and rerun it.
-4. Check that CI on `main` is green. This must print `success`; nothing or `null` means CI has not finished. Keep `--paginate`: without it the API returns only the first 30 of about 100 checks, so the command can print nothing even when CI is green.
+3. For each storage option that changes what is stored and that this release promotes out of experimental, confirm a backward-compatibility scenario exists.
+  * Review the [storage-option compatibility tracker](https://github.com/jaegertracing/jaeger/issues/10254). An experimental option needs no scenario; an option this release promotes must name its scenario and a `MinWriterVersion` of the first release that can write the format (usually this release).
+  * Confirm the scenario is registered in `cmd/jaeger/internal/integration` (search for the option or for `MinWriterVersion`). If it is missing, land the scenario before preparing the release.
+4. Run `make changelog`. It takes about 2 minutes. It fails when a PR in the release has no `changelog:` label or more than one; fix the labels on those PRs and rerun it.
+5. Check that CI on `main` is green. This must print `success`; nothing or `null` means CI has not finished. Keep `--paginate`: without it the API returns only the first 30 of about 100 checks, so the command can print nothing even when CI is green.
     ```bash
     gh api --paginate repos/jaegertracing/jaeger/commits/main/check-runs --jq '.check_runs[] | select(.name == "All CI Checks Passed") | .conclusion'
     ```
-5. Check that [GitHub status](https://www.githubstatus.com/) shows no incident for Git Operations or Pull Requests. If it does, see [GitHub incident](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#github-incident).
+6. Check that [GitHub status](https://www.githubstatus.com/) shows no incident for Git Operations or Pull Requests. If it does, see [GitHub incident](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#github-incident).
 
 <!-- END_PREFLIGHT -->
 
@@ -115,7 +118,8 @@ Do these after the documentation is published.
 <!-- BEGIN_WRAPUP -->
 
 1. Update the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, drop the rows for gate IDs this release removed, and reword notes that say a change ships in vX.Y.Z to say it shipped.
-2. Close the tracking issue with a comment that links the UI release, the backend release, and the documentation PR.
+2. Update the [storage-option compatibility tracker](https://github.com/jaegertracing/jaeger/issues/10254): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, replace any "pending" first-release notes for options that shipped in vX.Y.Z with the released tag, and reword notes that say a change ships in vX.Y.Z to say it shipped.
+3. Close the tracking issue with a comment that links the UI release, the backend release, and the documentation PR.
 
 <!-- END_WRAPUP -->
 

@@ -112,3 +112,26 @@ func TestClickHouseStorage_BackwardCompatibility(t *testing.T) {
 			WithoutSpanSorting(),
 	})
 }
+
+// TestClickHouseStorage_BackwardCompatibility_MapLayout writes the corpus into a map-layout
+// table with an earlier binary and reads it back with this revision. The map layout first
+// ships in v2.24.0, so the latest-release baseline skips until that release exists; the main
+// baseline runs as soon as main can write the format. The config is generated in the test, so
+// the write phase receives it through WriteConfigFile rather than looking for it in the earlier
+// checkout.
+func TestClickHouseStorage_BackwardCompatibility_MapLayout(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
+	integration.RecreateClickHouseDatabase(t, "jaeger_compat_map")
+	config := writeClickHouseHoistedConfig(t, "jaeger_compat_map", "map")
+	runBackwardCompatibilityTests(t, "clickhouse", E2EStorageIntegration{
+		ConfigFile: config,
+	}, compatScenario{
+		Name:             "map attribute layout",
+		MinWriterVersion: "v2.24.0",
+		WriteConfigFile:  config,
+		Capabilities: capabilities.
+			E2EWithoutNativeFilters().
+			WithoutPagination().
+			WithoutSpanSorting(),
+	})
+}
