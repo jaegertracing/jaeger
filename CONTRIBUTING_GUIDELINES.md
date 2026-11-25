@@ -61,16 +61,22 @@ qualifies. If the issue you want to work on does not carry the label, ask on the
 issue before writing code, because the maintainers may not want the change or
 may already be working on it.
 
-A pull request that is not linked to such an issue is labelled `missing-issue`
-and `stale`, and receives a comment that points to this section. Adding a
-closing keyword for a qualifying issue to the description removes both labels.
-The pull request is checked again only when its description is edited, so edit
-the description after you link an issue through the sidebar, or after an issue
-in another repository that you already linked receives the `help wanted` label. A pull request that still carries
-`missing-issue` after about a week without activity is closed automatically, and
-can be reopened once it is linked. Pull requests from maintainers and from
+A pull request that is not linked to such an issue receives a comment that
+points to this section. It is labelled `unapproved-issue` when it is linked to
+an open issue of the `jaegertracing` organization that does not carry
+`help wanted`, and `missing-issue` otherwise.
+Adding a closing keyword for a qualifying issue to the description removes
+the `missing-issue` or `unapproved-issue` label.
+The pull request is checked again when its description is edited, and once a
+day while it carries one of the two labels. Edit the description after you link
+an issue through the sidebar to have it checked sooner. A pull request that still carries
+`missing-issue` or `unapproved-issue` a week after the comment was posted is closed automatically. Comments and
+new commits do not extend the week. A closed pull request
+can be reopened once its description links a qualifying issue. Pull requests from maintainers and from
 Dependabot and Renovate are exempt, and a maintainer may exempt any other pull request,
-such as a fix for a typo, by applying the `no-issue-needed` label to it.
+such as a fix for a typo, by applying the `no-issue-needed` label to it. A
+maintainer may also keep a flagged pull request open with the `do-not-expire`
+label.
 
 Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
 count. If another active PR is already linked, coordinate with its author and

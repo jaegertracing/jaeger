@@ -875,9 +875,15 @@ func TestGetDependencies(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Len(t, newDeps2, 2)
-	emptyDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+	newDeps3, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
 		StartTime: span1StartTime.Add(-4 * time.Second),
 		EndTime:   span1StartTime.Add(5 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Len(t, newDeps3, 2)
+	emptyDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: span1StartTime.Add(10 * time.Second),
+		EndTime:   span1StartTime.Add(20 * time.Second),
 	})
 	require.NoError(t, err)
 	assert.Empty(t, emptyDeps)
@@ -984,6 +990,139 @@ func TestGetDependencies_WrongSpanId(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, deps)
+}
+
+func TestGetDependencies_TimeRangeFiltering(t *testing.T) {
+	newTraceWithRPC := func(t *testing.T, traceIDStr string, parentStart, parentEnd, childStart, childEnd time.Time) ptrace.Traces {
+		td := ptrace.NewTraces()
+		rsA := td.ResourceSpans().AppendEmpty()
+		rsA.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service-a")
+		spanA := rsA.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		spanA.SetTraceID(fromString(t, traceIDStr))
+		spanA.SetSpanID(spanIdFromString(t, "0000000000000001"))
+		spanA.SetStartTimestamp(pcommon.NewTimestampFromTime(parentStart))
+		spanA.SetEndTimestamp(pcommon.NewTimestampFromTime(parentEnd))
+
+		rsB := td.ResourceSpans().AppendEmpty()
+		rsB.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service-b")
+		spanB := rsB.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		spanB.SetTraceID(fromString(t, traceIDStr))
+		spanB.SetSpanID(spanIdFromString(t, "0000000000000002"))
+		spanB.SetParentSpanID(spanIdFromString(t, "0000000000000001"))
+		spanB.SetStartTimestamp(pcommon.NewTimestampFromTime(childStart))
+		spanB.SetEndTimestamp(pcommon.NewTimestampFromTime(childEnd))
+		return td
+	}
+
+	baseTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	queryStart := baseTime.Add(5 * time.Second)
+	queryEnd := baseTime.Add(25 * time.Second)
+
+	expectedLink := []model.DependencyLink{{
+		Parent:    "service-a",
+		Child:     "service-b",
+		CallCount: 1,
+	}}
+
+	tests := []struct {
+		name        string
+		traceID     string
+		parentStart time.Time
+		parentEnd   time.Time
+		childStart  time.Time
+		childEnd    time.Time
+		query       depstore.QueryParameters
+		wantDeps    []model.DependencyLink
+	}{
+		{
+			name:        "trace extending before query start, with span starting inside",
+			traceID:     "00000000000000010000000000000001",
+			parentStart: baseTime,
+			parentEnd:   baseTime.Add(30 * time.Second),
+			childStart:  baseTime.Add(10 * time.Second),
+			childEnd:    baseTime.Add(20 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    expectedLink,
+		},
+		{
+			name:        "trace extending beyond query end, with span starting inside",
+			traceID:     "00000000000000010000000000000002",
+			parentStart: baseTime.Add(6 * time.Second),
+			parentEnd:   baseTime.Add(40 * time.Second),
+			childStart:  baseTime.Add(10 * time.Second),
+			childEnd:    baseTime.Add(35 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    expectedLink,
+		},
+		{
+			name:        "trace fully contained within query interval",
+			traceID:     "00000000000000010000000000000003",
+			parentStart: baseTime.Add(6 * time.Second),
+			parentEnd:   baseTime.Add(24 * time.Second),
+			childStart:  baseTime.Add(10 * time.Second),
+			childEnd:    baseTime.Add(20 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    expectedLink,
+		},
+		{
+			name:        "trace extending across query interval but no span starts inside",
+			traceID:     "00000000000000010000000000000004",
+			parentStart: baseTime,
+			parentEnd:   baseTime.Add(30 * time.Second),
+			childStart:  baseTime.Add(1 * time.Second),
+			childEnd:    baseTime.Add(2 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    nil,
+		},
+		{
+			name:        "trace entirely before query interval",
+			traceID:     "00000000000000010000000000000005",
+			parentStart: baseTime.Add(-30 * time.Second),
+			parentEnd:   baseTime.Add(-5 * time.Second),
+			childStart:  baseTime.Add(-25 * time.Second),
+			childEnd:    baseTime.Add(-10 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    nil,
+		},
+		{
+			name:        "trace entirely after query interval",
+			traceID:     "00000000000000010000000000000006",
+			parentStart: baseTime.Add(30 * time.Second),
+			parentEnd:   baseTime.Add(50 * time.Second),
+			childStart:  baseTime.Add(35 * time.Second),
+			childEnd:    baseTime.Add(45 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart, EndTime: queryEnd},
+			wantDeps:    nil,
+		},
+		{
+			name:        "open-ended query with zero EndTime",
+			traceID:     "00000000000000010000000000000007",
+			parentStart: baseTime.Add(10 * time.Second),
+			parentEnd:   baseTime.Add(50 * time.Second),
+			childStart:  baseTime.Add(12 * time.Second),
+			childEnd:    baseTime.Add(20 * time.Second),
+			query:       depstore.QueryParameters{StartTime: queryStart},
+			wantDeps:    expectedLink,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := NewStore(Configuration{MaxTraces: 10})
+			require.NoError(t, err)
+
+			td := newTraceWithRPC(t, tc.traceID, tc.parentStart, tc.parentEnd, tc.childStart, tc.childEnd)
+			require.NoError(t, store.WriteTraces(context.Background(), td))
+
+			deps, err := store.GetDependencies(context.Background(), tc.query)
+			require.NoError(t, err)
+			if tc.wantDeps == nil {
+				assert.Empty(t, deps)
+			} else {
+				assert.Equal(t, tc.wantDeps, deps)
+			}
+		})
+	}
 }
 
 func writeTenTraces(t *testing.T, store *Store) {

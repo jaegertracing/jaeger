@@ -13,14 +13,15 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message` | text | any |
+| `name` | text | any |
+| `status_message` | text | any; a span without a status message has no value, so no comparison on it matches that span |
 | `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
 | `duration` | duration | Go syntax with a unit, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it |
 | `service` | text | the resource's `service.name` |
-| `scope_name`, `scope_version` | text | the instrumentation scope |
+| `scope_name`, `scope_version` | text | the instrumentation scope; a span whose scope has an empty name or version has no value for that column, so no comparison on it matches that span |
 | `attributes['key']` | map | span attributes; a value is compared at the type storage holds |
 | `resource_attributes['key']` | map | resource attributes |
 | `scope_attributes['key']` | map | instrumentation scope attributes |
@@ -36,7 +37,7 @@ The three map columns compile to an attribute reference at the span, resource or
 | `events` | `time_since_start` | duration | Go syntax with a unit |
 | `events` | `attributes['key']` | map | event attributes |
 | `links` | `linked_trace_id`, `linked_span_id` | text | lower-case hex |
-| `links` | `trace_state` | text | any |
+| `links` | `trace_state` | text | any; a link without a trace state has no value, so no comparison on it matches that link |
 | `links` | `attributes['key']` | map | link attributes |
 
 The `span_id` and `trace_id` of an event or link appear only in the optional correlation with the outer span, `e.span_id = s.span_id`; a predicate on them is refused, because inside `EXISTS` the collection is already the span's own.

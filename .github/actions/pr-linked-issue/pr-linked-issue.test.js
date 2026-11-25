@@ -8,10 +8,15 @@ const {
   parseOptionalNumber,
   QUALIFYING_ISSUE_LABEL_NAME,
   MISSING_ISSUE_LABEL_NAME,
+  UNAPPROVED_ISSUE_LABEL_NAME,
   EXEMPT_LABEL_NAME,
-  STALE_LABEL_NAME,
+  DO_NOT_EXPIRE_LABEL_NAME,
   POLICY_COMMENT_MARKER
 } = handler;
+
+// The stale workflow owns this label, and the action must leave it alone.
+const STALE_LABEL_NAME = 'stale';
+const NOW = new Date('2026-06-15T12:00:00Z');
 
 function makeIssue(number, { labels = [QUALIFYING_ISSUE_LABEL_NAME], state = 'OPEN', repository = 'owner/repo' } = {}) {
   return {
@@ -53,6 +58,9 @@ function makeOctokit(pullRequests, comments = []) {
         updateComment: jest.fn().mockResolvedValue({}),
         addLabels: jest.fn().mockResolvedValue({}),
         removeLabel: jest.fn().mockResolvedValue({})
+      },
+      pulls: {
+        update: jest.fn().mockResolvedValue({})
       }
     }
   };
@@ -60,6 +68,11 @@ function makeOctokit(pullRequests, comments = []) {
 
 function policyComment(id, text, authorFields = { user: { login: 'github-actions[bot]' } }) {
   return { id, body: `${POLICY_COMMENT_MARKER}\n${text}`, ...authorFields };
+}
+
+function policyCommentPostedDaysAgo(days) {
+  const createdAt = new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000);
+  return { ...policyComment(56, 'No issue is linked'), created_at: createdAt.toISOString() };
 }
 
 function applyPolicy(octokit, options) {
@@ -86,39 +99,61 @@ describe('which pull requests violate the policy', () => {
 
     const result = await applyPolicy(octokit);
 
-    expect(result).toEqual({ flaggedPullRequests: flagged ? [1] : [], unflaggedPullRequests: [] });
+    expect(result).toEqual({
+      flaggedPullRequests: flagged ? [1] : [],
+      unflaggedPullRequests: [],
+      closedPullRequests: []
+    });
     expect(octokit.rest.issues.addLabels).toHaveBeenCalledTimes(flagged ? 1 : 0);
   });
 });
 
 describe('flagging a pull request', () => {
-  test('posts the comment before adding both labels', async () => {
+  test('posts the comment before adding the flag label', async () => {
     const octokit = makeOctokit([makePR(1)]);
 
     await applyPolicy(octokit);
 
     expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith({
-      owner: 'owner', repo: 'repo', issue_number: 1, labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+      owner: 'owner', repo: 'repo', issue_number: 1, labels: [MISSING_ISSUE_LABEL_NAME]
     });
     expect(octokit.rest.issues.createComment.mock.invocationCallOrder[0])
       .toBeLessThan(octokit.rest.issues.addLabels.mock.invocationCallOrder[0]);
   });
 
   test.each([
-    { name: 'no issue is linked', issues: [], problems: ['no issue is linked'] },
-    { name: 'the issue lacks the label', issues: [makeIssue(7, { labels: ['bug'] })], problems: ['#7 is not labelled `help wanted`'] },
-    { name: 'the issue is closed', issues: [makeIssue(7, { state: 'CLOSED' })], problems: ['#7 is closed'] },
+    { name: 'no issue is linked', issues: [], problems: ['no issue is linked'], flagLabelName: MISSING_ISSUE_LABEL_NAME },
+    {
+      name: 'the issue lacks the label',
+      issues: [makeIssue(7, { labels: ['bug'] })],
+      problems: ['#7 is not labelled `help wanted`'],
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the issue is closed',
+      issues: [makeIssue(7, { state: 'CLOSED' })],
+      problems: ['#7 is closed'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the closed issue lacks the label',
+      issues: [makeIssue(7, { state: 'CLOSED', labels: [] })],
+      problems: ['#7 is closed'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
+    },
     {
       name: 'the issue belongs to another organization',
-      issues: [makeIssue(7, { repository: 'elsewhere/repo' })],
-      problems: ['elsewhere/repo#7 belongs to another organization']
+      issues: [makeIssue(7, { repository: 'elsewhere/repo', labels: [] })],
+      problems: ['elsewhere/repo#7 belongs to another organization'],
+      flagLabelName: MISSING_ISSUE_LABEL_NAME
     },
     {
       name: 'several issues fail for different reasons',
       issues: [makeIssue(7, { state: 'CLOSED' }), makeIssue(8, { labels: [], repository: 'owner/other' })],
-      problems: ['#7 is closed', 'owner/other#8 is not labelled `help wanted`']
+      problems: ['#7 is closed', 'owner/other#8 is not labelled `help wanted`'],
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
     }
-  ])('the comment and the log say that $name', async ({ issues, problems }) => {
+  ])('the comment, the log and the flag label say that $name', async ({ issues, problems, flagLabelName }) => {
     const octokit = makeOctokit([makePR(1, { issues })]);
     const logger = { log: jest.fn() };
 
@@ -127,7 +162,26 @@ describe('flagging a pull request', () => {
     const { body } = octokit.rest.issues.createComment.mock.calls[0][0];
     expect(body).toContain(problems.map(problem => `- ${problem}`).join('\n'));
     expect(body).toContain('CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue');
-    expect(logger.log).toHaveBeenCalledWith(`PR #1 by @newcomer: ${problems.join('; ')}`);
+    expect(body).toContain(`labelled \`${flagLabelName}\``);
+    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(
+      expect.objectContaining({ labels: [flagLabelName] })
+    );
+    expect(logger.log).toHaveBeenCalledWith(`PR #1 by @newcomer: ${flagLabelName}: ${problems.join('; ')}`);
+  });
+
+  test.each([
+    { flagLabelName: MISSING_ISSUE_LABEL_NAME, issues: [], resolution: 'link the pull request to such an issue' },
+    {
+      flagLabelName: UNAPPROVED_ISSUE_LABEL_NAME,
+      issues: [makeIssue(7, { labels: [] })],
+      resolution: 'ask on the linked issue'
+    }
+  ])('the comment for $flagLabelName names its remedy', async ({ issues, resolution }) => {
+    const octokit = makeOctokit([makePR(1, { issues })]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.createComment.mock.calls[0][0].body).toContain(`To resolve this, ${resolution}`);
   });
 
   test('posts a new comment when a pull request is flagged again', async () => {
@@ -142,7 +196,7 @@ describe('flagging a pull request', () => {
   test('rewrites the latest policy comment when the linked issues of a flagged pull request change', async () => {
     const pr = makePR(1, {
       issues: [makeIssue(7, { labels: [] })],
-      labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME]
+      labels: [UNAPPROVED_ISSUE_LABEL_NAME]
     });
     const octokit = makeOctokit([pr], [policyComment(54, 'older'), policyComment(56, 'No issue is linked')]);
 
@@ -155,12 +209,51 @@ describe('flagging a pull request', () => {
     expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
   });
 
-  test('restores the stale label on a flagged pull request that lost it', async () => {
+  test.each([
+    {
+      name: 'an unapproved issue is linked',
+      issues: [makeIssue(7, { labels: [] })],
+      presentFlagLabelName: MISSING_ISSUE_LABEL_NAME,
+      expectedFlagLabelName: UNAPPROVED_ISSUE_LABEL_NAME
+    },
+    {
+      name: 'the unapproved issue is closed',
+      issues: [makeIssue(7, { state: 'CLOSED', labels: [] })],
+      presentFlagLabelName: UNAPPROVED_ISSUE_LABEL_NAME,
+      expectedFlagLabelName: MISSING_ISSUE_LABEL_NAME
+    }
+  ])('adds the other flag label before removing the present one when $name', async ({
+    issues, presentFlagLabelName, expectedFlagLabelName
+  }) => {
+    const octokit = makeOctokit([makePR(1, { issues, labels: [presentFlagLabelName] })]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.addLabels)
+      .toHaveBeenCalledWith(expect.objectContaining({ labels: [expectedFlagLabelName] }));
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name)).toEqual([presentFlagLabelName]);
+    expect(octokit.rest.issues.addLabels.mock.invocationCallOrder[0])
+      .toBeLessThan(octokit.rest.issues.removeLabel.mock.invocationCallOrder[0]);
+  });
+
+  test('removes the flag label that no longer applies from a pull request that carries both', async () => {
+    const octokit = makeOctokit([
+      makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME, UNAPPROVED_ISSUE_LABEL_NAME] })
+    ]);
+
+    await applyPolicy(octokit);
+
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name))
+      .toEqual([UNAPPROVED_ISSUE_LABEL_NAME]);
+  });
+
+  test('adds no label to a pull request that already carries its flag label', async () => {
     const octokit = makeOctokit([makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })]);
 
     await applyPolicy(octokit);
 
-    expect(octokit.rest.issues.addLabels).toHaveBeenCalledWith(expect.objectContaining({ labels: [STALE_LABEL_NAME] }));
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -171,7 +264,7 @@ describe('flagging a pull request', () => {
     { name: 'another bot', authorFields: { user: { login: 'coding-agent[bot]' }, author_association: 'NONE' }, rewritten: false },
     { name: 'a contributor', authorFields: { author_association: 'CONTRIBUTOR' }, rewritten: false }
   ])('a marked comment from $name is rewritten: $rewritten', async ({ authorFields, rewritten }) => {
-    const pr = makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME] });
+    const pr = makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] });
     const octokit = makeOctokit([pr], [policyComment(56, 'outdated', authorFields)]);
 
     await applyPolicy(octokit);
@@ -189,16 +282,19 @@ describe('flagging a pull request', () => {
 });
 
 describe('a pull request that meets the policy', () => {
-  test('loses both labels when it was flagged', async () => {
+  test.each([
+    { flagLabelNames: [MISSING_ISSUE_LABEL_NAME] },
+    { flagLabelNames: [UNAPPROVED_ISSUE_LABEL_NAME] },
+    { flagLabelNames: [MISSING_ISSUE_LABEL_NAME, UNAPPROVED_ISSUE_LABEL_NAME] }
+  ])('loses $flagLabelNames and keeps the stale label when it was flagged', async ({ flagLabelNames }) => {
     const octokit = makeOctokit([
-      makePR(1, { issues: [makeIssue(7)], labels: [MISSING_ISSUE_LABEL_NAME, STALE_LABEL_NAME] })
+      makePR(1, { issues: [makeIssue(7)], labels: [...flagLabelNames, STALE_LABEL_NAME] })
     ]);
 
     const result = await applyPolicy(octokit);
 
-    expect(result).toEqual({ flaggedPullRequests: [], unflaggedPullRequests: [1] });
-    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name))
-      .toEqual([STALE_LABEL_NAME, MISSING_ISSUE_LABEL_NAME]);
+    expect(result).toEqual({ flaggedPullRequests: [], unflaggedPullRequests: [1], closedPullRequests: [] });
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name)).toEqual(flagLabelNames);
   });
 
   test('has its policy comment rewritten to say so', async () => {
@@ -224,12 +320,130 @@ describe('a pull request that meets the policy', () => {
     expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
   });
 
-  test('keeps the stale label when it was never flagged', async () => {
-    const octokit = makeOctokit([makePR(1, { issues: [makeIssue(7)], labels: [STALE_LABEL_NAME] })]);
+});
 
-    await applyPolicy(octokit);
+describe('a run that closes expired pull requests', () => {
+  const unapprovedIssue = makeIssue(7, { labels: [] });
 
-    expect(octokit.rest.issues.removeLabel).not.toHaveBeenCalled();
+  test.each([
+    {
+      name: 'closes a pull request that was flagged the full number of days ago',
+      labels: [MISSING_ISSUE_LABEL_NAME],
+      comments: [policyCommentPostedDaysAgo(7)],
+      expected: { flaggedPullRequests: [1], unflaggedPullRequests: [], closedPullRequests: [1] }
+    },
+    {
+      name: 'closes a pull request that waits for a maintainer',
+      issues: [unapprovedIssue],
+      labels: [UNAPPROVED_ISSUE_LABEL_NAME],
+      comments: [policyCommentPostedDaysAgo(37)],
+      expected: { flaggedPullRequests: [1], unflaggedPullRequests: [], closedPullRequests: [1] }
+    },
+    {
+      name: 'keeps a pull request that was flagged one day short of the full number of days',
+      labels: [MISSING_ISSUE_LABEL_NAME],
+      comments: [policyCommentPostedDaysAgo(6)],
+      expected: { flaggedPullRequests: [1], unflaggedPullRequests: [], closedPullRequests: [] }
+    },
+    {
+      name: 'keeps a pull request that carries do-not-expire',
+      labels: [MISSING_ISSUE_LABEL_NAME, DO_NOT_EXPIRE_LABEL_NAME],
+      comments: [policyCommentPostedDaysAgo(37)],
+      expected: { flaggedPullRequests: [1], unflaggedPullRequests: [], closedPullRequests: [] }
+    },
+    {
+      name: 'keeps a pull request that has no policy comment to count the days from',
+      labels: [MISSING_ISSUE_LABEL_NAME],
+      comments: [],
+      expected: { flaggedPullRequests: [1], unflaggedPullRequests: [], closedPullRequests: [] }
+    },
+    {
+      name: 'removes the flag label of a pull request that now meets the policy',
+      issues: [makeIssue(7)],
+      labels: [MISSING_ISSUE_LABEL_NAME],
+      comments: [policyCommentPostedDaysAgo(37)],
+      expected: { flaggedPullRequests: [], unflaggedPullRequests: [1], closedPullRequests: [] }
+    },
+    {
+      name: 'skips a pull request that violates the policy and is not flagged',
+      labels: [],
+      comments: [],
+      expected: { flaggedPullRequests: [], unflaggedPullRequests: [], closedPullRequests: [] }
+    }
+  ])('$name', async ({ issues = [], labels, comments, expected }) => {
+    const octokit = makeOctokit([makePR(1, { issues, labels })], comments);
+
+    const result = await applyPolicy(octokit, { closeExpiredPullRequests: true, now: NOW });
+
+    expect(result).toEqual(expected);
+    expect(octokit.rest.pulls.update).toHaveBeenCalledTimes(expected.closedPullRequests.length);
+    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(expected.closedPullRequests.length);
+    expect(octokit.rest.issues.addLabels).not.toHaveBeenCalled();
+  });
+
+  test('moves a flagged pull request to the flag label that now applies', async () => {
+    const octokit = makeOctokit(
+      [makePR(1, { issues: [unapprovedIssue], labels: [MISSING_ISSUE_LABEL_NAME] })],
+      [policyCommentPostedDaysAgo(6)]
+    );
+
+    await applyPolicy(octokit, { closeExpiredPullRequests: true, now: NOW });
+
+    expect(octokit.rest.issues.addLabels)
+      .toHaveBeenCalledWith(expect.objectContaining({ labels: [UNAPPROVED_ISSUE_LABEL_NAME] }));
+    expect(octokit.rest.issues.removeLabel.mock.calls.map(([args]) => args.name)).toEqual([MISSING_ISSUE_LABEL_NAME]);
+  });
+
+  test('closes the pull request before it explains the closing in a comment', async () => {
+    const octokit = makeOctokit(
+      [makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })],
+      [policyCommentPostedDaysAgo(7)]
+    );
+
+    await applyPolicy(octokit, { closeExpiredPullRequests: true, now: NOW });
+
+    const { body } = octokit.rest.issues.createComment.mock.calls[0][0];
+    expect(body).toContain('automatically closed');
+    expect(body).toContain('CONTRIBUTING_GUIDELINES.md#link-each-pull-request-to-an-issue');
+    expect(body).toContain('You may reopen it once its description links such an issue');
+    expect(body).not.toContain(POLICY_COMMENT_MARKER);
+    expect(octokit.rest.pulls.update).toHaveBeenCalledWith({
+      owner: 'owner', repo: 'repo', pull_number: 1, state: 'closed'
+    });
+    expect(octokit.rest.pulls.update.mock.invocationCallOrder[0])
+      .toBeLessThan(octokit.rest.issues.createComment.mock.invocationCallOrder[0]);
+  });
+
+  test('closes nothing when it is not asked to close expired pull requests', async () => {
+    const octokit = makeOctokit(
+      [makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })],
+      [policyCommentPostedDaysAgo(37)]
+    );
+
+    const result = await applyPolicy(octokit, { pullRequestNumber: 1, now: NOW });
+
+    expect(result.closedPullRequests).toEqual([]);
+    expect(octokit.rest.pulls.update).not.toHaveBeenCalled();
+  });
+
+  test('a dry run reports the closing and writes nothing', async () => {
+    const octokit = makeOctokit(
+      [makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })],
+      [policyCommentPostedDaysAgo(7)]
+    );
+    const logger = { log: jest.fn() };
+
+    const result = await processLinkedIssuePolicy(
+      octokit, 'owner', 'repo', { closeExpiredPullRequests: true, dryRun: true, now: NOW }, logger
+    );
+
+    expect(result.closedPullRequests).toEqual([1]);
+    expect(logger.log).toHaveBeenCalledWith(
+      `PR #1 by @newcomer: flagged for 7 days or more, closing`
+    );
+    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(octokit.rest.pulls.update).not.toHaveBeenCalled();
   });
 });
 
@@ -278,7 +492,7 @@ test('a dry run reports the plan and writes nothing', async () => {
 
   const result = await applyPolicy(octokit, { dryRun: true });
 
-  expect(result).toEqual({ flaggedPullRequests: [1], unflaggedPullRequests: [2] });
+  expect(result).toEqual({ flaggedPullRequests: [1], unflaggedPullRequests: [2], closedPullRequests: [] });
   for (const method of ['createComment', 'updateComment', 'addLabels', 'removeLabel']) {
     expect(octokit.rest.issues[method]).not.toHaveBeenCalled();
   }
@@ -317,6 +531,19 @@ describe('GitHub Actions handler', () => {
     expect(github.rest.issues.addLabels).toHaveBeenCalledTimes(1);
     expect(core.info).toHaveBeenCalledWith('PRs that violate the policy: 2');
     expect(core.info).toHaveBeenCalledWith('PRs that now meet the policy: none');
+    expect(core.info).toHaveBeenCalledWith('PRs closed: none');
+  });
+
+  test('closes expired pull requests when asked to', async () => {
+    const github = makeOctokit(
+      [makePR(1, { labels: [MISSING_ISSUE_LABEL_NAME] })],
+      [{ ...policyComment(56, 'No issue is linked'), created_at: '2020-01-01T00:00:00Z' }]
+    );
+    const core = { info: jest.fn(), setFailed: jest.fn() };
+
+    await handler({ github, core, owner: 'owner', repo: 'repo', closeExpiredPullRequests: true });
+
+    expect(core.info).toHaveBeenCalledWith('PRs closed: 1');
   });
 
   test('marks a dry run in the report', async () => {
