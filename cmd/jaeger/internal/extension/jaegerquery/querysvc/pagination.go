@@ -7,15 +7,17 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 )
 
-// PaginationGate admits the RFC 0014 Pagination field on a trace search. No Reader returns a
-// continuation token yet, so enabling it does not make results resumable end to end.
+// PaginationGate admits the RFC 0014 Pagination field on a trace search. While it is disabled,
+// the query service reports the backend as not paginated and a span search returns no
+// continuation token, since the next request would refuse one.
 var PaginationGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.query.pagination",
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0014 Pagination field on a trace search. No storage backend returns a "+
-			"continuation token yet, so enabling it does not make results resumable end to end.",
+		"Accepts the RFC 0014 Pagination field on a trace search. While it is disabled, the "+
+			"query service reports the backend as not paginated and a span search returns no "+
+			"continuation token, since the next request would refuse one.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0014-search-result-pagination.md"),
 )
