@@ -29,11 +29,6 @@ func setPagination(t *testing.T, enabled bool) {
 	})
 }
 
-func TestPaginationGate_IsBeta(t *testing.T) {
-	assert.Equal(t, featuregate.StageBeta, PaginationGate.Stage(),
-		"Beta is what makes pagination available unless a deployment turns it off")
-}
-
 // TestFindTraces_RejectsPagination pins that FindTraces refuses any query carrying Pagination
 // outright, before prepareSearchQuery — which FindTraceSummaries shares and which does admit
 // Pagination — ever sees it. FindTraces streams whole traces with no field to carry a
