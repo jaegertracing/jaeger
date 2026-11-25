@@ -182,6 +182,9 @@ func (c *compiler) constantText(node parser.Expr) (string, error) {
 		// The parser reads a leading minus as an operator in some positions and as part of the
 		// number in others; both spell the one negative number.
 		if num, ok := unparenthesized(n.Expr).(*parser.NumberLiteral); ok && n.Kind == parser.TokenKindMinus && !strings.ContainsAny(num.Literal[:1], "+-") {
+			if !decimalNumber.MatchString(num.Literal) {
+				return "", c.pos.at(node, fmt.Sprintf("%q is not a decimal number", num.Literal), "Write the number in decimal digits; storage reads the constant as text")
+			}
 			return "-" + num.Literal, nil
 		}
 	case *parser.IntervalExpr:

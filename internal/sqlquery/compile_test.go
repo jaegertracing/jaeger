@@ -1074,6 +1074,26 @@ func TestRefusals(t *testing.T) {
 			want: "IN takes a parenthesized list of literals",
 		},
 		{
+			name: "negative hexadecimal number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['attempts'] = -(0x10)`,
+			at:   "-(0x10)",
+			want: "is not a decimal number",
+		},
+		{
+			name: "negative leading-dot number",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND attributes['attempts'] = -.5`,
+			at:   "-.5",
+			want: "is not a decimal number",
+		},
+		{
 			name: "hexadecimal number",
 			sql: `
 				SELECT DISTINCT trace_id
