@@ -133,8 +133,8 @@ echo-all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 # Prints the registration of every feature gate: its ID, stage, FromVersion and ToVersion.
-.PHONY: echo-feature-gates
-echo-feature-gates:
+.PHONY: feature-gates
+feature-gates:
 	@git grep -n -A5 'GlobalRegistry().MustRegister' -- '*.go' ':!*.pb.go' ':!*_test.go'
 
 .PHONY: clean
