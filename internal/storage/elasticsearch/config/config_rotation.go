@@ -10,11 +10,9 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
-const legacyRotationFlagsList = "use_aliases, use_ilm, span_read_alias, span_write_alias, service_read_alias, service_write_alias"
-
 // RotationConfig defines how Jaeger manages index naming and lookup for a given
 // index type (spans, services, etc.). Exactly one variant should be set.
-// If none is set, legacy flags (use_aliases, use_ilm, etc.) determine behavior.
+// If none is set, Jaeger uses periodic rotation.
 type RotationConfig struct {
 	// Periodic creates a new time-stamped index on a regular schedule (e.g. daily).
 	// Jaeger computes the index name from a date suffix and writes directly to it.
@@ -101,19 +99,6 @@ func (r *RotationConfig) HasRotation() bool {
 }
 
 func (c *Configuration) validateRotationConfig() error {
-	hasAnyRotation := c.Indices.Spans.Rotation.HasRotation() ||
-		c.Indices.Services.Rotation.HasRotation() ||
-		c.Indices.Dependencies.Rotation.HasRotation() ||
-		c.Indices.Sampling.Rotation.HasRotation()
-
-	if hasAnyRotation && c.hasAnyLegacyRotationFlags() {
-		return fmt.Errorf(
-			"cannot use both 'rotation' config and legacy flags (%s) simultaneously; "+
-				"remove the legacy flags and use the 'rotation' section instead",
-			legacyRotationFlagsList,
-		)
-	}
-
 	type rotationEntry struct {
 		name     string
 		opts     *IndexOptions

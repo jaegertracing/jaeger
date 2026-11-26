@@ -97,13 +97,20 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		require.NoError(t, f.Close())
 	})
 	acfg := esv2.DefaultConfig()
-	acfg.ReadAliasSuffix = archiveAliasSuffix
-	acfg.WriteAliasSuffix = archiveAliasSuffix
-	acfg.UseReadWriteAliases = configoptional.Some(true)
 	acfg.WriteMode = s.writeMode
 	acfg.Indices.Spans.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.Spans.NumericAttributes = s.numericAttributes
 	acfg.Indices.IndexPrefix = indexPrefix
+	archiveSpanAlias := acfg.Indices.IndexPrefix.Apply(escfg.SpanIndexName) + escfg.IndexSeparator + archiveAliasSuffix
+	acfg.Indices.Spans.Rotation.ManualRollover = configoptional.Some(escfg.ManualRolloverRotation{
+		ReadAlias:  archiveSpanAlias,
+		WriteAlias: archiveSpanAlias,
+	})
+	archiveServiceAlias := acfg.Indices.IndexPrefix.Apply(escfg.ServiceIndexName) + escfg.IndexSeparator + archiveAliasSuffix
+	acfg.Indices.Services.Rotation.ManualRollover = configoptional.Some(escfg.ManualRolloverRotation{
+		ReadAlias:  archiveServiceAlias,
+		WriteAlias: archiveServiceAlias,
+	})
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
