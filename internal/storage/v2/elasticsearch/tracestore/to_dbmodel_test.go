@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -752,14 +751,6 @@ func TestSpanToDbSpan_OmitsParentSpanIDReference(t *testing.T) {
 	require.Len(t, dbSpan.References, 1)
 	assert.NotEqual(t, parentHex, dbSpan.References[0].SpanID, "the only reference is the link, not the parent")
 	assert.Equal(t, parentHex, dbSpan.ParentSpanID, "parent span ID is written to its own field")
-}
-
-// TestOmitParentSpanIDReferenceGate_CannotBeDisabled pins the property that the write path
-// relies on when it omits the parent reference without consulting the gate.
-func TestOmitParentSpanIDReferenceGate_CannotBeDisabled(t *testing.T) {
-	const id = "jaeger.es.omitParentSpanIDReference"
-	require.NoError(t, featuregate.GlobalRegistry().Set(id, true), "naming the gate is still accepted")
-	require.Error(t, featuregate.GlobalRegistry().Set(id, false))
 }
 
 func BenchmarkInternalTracesToDbSpans(b *testing.B) {

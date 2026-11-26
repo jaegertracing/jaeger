@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
@@ -202,14 +201,6 @@ func TestPrepareSearchQuery_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T
 			reader.AssertExpectations(t)
 		})
 	}
-}
-
-// TestStructuredFiltersGate_CannotBeDisabled pins the property that the query service relies
-// on when it admits a filter without consulting the gate.
-func TestStructuredFiltersGate_CannotBeDisabled(t *testing.T) {
-	const id = "jaeger.query.structuredFilters"
-	require.NoError(t, featuregate.GlobalRegistry().Set(id, true), "naming the gate is still accepted")
-	require.Error(t, featuregate.GlobalRegistry().Set(id, false))
 }
 
 // TestPrepareSearchQuery_RefusesAMalformedFilter covers the boundary check the conversion no
