@@ -258,7 +258,7 @@ A gate moves through these stages:
 | Stage | Default | Can a user change it? | What the PR that enters the stage does |
 |---|---|---|---|
 | Alpha | old behavior | yes | Registers the gate and adds the new behavior behind it. |
-| Beta | new behavior | yes | Changes the stage. A gate starts here when the new behavior is to be the default at once. |
+| Beta | new behavior | yes | Changes the stage. A gate can skip Alpha and start in Beta, which makes the new behavior the default immediately. |
 | Stable | new behavior | no, disabling the gate is a startup error | Deletes the code for the old behavior and sets `ToVersion`. |
 | removed | new behavior | no, any mention of the gate is a startup error | Removes the registration. |
 
