@@ -90,6 +90,7 @@ type PostAggregator struct {
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
 	lastCheckedTime               time.Time
+	wasLeader                     bool
 }
 
 // newPostAggregator creates a new sampling postAggregator that generates sampling rates for service operations.
@@ -135,10 +136,48 @@ func (p *PostAggregator) Start() {
 	// NB: the first tick will be slightly delayed by the initializeThroughput call.
 	p.lastCheckedTime = time.Now().Add(p.Delay * -1)
 	p.initializeThroughput(p.lastCheckedTime)
+	p.loadProbabilities()
+	p.wasLeader = p.isLeader()
 }
 
 func (p *PostAggregator) isLeader() bool {
 	return p.electionParticipant.IsLeader()
+}
+
+func (p *PostAggregator) loadProbabilities() bool {
+	probabilities, err := p.storage.GetLatestProbabilities()
+	if err != nil {
+		if p.logger != nil {
+			p.logger.Warn("failed to initialize probabilities", zap.Error(err))
+		}
+		return false
+	}
+	if probabilities == nil {
+		probabilities = make(model.ServiceOperationProbabilities)
+	}
+	p.mu.Lock()
+	changed := !probabilitiesEqual(p.probabilities, probabilities)
+	p.probabilities = probabilities
+	p.mu.Unlock()
+	return changed
+}
+
+func probabilitiesEqual(a, b model.ServiceOperationProbabilities) bool {
+	totalA := 0
+	for svc, opsA := range a {
+		totalA += len(opsA)
+		opsB := b[svc]
+		for op, probA := range opsA {
+			if probB, ok := opsB[op]; !ok || probA != probB {
+				return false
+			}
+		}
+	}
+	totalB := 0
+	for _, opsB := range b {
+		totalB += len(opsB)
+	}
+	return totalA == totalB
 }
 
 // addJitter adds a random amount of time. Without jitter, if the host holding the leader
@@ -168,11 +207,17 @@ func (p *PostAggregator) runCalculation() {
 		endTime:    endTime,
 	})
 	p.lastCheckedTime = endTime
-	// Load the latest throughput so that if this host ever becomes leader, it
-	// has the throughput ready in memory. However, only run the actual calculations
-	// if this host becomes leader.
+	// Reload persisted probabilities before calculation so followers stay warm and a
+	// newly elected or re-elected leader never overwrites storage with initial or stale rates.
+	// Reset serviceCache if persisted values diverged since the last tick; identical-rate
+	// sub-interval failback remains undetectable without leadership-term tracking.
 	// TODO fill the throughput buffer only when we're leader
+	probsChanged := p.loadProbabilities()
 	if p.isLeader() {
+		if !p.wasLeader || probsChanged {
+			p.serviceCache = nil
+			p.wasLeader = true
+		}
 		startTime := time.Now()
 		probabilities, qps := p.calculateProbabilitiesAndQPS()
 		p.mu.Lock()
@@ -188,6 +233,8 @@ func (p *PostAggregator) runCalculation() {
 
 		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 		p.saveProbabilitiesAndQPS()
+	} else {
+		p.wasLeader = false
 	}
 }
 
