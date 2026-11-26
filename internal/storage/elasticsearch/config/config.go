@@ -227,23 +227,6 @@ type Configuration struct {
 
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
-
-	// The fields below are the rotation flags that indices.<type>.rotation replaced. Validate
-	// refuses a configuration that sets any of them. They are still declared so that the
-	// refusal names the replacement instead of reporting an unknown key.
-	//
-	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
-	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
-	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
-	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
-	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
-	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
-	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
-	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
@@ -488,15 +471,6 @@ func (c *Configuration) Validate() error {
 		return errors.New(
 			"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
 				"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
-		)
-	}
-
-	if c.hasAnyLegacyRotationFlags() {
-		return fmt.Errorf(
-			"deprecated ES rotation flags (%s) "+
-				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
-				"(see https://github.com/jaegertracing/jaeger/pull/8823)",
-			legacyRotationFlagsList,
 		)
 	}
 

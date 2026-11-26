@@ -10,8 +10,6 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
-const legacyRotationFlagsList = "use_aliases, use_ilm, span_read_alias, span_write_alias, service_read_alias, service_write_alias"
-
 // RotationConfig defines how Jaeger manages index naming and lookup for a given
 // index type (spans, services, etc.). Exactly one variant should be set.
 // If none is set, Jaeger uses periodic rotation.

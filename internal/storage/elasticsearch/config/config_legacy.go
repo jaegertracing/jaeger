@@ -15,8 +15,8 @@ var _ = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterToVersion("v2.26.0"),
 	featuregate.WithRegisterDescription(
-		"Validation fails when a deprecated ES rotation flag (use_aliases, use_ilm, "+
-			"span_read_alias, etc.) is set.",
+		"The deprecated ES rotation flags (use_aliases, use_ilm, span_read_alias, etc.) "+
+			"are not accepted; use 'indices.<type>.rotation' instead.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 )
@@ -35,16 +35,6 @@ var RejectLegacyTagsAsFields = featuregate.GlobalRegistry().MustRegister(
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/9693"),
 )
-
-// hasAnyLegacyRotationFlags returns true if any deprecated rotation-related flag was explicitly set.
-func (c *Configuration) hasAnyLegacyRotationFlags() bool {
-	return c.UseReadWriteAliases.HasValue() ||
-		c.UseILM.HasValue() ||
-		c.SpanReadAlias.HasValue() ||
-		c.SpanWriteAlias.HasValue() ||
-		c.ServiceReadAlias.HasValue() ||
-		c.ServiceWriteAlias.HasValue()
-}
 
 // ResolvedSpanRotation returns the effective rotation configuration for span indices.
 func (c *Configuration) ResolvedSpanRotation() RotationConfig {

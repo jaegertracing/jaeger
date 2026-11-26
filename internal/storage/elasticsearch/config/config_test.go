@@ -683,41 +683,6 @@ func TestLogDeprecationWarnings(t *testing.T) {
 	}
 }
 
-func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Configuration
-		expected bool
-	}{
-		{
-			name:     "no legacy flags",
-			cfg:      &Configuration{},
-			expected: false,
-		},
-		{
-			name: "use_aliases set",
-			cfg: &Configuration{
-				UseReadWriteAliases: configoptional.Some(true),
-			},
-			expected: true,
-		},
-		{
-			name: "multiple legacy flags",
-			cfg: &Configuration{
-				UseReadWriteAliases: configoptional.Some(true),
-				UseILM:              configoptional.Some(true),
-				SpanReadAlias:       configoptional.Some("test"),
-			},
-			expected: true,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.cfg.hasAnyLegacyRotationFlags())
-		})
-	}
-}
-
 // setGate sets a plain feature gate for the duration of the test and restores its
 // original value on cleanup.
 func setGate(t *testing.T, gate *featuregate.Gate, enabled bool) {
@@ -743,16 +708,6 @@ func TestValidate_RejectLegacyTagsAsFieldsGate(t *testing.T) {
 
 	setGate(t, RejectLegacyTagsAsFields, false)
 	require.NoError(t, cfg.Validate())
-}
-
-func TestValidate_RejectsLegacyRotationFlags(t *testing.T) {
-	cfg := &Configuration{
-		Servers:             []string{"localhost:8000/dummyserver"},
-		UseReadWriteAliases: configoptional.Some(true),
-	}
-	err := cfg.Validate()
-	require.ErrorContains(t, err, "deprecated ES rotation flags")
-	require.ErrorContains(t, err, "no longer supported")
 }
 
 func TestResolvedRotation(t *testing.T) {
