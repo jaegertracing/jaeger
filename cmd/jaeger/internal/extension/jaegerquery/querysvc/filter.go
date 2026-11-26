@@ -9,9 +9,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// No code reads this gate. It stays registered so that a deployment that names it in
-// --feature-gates still starts.
-//
 // Whether a backend evaluates a filter natively is a separate switch, named
 // jaeger.<backend>.structuredFilters — this gate's leaf with the backend in place of "query" —
 // because the two stabilize on different schedules.

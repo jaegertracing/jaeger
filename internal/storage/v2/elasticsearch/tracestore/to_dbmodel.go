@@ -28,8 +28,6 @@ const (
 	tagError         = "error"
 )
 
-// No code reads this gate. It stays registered so that a deployment that names it in
-// --feature-gates still starts.
 var _ = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.omitParentSpanIDReference",
 	featuregate.StageStable,
