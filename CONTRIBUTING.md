@@ -251,11 +251,13 @@ For example:
 
 ## Using Feature Gates for Breaking Changes
 
-A change to an existing default breaks the deployments that rely on the old behavior. Make such a change behind an OTel Collector [feature gate][feature_gates]. A gate switches between the old behavior and the new one, and its stage says which of the two is the default and whether a user can still choose the other. A user enables a gate with `--feature-gates=<id>` and disables it with `--feature-gates=-<id>`. A gate needs no configuration setting of its own.
+A change to how Jaeger already behaves breaks the deployments that rely on the old behavior. Make such a change behind an OTel Collector [feature gate][feature_gates]. A gate switches between the old behavior and the new one, and its stage says which of the two a deployment gets by default and whether a user can still choose the other. A user enables a gate with `--feature-gates=<id>` and disables it with `--feature-gates=-<id>`. A gate needs no configuration setting of its own.
+
+Use a gate when every deployment is meant to end up with the new behavior and the code for the old one is to be deleted. The gate gives users a limited time to go back to the old behavior. Use a configuration setting when both behaviors stay supported and the right one depends on the deployment. A gate is not a substitute for a setting, because the choice disappears when the gate becomes Stable.
 
 A gate moves through these stages:
 
-| Stage | Default | Can a user change it? | Code change that moves a gate to this stage |
+| Stage | Behavior by default | Can a user change it? | Code change that moves a gate to this stage |
 |---|---|---|---|
 | Alpha | old behavior | yes | Register the gate and add the new behavior behind it. |
 | Beta | new behavior | yes | Change the stage in the registration. A gate can skip Alpha and start in Beta, which makes the new behavior the default immediately. |
