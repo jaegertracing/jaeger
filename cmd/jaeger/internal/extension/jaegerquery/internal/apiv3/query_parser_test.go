@@ -333,6 +333,30 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		_, err := parseFindTracesQuery(q)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 	})
+
+	t.Run("duplicate keys", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"exists","op":"exists","args":[]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("two oneof fields set", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"exists","args":[{"attr":{"key":"a"},"field":{"name":"duration","level":"span"}}]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("trailing content after object", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"exists","args":[]} trailing`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
 }
 
 func TestParseFindSpansQuery(t *testing.T) {
@@ -540,6 +564,7 @@ func TestParseFilterParam_NestingDepth(t *testing.T) {
 		q.Set(paramFilter, tooDeep)
 
 		_, err := parseFilterParam(q)
+		require.ErrorIs(t, err, errNestedTooDeeply)
 		require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
 	})
@@ -576,7 +601,7 @@ func TestParseFindSpansQuery_OrderByNestingDepth(t *testing.T) {
 		q.Set(paramOrderBy, tooDeep)
 
 		_, err := parseFindSpansQuery(q)
-		require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
+		require.ErrorIs(t, err, errNestedTooDeeply)
 		require.ErrorContains(t, err, "malformed parameter query.orderBy")
 	})
 }
@@ -604,7 +629,7 @@ func TestParseFindSpansQuery_RefusesDeepJSONBeforeDecoding(t *testing.T) {
 			// 16 MB leaves room for json.Valid and the runtime, and is still far below
 			// what unconstrained decoding of the parameter allocates.
 			assert.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(16<<20), "bytes allocated")
-			require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
+			require.ErrorIs(t, err, errNestedTooDeeply)
 		})
 	}
 }

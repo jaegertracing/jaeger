@@ -74,6 +74,30 @@ const (
 	maxOrderByRecursionLimit = maxFilterRecursionLimit + 3
 )
 
+// errNestedTooDeeply refuses a filter or an ordering whose JSON nests deeper than any value within
+// expression.MaxNestingDepth can. It wraps the error that decoding a well-formed value that deep ends in.
+var errNestedTooDeeply = fmt.Errorf("JSON nested too deeply to decode: %w", expression.ErrTooDeeplyNested)
+
+// unmarshalProtoJSON decodes rawJSON into src with protojson under recursionLimit, then bridges it
+// into dst via a binary protobuf round-trip so existing gogo-based converters can process it.
+func unmarshalProtoJSON(paramName, rawJSON string, recursionLimit int, src proto.Message, dst interface{ Unmarshal([]byte) error }) error {
+	opts := protojson.UnmarshalOptions{RecursionLimit: recursionLimit}
+	if err := opts.Unmarshal([]byte(rawJSON), src); err != nil {
+		if strings.Contains(err.Error(), "exceeded max recursion depth") {
+			return fmt.Errorf("malformed parameter %s: %w", paramName, errNestedTooDeeply)
+		}
+		return fmt.Errorf("malformed parameter %s: %w", paramName, err)
+	}
+	wireBytes, err := proto.Marshal(src)
+	if err != nil {
+		return fmt.Errorf("malformed parameter %s: %w", paramName, err)
+	}
+	if err := dst.Unmarshal(wireBytes); err != nil {
+		return fmt.Errorf("malformed parameter %s: %w", paramName, err)
+	}
+	return nil
+}
+
 // parseTimeQueryParam parses value, already resolved from a query parameter, as RFC3339Nano,
 // reporting a malformed value under paramName. An empty value is not an error: it returns the
 // zero time, so a caller can assign the result unconditionally.
@@ -118,21 +142,10 @@ func parseFilterParam(q url.Values) (*expression.Call, error) {
 	if filterParam == "" {
 		return nil, nil
 	}
-	opts := protojson.UnmarshalOptions{RecursionLimit: maxFilterRecursionLimit}
 	var goCall expressiongo.Call
-	if err := opts.Unmarshal([]byte(filterParam), &goCall); err != nil {
-		if strings.Contains(err.Error(), "exceeded max recursion depth") {
-			return nil, fmt.Errorf("malformed parameter %s: JSON nested too deeply to decode: %w", paramFilter, expression.ErrTooDeeplyNested)
-		}
-		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
-	}
-	wireBytes, err := proto.Marshal(&goCall)
-	if err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
-	}
 	var call expressionproto.Call
-	if err := call.Unmarshal(wireBytes); err != nil {
-		return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+	if err := unmarshalProtoJSON(paramFilter, filterParam, maxFilterRecursionLimit, &goCall, &call); err != nil {
+		return nil, err
 	}
 	filter, err := expressionproto.CallFromProto(&call)
 	if err != nil {
@@ -252,21 +265,10 @@ func parseFindSpansQuery(q url.Values) (*querysvc.SpanQueryParams, error) {
 		if !json.Valid([]byte(raw)) {
 			return nil, fmt.Errorf("malformed parameter %s: not a single JSON value", paramOrderBy)
 		}
-		opts := protojson.UnmarshalOptions{RecursionLimit: maxOrderByRecursionLimit}
 		var goWire apiv3go.SpanQueryParameters
-		if err := opts.Unmarshal([]byte(`{"orderBy":`+raw+`}`), &goWire); err != nil {
-			if strings.Contains(err.Error(), "exceeded max recursion depth") {
-				return nil, fmt.Errorf("malformed parameter %s: JSON nested too deeply to decode: %w", paramOrderBy, expression.ErrTooDeeplyNested)
-			}
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
-		}
-		wireBytes, err := proto.Marshal(&goWire)
-		if err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
-		}
 		var wire api_v3.SpanQueryParameters
-		if err := wire.Unmarshal(wireBytes); err != nil {
-			return nil, fmt.Errorf("malformed parameter %s: %w", paramOrderBy, err)
+		if err := unmarshalProtoJSON(paramOrderBy, `{"orderBy":`+raw+`}`, maxOrderByRecursionLimit, &goWire, &wire); err != nil {
+			return nil, err
 		}
 		order, err := tracestore.SpanOrderFromProto(wire.OrderBy)
 		if err != nil {
