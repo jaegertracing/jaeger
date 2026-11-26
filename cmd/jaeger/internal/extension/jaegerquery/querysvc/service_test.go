@@ -1715,7 +1715,6 @@ func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.Tra
 // backends that do not evaluate a filter yet: the reader receives the predicate fields it
 // already understands and no filter at all.
 func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
-	enableStructuredFilters(t)
 	query := filterQuery(p.And(
 		p.Resource().Service.Eq("cart"),
 		tag(expression.OpEq, "http.status_code", "500")))
@@ -1740,7 +1739,6 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 // TestFindTraces_FilterReachesADeclaringReader covers the other branch: a reader that
 // declares filter support gets the filter itself.
 func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
-	enableStructuredFilters(t)
 	filter := p.Span().Attr("http.route").Matches("/cart/.*")
 	query := filterQuery(filter)
 
@@ -1766,7 +1764,6 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 // every service is satisfied by a filter that names one — and still refuses a filter that
 // does not.
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
-	enableStructuredFilters(t)
 	filterOn := func(level expression.Level, name, value string) *expression.Call {
 		return p.RefOf(&expression.FieldRef{Level: level, Name: name}).Eq(value)
 	}
@@ -1800,7 +1797,6 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 // reader that cannot report its capabilities reads as the least capable one, which is why an
 // unreachable backend refuses the same filter.
 func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
-	enableStructuredFilters(t)
 	query := filterQuery(p.Or(
 		tag(expression.OpEq, "a", "1"),
 		tag(expression.OpEq, "b", "2")))

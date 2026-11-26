@@ -235,7 +235,6 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 // does not expose Pagination, so it has to come from the pre-interceptor query.
 func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 	enablePagination(t)
-	enableStructuredFilters(t)
 	filter := tag(expression.OpEq, "a", "1")
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	next.capabilities = &tracestore.SearchCapabilities{

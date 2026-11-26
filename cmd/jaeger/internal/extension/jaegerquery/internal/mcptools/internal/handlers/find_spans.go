@@ -62,7 +62,7 @@ func (h *findSpansHandler) handle(
 		if err != nil {
 			if len(output.Spans) == 0 {
 				// Nothing came back, so the call failed: a backend refusing the query
-				// (ErrSpanSearchUnsupported, ErrFilterDisabled) or a transport error. The
+				// (ErrSpanSearchUnsupported, ErrFilterUnsupported) or a transport error. The
 				// error is the result, not a note beside an empty page.
 				return nil, types.FindSpansOutput{}, err
 			}
