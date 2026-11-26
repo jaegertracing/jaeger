@@ -101,19 +101,6 @@ func (r *RotationConfig) HasRotation() bool {
 }
 
 func (c *Configuration) validateRotationConfig() error {
-	hasAnyRotation := c.Indices.Spans.Rotation.HasRotation() ||
-		c.Indices.Services.Rotation.HasRotation() ||
-		c.Indices.Dependencies.Rotation.HasRotation() ||
-		c.Indices.Sampling.Rotation.HasRotation()
-
-	if hasAnyRotation && c.hasAnyLegacyRotationFlags() {
-		return fmt.Errorf(
-			"cannot use both 'rotation' config and legacy flags (%s) simultaneously; "+
-				"remove the legacy flags and use the 'rotation' section instead",
-			legacyRotationFlagsList,
-		)
-	}
-
 	type rotationEntry struct {
 		name     string
 		opts     *IndexOptions
