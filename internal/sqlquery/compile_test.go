@@ -744,6 +744,51 @@ func TestCompileShapes(t *testing.T) {
 				LIMIT 5`,
 			want: Query{Kind: KindFindTraces, Filter: spanFilter, Limit: 5},
 		},
+		{
+			name: "spans qualified star is FindSpans",
+			sql: `
+				SELECT s.*
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND service = 'checkout'
+				LIMIT 100`,
+			want: Query{Kind: KindFindSpans, Filter: spanFilter, Limit: 100},
+		},
+		{
+			name: "spans table star and parenthesized star is FindSpans",
+			sql: `
+				SELECT (spans.*)
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND service = 'checkout'`,
+			want: Query{Kind: KindFindSpans, Filter: spanFilter},
+		},
+		{
+			name: "spans parenthesized order by terms",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND service = 'checkout'
+				ORDER BY (duration) DESC, ((start_time))`,
+			want: Query{Kind: KindFindSpans, Filter: spanFilter, OrderBy: []tracestore.SpanSortOrder{
+				{Expression: &ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan}, Direction: tracestore.SortDescending},
+				{Expression: &ast.FieldRef{Name: ast.SpanFieldStartTime, Level: ast.LevelSpan}, Direction: tracestore.SortAscending},
+			}},
+		},
+		{
+			name: "traces qualified star is FindTraces",
+			sql: `
+				SELECT (t.*)
+				FROM traces t
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans s
+					WHERE between(start_time, now() - '1h', now())
+						AND s.service = 'checkout'
+				)`,
+			want: Query{Kind: KindFindTraces, Filter: spanFilter},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1145,6 +1190,81 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())`,
 			at:   "t.trace_id",
 			want: "unknown alias \"t\"",
+		},
+		{
+			name: "spans star of another alias",
+			sql: `
+				SELECT x.*
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "x",
+			want: "unknown alias \"x\"",
+		},
+		{
+			name: "distinct star of another alias",
+			sql: `
+				SELECT DISTINCT x.*
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "x",
+			want: "unknown alias \"x\"",
+		},
+		{
+			name: "traces star of another alias",
+			sql: `
+				SELECT x.*
+				FROM traces t
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "x",
+			want: "unknown alias \"x\"",
+		},
+		{
+			name: "spans bare star aliased",
+			sql: `
+				SELECT * AS x
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "x\n",
+			want: "a column alias in SELECT has no effect",
+		},
+		{
+			name: "traces bare star aliased",
+			sql: `
+				SELECT * AS x
+				FROM traces
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "x\n",
+			want: "a column alias in SELECT has no effect",
+		},
+		{
+			name: "spans qualified star aliased",
+			sql: `
+				SELECT s.* AS x
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())`,
+			at:   "x\n",
+			want: "a column alias in SELECT has no effect",
+		},
+		{
+			name: "traces qualified star aliased",
+			sql: `
+				SELECT t.* AS x
+				FROM traces t
+				WHERE trace_id IN (
+					SELECT trace_id
+					FROM spans
+					WHERE between(start_time, now() - '1h', now())
+				)`,
+			at:   "x\n",
+			want: "a column alias in SELECT has no effect",
 		},
 		{
 			name: "distinct trace_id aliased",
