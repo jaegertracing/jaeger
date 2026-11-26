@@ -402,7 +402,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	}{
 		{
 			name: "first loadTemplate call fails",
-			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.TableEngine = localTableEngine
+				return cfg
+			}(),
 			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
@@ -410,7 +416,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			name: "second loadTemplate call fails",
-			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.TableEngine = localTableEngine
+				return cfg
+			}(),
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -428,14 +440,17 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			// Distributed table, a different template than the second call renders
 			// without one.
 			name: "distributed table loadTemplate call fails",
-			cfg: Configuration{
-				CreateSchema: true,
-				Database:     "jaeger",
-				TableEngine: TableEngine{
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.Database = "jaeger"
+				cfg.TableEngine = TableEngine{
 					Replicated: configoptional.Some(ReplicatedEngine{}),
 					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
-				},
-			},
+				}
+				return cfg
+			}(),
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -453,14 +468,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
-			cfg := DefaultConfiguration()
-			cfg.Addresses = []string{"localhost:9000"}
-			cfg.CreateSchema = tt.cfg.CreateSchema
-			cfg.TableEngine = tt.cfg.TableEngine
-			if tt.cfg.Database != "" {
-				cfg.Database = tt.cfg.Database
-			}
-			_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+			_, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
@@ -1049,10 +1057,9 @@ func TestNewFactory_InvalidConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
-			require.Error(t, err)
+			require.ErrorContains(t, err, "invalid clickhouse configuration")
+			require.ErrorContains(t, err, tt.expectedErr)
 			require.Nil(t, f)
-			assert.ErrorContains(t, err, "invalid clickhouse configuration")
-			assert.ErrorContains(t, err, tt.expectedErr)
 		})
 	}
 }
