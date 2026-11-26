@@ -112,6 +112,26 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
+			name: "monthly date layout with default rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout: "2006-01",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly date layout with default rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout: "2006",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
 			name: "data stream derives its name from the index prefix",
 			rc: config.RotationConfig{
 				DataStream: configoptional.Some(config.DataStreamRotation{}),
@@ -137,6 +157,22 @@ func TestBuildRotation(t *testing.T) {
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
 		})
 	}
+}
+
+func TestBuildRotation_MonthlyLayoutReadsAcrossMonths(t *testing.T) {
+	rc := config.RotationConfig{
+		Periodic: configoptional.Some(config.PeriodicRotation{
+			DateLayout: "2006-01",
+		}),
+	}
+	r := BuildRotation("", config.SpanIndexName, rc, nil, zap.NewNop())
+
+	start := time.Date(2026, time.January, 31, 12, 0, 0, 0, time.UTC)
+	end := time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
+	assert.Equal(t,
+		[]string{"jaeger-span-2026-03", "jaeger-span-2026-02", "jaeger-span-2026-01"},
+		r.ReadTargets(start, end),
+	)
 }
 
 func TestIndexToDataStreamName(t *testing.T) {
