@@ -114,7 +114,7 @@ Do these after the documentation is published.
 
 <!-- BEGIN_WRAPUP -->
 
-1. Update the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, drop the rows for gate IDs this release removed, and reword notes that say a change ships in vX.Y.Z to say it shipped.
+1. Update the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, and drop the rows for gate IDs this release removed. Then post a comment on the tracker that lists the gate transitions vX.Y.Z shipped, each with its PR. The body of the tracker holds only pending transitions, and its comments hold the history.
 2. Close the tracking issue with a comment that links the UI release, the backend release, and the documentation PR.
 
 <!-- END_WRAPUP -->
