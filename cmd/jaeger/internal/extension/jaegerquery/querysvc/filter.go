@@ -9,18 +9,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// Whether a backend evaluates a filter natively is a separate switch, named
-// jaeger.<backend>.structuredFilters — this gate's leaf with the backend in place of "query" —
-// because the two stabilize on different schedules.
 var _ = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.query.structuredFilters",
 	featuregate.StageStable,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterToVersion("v2.26.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0005 structured query filter on trace search. This admits filters into "+
-			"the query path only; whether a storage backend evaluates one natively is gated "+
-			"separately, by jaeger.<backend>.structuredFilters.",
+		"Accepts the RFC 0005 structured query filter on trace search. Whether a storage backend "+
+			"evaluates a filter natively is declared by that backend and not controlled by this gate.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
