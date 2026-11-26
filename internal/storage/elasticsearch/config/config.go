@@ -234,6 +234,8 @@ type Configuration struct {
 	//
 	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
 	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
+	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
+	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
 	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
 	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
@@ -245,12 +247,6 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
-	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
-	//
-	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
-	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.

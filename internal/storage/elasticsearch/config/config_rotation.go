@@ -14,7 +14,7 @@ const legacyRotationFlagsList = "use_aliases, use_ilm, span_read_alias, span_wri
 
 // RotationConfig defines how Jaeger manages index naming and lookup for a given
 // index type (spans, services, etc.). Exactly one variant should be set.
-// If none is set, legacy flags (use_aliases, use_ilm, etc.) determine behavior.
+// If none is set, Jaeger uses periodic rotation.
 type RotationConfig struct {
 	// Periodic creates a new time-stamped index on a regular schedule (e.g. daily).
 	// Jaeger computes the index name from a date suffix and writes directly to it.

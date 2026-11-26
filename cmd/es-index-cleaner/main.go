@@ -27,7 +27,7 @@ var _ = featuregate.GlobalRegistry().MustRegister(
 	featuregate.StageStable,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterToVersion("v2.26.0"),
-	featuregate.WithRegisterDescription("Indices are deleted relative to the current time and not to tomorrow midnight."),
+	featuregate.WithRegisterDescription("The deletion cutoff is NUM_OF_DAYS before the current time, not before tomorrow midnight."),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
 )
 

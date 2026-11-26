@@ -15,8 +15,8 @@ var _ = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterToVersion("v2.26.0"),
 	featuregate.WithRegisterDescription(
-		"The use of deprecated ES rotation flags (use_aliases, use_ilm, span_read_alias, etc.) "+
-			"is a validation error.",
+		"Validation fails when a deprecated ES rotation flag (use_aliases, use_ilm, "+
+			"span_read_alias, etc.) is set.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 )
