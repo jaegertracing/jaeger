@@ -271,8 +271,8 @@ Every transition except the introduction of a gate in Alpha changes what a deplo
 ### Conventions
 
   * **Every gate ID starts with `jaeger.`**, for example `jaeger.es.config.rejectLegacyRotationFlags`. Jaeger shares the process-wide `featuregate.GlobalRegistry()` with the embedded Collector and its contrib components, and the prefix keeps the IDs of Jaeger from colliding with theirs.
-  * **`FromVersion` is the release that introduced the gate ID.** Set `WithRegisterFromVersion` once, and do not change it when the gate changes stage.
-  * **`ToVersion` is the release that removes the gate ID.** Registration panics when a Stable gate has none. When a user explicitly enables a Stable gate, the log says that the gate will be removed in `ToVersion`.
+  * **Set `FromVersion` when a gate is first registered.** `WithRegisterFromVersion` names the release that introduced the gate ID. Do not change it when the gate changes stage.
+  * **Set `ToVersion` when a gate becomes Stable.** `WithRegisterToVersion` names the future release in which the gate ID will be removed. A Stable gate must have it: the OTel registry panics on a Stable registration without `ToVersion`. When a user explicitly enables a Stable gate, the log says that the gate will be removed in that release.
   * **A rename is a breaking change.** A gate ID is user-facing configuration, and the OTel API has no alias for an ID. Register the new ID, keep the old ID working as an alias through `internal/featuregate.RenamedGate`, and remove the old ID in a later release; the recommended time is two releases. `RenamedGate` supports only Alpha and Beta, so the alias is removed before the gate becomes Stable.
 
 ### Applying a Gate Transition
