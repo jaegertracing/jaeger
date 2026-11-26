@@ -262,7 +262,7 @@ A gate moves through these stages:
 | Stable | new behavior | no, disabling the gate is a startup error | Change the stage, set `ToVersion`, and delete the code for the old behavior. |
 | removed | new behavior | no, any mention of the gate is a startup error | Delete the registration. |
 
-A gate moves from Alpha to Beta when the maintainers decide that the new behavior is ready to be the default. The recommended time in Beta is two releases, and the recommended time in Stable is two releases. Both are recommendations and not rules.
+A gate moves from Alpha to Beta when the maintainers decide that the new behavior is ready to be the default. After that, the recommended time between stages is two releases. It is a recommendation and not a rule.
 
 Every transition except the introduction of a gate in Alpha changes what a deployment does or what a `--feature-gates` value is accepted, so it is a breaking change. Label its PR `changelog:breaking-change`, which lists the PR under the breaking changes of the release notes, and put the migration instructions in the PR description.
 
