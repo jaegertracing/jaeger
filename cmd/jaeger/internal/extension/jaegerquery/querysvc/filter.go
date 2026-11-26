@@ -9,9 +9,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// The jaeger.query.structuredFilters gate stays registered so that a deployment that names it in
-// --feature-gates still starts. It is Stable and cannot be disabled, so the query service admits
-// the RFC 0005 structured query filter without consulting it. The gate ID is removed in v2.26.0.
+// No code reads this gate. It stays registered so that a deployment that names it in
+// --feature-gates still starts.
 //
 // Whether a backend evaluates a filter natively is a separate switch, named
 // jaeger.<backend>.structuredFilters — this gate's leaf with the backend in place of "query" —

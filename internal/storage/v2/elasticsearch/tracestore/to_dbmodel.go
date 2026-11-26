@@ -28,11 +28,8 @@ const (
 	tagError         = "error"
 )
 
-// The jaeger.es.omitParentSpanIDReference gate stays registered so that a deployment that
-// names it in --feature-gates still starts. It is Stable and cannot be disabled, so the write
-// path does not consult it: the parent span ID is written only to the dedicated parentSpanID
-// field and never as a synthetic CHILD_OF entry in the References field, which query-service
-// readers older than v2.20 derived the parent from. The gate ID is removed in v2.26.0.
+// No code reads this gate. It stays registered so that a deployment that names it in
+// --feature-gates still starts.
 var _ = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.omitParentSpanIDReference",
 	featuregate.StageStable,
