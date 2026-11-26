@@ -255,12 +255,12 @@ A change to an existing default breaks the deployments that rely on the old beha
 
 A gate moves through these stages:
 
-| Stage | Default | Can a user change it? | What the PR that enters the stage does |
+| Stage | Default | Can a user change it? | Code change that moves a gate to this stage |
 |---|---|---|---|
-| Alpha | old behavior | yes | Registers the gate and adds the new behavior behind it. |
-| Beta | new behavior | yes | Changes the stage. A gate can skip Alpha and start in Beta, which makes the new behavior the default immediately. |
-| Stable | new behavior | no, disabling the gate is a startup error | Deletes the code for the old behavior and sets `ToVersion`. |
-| removed | new behavior | no, any mention of the gate is a startup error | Removes the registration. |
+| Alpha | old behavior | yes | Register the gate and add the new behavior behind it. |
+| Beta | new behavior | yes | Change the stage in the registration. A gate can skip Alpha and start in Beta, which makes the new behavior the default immediately. |
+| Stable | new behavior | no, disabling the gate is a startup error | Change the stage, set `ToVersion`, and delete the code for the old behavior. |
+| removed | new behavior | no, any mention of the gate is a startup error | Delete the registration. |
 
 A gate moves from Alpha to Beta when the maintainers decide that the new behavior is ready to be the default. The recommended time in Beta is two releases, and the recommended time in Stable is two releases. Both are recommendations and not rules.
 
