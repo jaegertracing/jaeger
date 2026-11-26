@@ -44,7 +44,7 @@ Throughout this issue, tick each item when it is done, or when it does not apply
 
 1. Update your clone: `git switch main && git pull --ff-only && git fetch --tags`. Your `main` must track `jaegertracing/jaeger`, not a fork; `git rev-parse --abbrev-ref main@{upstream}` names the remote it tracks.
 2. Land the feature gate transitions due in vX.Y.Z before preparing the release.
-  * Review the feature gate lifecycle tracker (https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z. [Applying a Gate Transition](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#applying-a-gate-transition) says what such a PR changes.
+  * Review the feature gate lifecycle tracker (https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z. [Applying a Gate Transition](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#applying-a-gate-transition) documents the process.
   * Confirm no gate on main still carries `WithRegisterToVersion("vX.Y.Z")`. This must print nothing: `git grep -n 'WithRegisterToVersion("vX.Y.Z")' -- '*.go' ':!*_test.go'`.
   * The tracker is maintained by hand, so it can miss gates. Compare the gate IDs registered in the code with the tracker's rows. This prints nothing when they match. A `<` line is a gate in the code with no tracker row; a `>` line is a tracker row whose gate is gone. Raise any difference with the maintainers before you prepare the release.
     ```bash
