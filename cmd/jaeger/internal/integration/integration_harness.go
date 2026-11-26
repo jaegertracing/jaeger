@@ -74,10 +74,9 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 	return args
 }
 
-// paginationGates enables the RFC 0014 pagination gate. The gate is beta and on by default, and
-// it is still passed explicitly so that the suites do not depend on the default and keep working
-// against a binary that pins the gate off. The pagination and span ordering tests send page
-// tokens through the query service.
+// paginationGates enables the RFC 0014 pagination gate explicitly, so that the suites do not
+// depend on its default. The pagination and span ordering tests send page tokens through the
+// query service.
 var paginationGates = []string{querysvc.PaginationGate.ID()}
 
 // numericAttributesEnvVar is the environment variable the Elasticsearch and OpenSearch e2e
