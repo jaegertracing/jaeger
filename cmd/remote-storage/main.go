@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapgrpc"
+	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
@@ -59,6 +61,13 @@ func main() {
 				return err
 			}
 			logger := svc.Logger
+			// The gRPC logger is a process-wide variable that grpclog does not guard with a
+			// mutex, so main sets it here, before the process creates any gRPC server or client.
+			grpclog.SetLoggerV2(zapgrpc.NewLogger(
+				logger.WithOptions(
+					zap.AddCallerSkip(5), // ensure the actual caller:lineNo is shown
+				),
+			))
 			if app.ConfigFile(v) == "" {
 				logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
 			}

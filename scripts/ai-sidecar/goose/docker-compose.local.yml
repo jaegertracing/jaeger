@@ -1,0 +1,16 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This override runs a locally built Jaeger binary inside the released image,
+# so the stack exercises the working tree instead of a release. run.sh builds
+# the binary and selects this file unless it is given --release; by hand:
+#
+#   CGO_ENABLED=0 GOOS=linux go build -o /tmp/jaeger-linux ./cmd/jaeger
+#   JAEGER_BINARY=/tmp/jaeger-linux docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# GOARCH defaults to the host's, which matches the image Docker pulls.
+
+services:
+  jaeger:
+    volumes:
+      - "${JAEGER_BINARY:?set JAEGER_BINARY to a linux build of cmd/jaeger}:/cmd/jaeger/jaeger-linux:ro"

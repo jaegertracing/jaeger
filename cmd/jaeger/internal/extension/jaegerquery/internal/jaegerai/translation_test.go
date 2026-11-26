@@ -241,7 +241,7 @@ func TestStripUIToolPrefixStripsRealName(t *testing.T) {
 }
 
 func TestStripUIToolPrefixPassesThroughUnprefixed(t *testing.T) {
-	assert.Equal(t, "search_traces", stripUIToolPrefix("search_traces"),
+	assert.Equal(t, "find_traces", stripUIToolPrefix("find_traces"),
 		"built-in MCP tool names must not be touched")
 }
 

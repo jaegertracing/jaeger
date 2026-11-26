@@ -50,8 +50,7 @@ Receivers in that default pipeline:
 The query extension serves, on one HTTP port and one gRPC port:
 
 - The UI (embedded `jaeger-ui` assets).
-- Legacy HTTP `/api/` (traces, archive, dependencies, metrics, quality
-  metrics, and `POST /api/transform`).
+- Legacy HTTP `/api/` (archive, dependencies, metrics, and quality metrics).
 - HTTP `/api/v3/` (services, operations, traces, trace summaries, spans,
   capabilities) and gRPC `jaeger.api_v2.QueryService` and
   `jaeger.api_v3.QueryService`.
@@ -268,23 +267,21 @@ Jaeger. A hostile file can still trip the rendering paths in T7, or hang the
 tab. There is no server-side size limit on that path because the server
 never sees the file.
 
-`POST /api/transform` is a different, server-side conversion of an OTLP JSON
-body. It is on the query port and subject to the collector HTTP
-`max_request_body_size` (20 MiB when unset).
-
 ### T9: MCP and AI agent access
 
 `/api/ai/mcp/` serves streamable HTTP MCP on the query port. The embedded
-config enables it. Tools are `get_services`, `get_span_names`,
-`search_traces`, `get_span_details`, `get_trace_errors`,
-`get_trace_topology`, `get_critical_path`, `get_service_dependencies`, and
-`read_skill`. They call the same `QueryService` as the UI.
+config enables it. Every tool registered on this route is read-only and calls
+the same `QueryService` as the UI, so an agent can read what a UI user can
+read and nothing else. The one tool that touches anything but `QueryService`
+is `read_skill`, which reads files: it rejects paths that fail `fs.ValidPath`
+(which rejects `..`) and only opens the embedded skill tree, or
+`custom/<path>` from `ai.mcp.skills_dir` when that directory is set. The
+registered tool set is what `tools/list` returns on this route; the gateway's
+turn-scoped route below adds UI tools to it.
 
 Limits compiled into the handler: 100 search hits, 20 spans of detail per
-call, and 512 KiB for a skill file. Idle MCP sessions expire after 5
-minutes. `read_skill` rejects paths that fail `fs.ValidPath` (which rejects
-`..`) and only opens the embedded skill tree, or `custom/<path>` from
-`ai.mcp.skills_dir` when that directory is set.
+call, and 512 KiB for a skill file. The endpoint keeps no session between
+requests, so there is nothing for an idle client to hold.
 
 There is no MCP-specific authentication, allowlist of clients, or filter of
 span text before it is returned. Tool arguments and tool results are copied

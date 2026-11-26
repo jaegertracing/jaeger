@@ -22,7 +22,7 @@ Table of Contents:
 
 ### Open an issue first
 
-**Before making any significant changes, please open an issue**. Each issue
+**Before making a change, please open an issue**, unless one already exists. Each issue
 should describe the following:
 
 * Requirement - what kind of business use case are you trying to solve?
@@ -31,8 +31,9 @@ should describe the following:
 * Any open questions to address
 
 Discussing your proposed changes ahead of time will make the contribution
-process smooth for everyone. Once the approach is agreed upon, make your changes
-and open a pull request (PR).
+process smooth for everyone. A maintainer who agrees with the approach and is
+willing to accept a contribution applies the `help wanted` label to the issue.
+Once the issue carries that label, make your changes and open a pull request (PR).
 
 ### Assigning Issues
 
@@ -52,6 +53,30 @@ issue in GitHub's sidebar, so GitHub records the canonical issue relationship. A
 bare issue number in a title, commit, or comment is not sufficient. A closing
 keyword that appears only in a commit message does not link the open PR to the
 issue for this policy.
+
+The linked issue must be open and carry the `help wanted` label, which a
+maintainer applies when the project is ready to accept a contribution for that
+issue. An issue in another repository of the `jaegertracing` organization
+qualifies. If the issue you want to work on does not carry the label, ask on the
+issue before writing code, because the maintainers may not want the change or
+may already be working on it.
+
+A pull request that is not linked to such an issue receives a comment that
+points to this section. It is labelled `unapproved-issue` when it is linked to
+an open issue of the `jaegertracing` organization that does not carry
+`help wanted`, and `missing-issue` otherwise.
+Adding a closing keyword for a qualifying issue to the description removes
+the `missing-issue` or `unapproved-issue` label.
+The pull request is checked again when its description is edited, and once a
+day while it carries one of the two labels. Edit the description after you link
+an issue through the sidebar to have it checked sooner. A pull request that still carries
+`missing-issue` or `unapproved-issue` a week after the comment was posted is closed automatically. Comments and
+new commits do not extend the week. A closed pull request
+can be reopened once its description links a qualifying issue. Pull requests from maintainers and from
+Dependabot and Renovate are exempt, and a maintainer may exempt any other pull request,
+such as a fix for a typo, by applying the `no-issue-needed` label to it. A
+maintainer may also keep a flagged pull request open with the `do-not-expire`
+label.
 
 Only one active PR may normally be linked to an issue. Drafts and maintainer PRs
 count. If another active PR is already linked, coordinate with its author and

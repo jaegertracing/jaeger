@@ -1,0 +1,14 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file starts ClickHouse Keeper inside ch1.
+keeper_server:
+  tcp_port: 9181
+  server_id: 1
+  log_storage_path: /var/lib/clickhouse/coordination/log
+  snapshot_storage_path: /var/lib/clickhouse/coordination/snapshots
+  raft_configuration:
+    server:
+      - id: 1
+        hostname: ch1
+        port: 9234

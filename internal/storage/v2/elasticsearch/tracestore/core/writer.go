@@ -274,7 +274,7 @@ func (s *SpanWriter) buildSpanItem(indexName string, jsonSpan *dbmodel.Span) (es
 // a byte-identical span always yields the same body and id.
 func spanDocID(span *dbmodel.Span, body []byte) string {
 	h := fnv.New64a()
-	h.Write(body)
+	_, _ = h.Write(body)
 	return string(span.TraceID) + "_" + string(span.SpanID) + "_" + strconv.FormatUint(h.Sum64(), 16)
 }
 

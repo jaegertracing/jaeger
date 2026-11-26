@@ -1,14 +1,13 @@
 ---
 name: error-root-cause
 description: >-
-  Walk a failed trace to the first originating error span and distinguish root
-  cause from cascading failures. Use when a trace has errors and the user asks
-  why it failed, what caused the errors, or which service is the root cause.
+  Walk a failed trace to the first originating error span. Use when a request
+  failed and the user wants to know where.
 license: Apache-2.0
 metadata:
   author: jaegertracing
   version: "1.0"
-allowed-tools: get_trace_errors get_trace_topology get_span_details
+allowed-tools: get_trace_errors get_trace_topology get_span_details find_traces
 ---
 
 # Error Root Cause Analysis
@@ -42,3 +41,8 @@ originating failure, not just the symptoms.
 - The span a trace blames and the span that failed are frequently in different
   services. Report where the failure originates, not where it surfaced.
 - Multiple independent root causes can exist in a single trace.
+- A client span that failed to connect (connection refused, unavailable) and
+  has no server-side child is not the origin: the callee was down or
+  restarting. Use `find_traces` on the callee for the period before the
+  failure and `get_span_details` on its own spans to find why it went down,
+  such as spans getting slower or attribute values that stand out.

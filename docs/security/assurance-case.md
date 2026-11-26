@@ -161,7 +161,7 @@ which is the embedded default. Separate configs can still split them.
 | **Broken Access Control (CWE-284)** | No in-process RBAC. When `multi_tenancy` is enabled, a missing tenant header (default `x-tenant`) is rejected. A non-empty `tenants` list allowlists the value. An omitted or empty list accepts any non-empty value. It is not authentication. |
 | **Security Misconfiguration** | TLS verification defaults to on once TLS is configured. The embedded config leaves TLS and auth off, enables MCP, and binds query to every interface. Example configs under `cmd/jaeger/` are examples; some set `tls.insecure: true`. |
 | **Cross-Site Scripting (CWE-79)** | Ordinary span text is rendered as React text. GenAI Markdown disables raw HTML, replaces images with a placeholder, and allows links only for `http`, `https`, and `mailto`. Remote GenAI media is not fetched until the user asks. There is no `Content-Security-Policy` header and no CSP meta tag. |
-| **Insecure Deserialization (CWE-502)** | Receivers reject payloads that do not unmarshal. That is not a separate schema check of every attribute. `POST /api/transform` accepts OTLP JSON up to the query HTTP body limit (20 MiB when unset). |
+| **Insecure Deserialization (CWE-502)** | Receivers reject payloads that do not unmarshal. That is not a separate schema check of every attribute. |
 | **Insufficient Logging** | The process writes operational logs. It does not write an audit log of who read a trace. `ui.log_access` logs static-asset hits and is off by default. |
 | **SSRF (CWE-918)** | `otlp_proxy.target` is set by the operator, not by the request URL. Callers who can reach the query port can send spans to that fixed target. The proxy is off in the embedded config. |
 

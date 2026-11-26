@@ -13,14 +13,15 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message` | text | any |
+| `name` | text | any |
+| `status_message` | text | any; a span without a status message has no value, so no comparison on it matches that span |
 | `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
 | `duration` | duration | Go syntax with a unit, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it |
 | `service` | text | the resource's `service.name` |
-| `scope_name`, `scope_version` | text | the instrumentation scope |
+| `scope_name`, `scope_version` | text | the instrumentation scope; a span whose scope has an empty name or version has no value for that column, so no comparison on it matches that span |
 | `attributes['key']` | map | span attributes; a value is compared at the type storage holds |
 | `resource_attributes['key']` | map | resource attributes |
 | `scope_attributes['key']` | map | instrumentation scope attributes |
@@ -36,7 +37,7 @@ The three map columns compile to an attribute reference at the span, resource or
 | `events` | `time_since_start` | duration | Go syntax with a unit |
 | `events` | `attributes['key']` | map | event attributes |
 | `links` | `linked_trace_id`, `linked_span_id` | text | lower-case hex |
-| `links` | `trace_state` | text | any |
+| `links` | `trace_state` | text | any; a link without a trace state has no value, so no comparison on it matches that link |
 | `links` | `attributes['key']` | map | link attributes |
 
 The `span_id` and `trace_id` of an event or link appear only in the optional correlation with the outer span, `e.span_id = s.span_id`; a predicate on them is refused, because inside `EXISTS` the collection is already the span's own.
@@ -51,7 +52,7 @@ The `span_id` and `trace_id` of an event or link appear only in the optional cor
 | `duration` | duration |
 | `span_count`, `error_count` | number |
 
-The columns of `traces` are the RFC 0011 summary fields. They may be selected but not filtered on, because the expression tree has no trace-level fields; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+The columns of `traces` are the RFC 0011 summary fields. A traces query selects `*` and returns every one of them; a column list is refused, because the expression tree has no trace level to carry a summary column, and they cannot be filtered on either: the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Statement shape selects the method
 
@@ -61,7 +62,7 @@ The columns of `traces` are the RFC 0011 summary fields. They may be selected bu
 | `SELECT * FROM spans WHERE ...` | `FindSpans` | filter, window, order, limit |
 | `SELECT span_id, duration, ... FROM spans WHERE ...` | `FindSpans` | the above, plus a projection of the listed columns |
 | `SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)` | `FindTraces` | the subquery's filter and window; the outer `LIMIT` is the search depth |
-| `SELECT trace_id, root_service, ... FROM traces WHERE trace_id IN (...)` | `FindTraceSummaries` | as above |
+| `SELECT trace_id, root_service, ... FROM traces WHERE trace_id IN (...)` | refused | the expression tree has no trace level to carry a summary column, and no method shapes a result by the list |
 
 `ORDER BY` is accepted on a span search only, over `start_time`, `duration`, `trace_id` and `span_id`, each `ASC` or `DESC`. `LIMIT n` is the page size, or the search depth of a trace search; the server caps it. `OFFSET` is refused because the API paginates with the page token the response carries.
 
@@ -142,6 +143,7 @@ The compiler refuses, with a message that names the construct and the admitted a
 - Arithmetic, `CAST`, string functions and any function other than `between`, `match`, `phrase`, `fulltext` and `now`; `attr('key')` is refused with a hint naming the three map columns.
 - A `traces` query whose `WHERE` is anything but `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 - A statement without both `start_time` bounds.
+- A statement longer than 16 KiB, which is refused before parsing.
 
 Four spellings are parse errors rather than refusals, because the parser library does not know them: PostgreSQL's `~` operator, the SQL-92 `TIMESTAMP '...'` literal, `EXISTS (SELECT * ...)`, and `x NOT REGEXP 'p'`, which is written `NOT x REGEXP 'p'`.
 

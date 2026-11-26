@@ -2,7 +2,6 @@
   "name": "jaeger-ci-scripts",
   "version": "1.0.0",
   "description": "Jaeger CI scripts for managing pull request quotas and other automation tasks.",
-  "main": "pr-quota-manager.js",
   "scripts": {
     "test": "jest",
     "test:coverage": "jest --coverage",
@@ -25,14 +24,26 @@
   "devDependencies": {
     "jest": "30.5.2"
   },
+  "overrides": {
+    "minimatch": "11.0.1"
+  },
   "jest": {
     "testEnvironment": "node",
     "coveragePathIgnorePatterns": [
       "/node_modules/"
     ],
+    "rootDir": "..",
+    "coverageProvider": "v8",
+    "coverageDirectory": "<rootDir>/scripts/coverage",
+    "roots": [
+      "<rootDir>/scripts",
+      "<rootDir>/actions"
+    ],
     "collectCoverageFrom": [
-      "pr-quota-manager.js",
-      "ci-summary-report-publish.js"
+      "actions/pr-quota-manager/pr-quota-manager.js",
+      "actions/pr-duplicates/pr-duplicates.js",
+      "actions/pr-linked-issue/pr-linked-issue.js",
+      "scripts/ci-summary-report-publish.js"
     ]
   }
 }

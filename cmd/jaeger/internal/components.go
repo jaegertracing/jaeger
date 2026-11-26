@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/filterprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/memorylimiterprocessor"
+	"github.com/jaegertracing/jaeger/components/ext/processor/queuebatchprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/processor/tailsamplingprocessor"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/kafkareceiver"
@@ -121,6 +122,7 @@ func (b builders) build() (otelcol.Factories, error) {
 	factories.Processors, err = b.processor(
 		// standard
 		batchprocessor.NewFactory(),
+		queuebatchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),

@@ -44,13 +44,11 @@ all interfaces on port 16686, without TLS or an authenticator configured.
 MCP tools share the query service's read access to trace data, so deployment
 access controls must cover MCP as well as the UI and HTTP query API.
 
-Use authentication and TLS on the query HTTP server or an authenticated
-reverse proxy/gateway that clients cannot bypass. Tenant headers and MCP
-session IDs are not authentication credentials; deployments must authorize
-tenant selection and enforce session ownership where required. See the
-[MCP deployment guide](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#production-deployment)
-for configuration examples, tenant and session behavior, and
-[instructions to disable MCP](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/README.md#disabling-mcp).
+The
+[security guide](https://www.jaegertracing.io/docs/latest/deployment/security/)
+covers authentication, TLS, and the tenant and session behavior, and the
+[MCP server page](https://www.jaegertracing.io/docs/latest/ai/mcp-server/)
+explains how the endpoint is enabled and turned off.
 
 ## Input Validation
 

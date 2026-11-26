@@ -476,6 +476,31 @@ func TestFindSpans_Pagination(t *testing.T) {
 		require.ErrorIs(t, err, ErrPaginationDisabled)
 	})
 
+	t.Run("token from the reader withheld while the gate is disabled", func(t *testing.T) {
+		setPagination(t, false)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(paginating, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, mock.Anything).Return(spanPageWithToken("next-page"))
+		chunks, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(),
+			SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}))
+		require.NoError(t, err)
+		require.Len(t, chunks, 1)
+		assert.Equal(t, 1, chunks[0].Results.SpanCount(), "the spans still come back")
+		assert.Empty(t, chunks[0].NextPageToken, "the next request would refuse this token")
+	})
+
+	t.Run("token from the reader returned while the gate is enabled", func(t *testing.T) {
+		enablePagination(t)
+		tqs := initializeBareTestQueryService()
+		tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(paginating, nil)
+		tqs.traceReader.On("FindSpans", mock.Anything, mock.Anything).Return(spanPageWithToken("next-page"))
+		chunks, err := jiter.CollectWithErrors(tqs.queryService.FindSpans(context.Background(),
+			SpanQueryParams{StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd}))
+		require.NoError(t, err)
+		require.Len(t, chunks, 1)
+		assert.Equal(t, tracestore.PageToken("next-page"), chunks[0].NextPageToken)
+	})
+
 	t.Run("token refused when the reader cannot paginate", func(t *testing.T) {
 		enablePagination(t)
 		tqs := initializeBareTestQueryService()
@@ -492,6 +517,14 @@ func TestFindSpans_Pagination(t *testing.T) {
 		require.NoError(t, findSpans(tqs, spanQuery(tracestore.Pagination{PageToken: "opaque-cursor"})))
 		tqs.traceReader.AssertExpectations(t)
 	})
+}
+
+func spanPageWithToken(token tracestore.PageToken) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
+	traces := ptrace.NewTraces()
+	traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		yield(tracestore.PageChunk[ptrace.Traces]{Results: traces, NextPageToken: token}, nil)
+	}
 }
 
 func emptySpanPage() iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
@@ -518,6 +551,23 @@ func TestFindSpans_WithUnsupportingBackend_UnsupportedError(t *testing.T) {
 	seq := tqs.queryService.FindSpans(context.Background(), query)
 	_, err := jiter.CollectWithErrors(seq)
 	require.Equal(t, ErrSpanSearchUnsupported, err)
+}
+
+// TestFindSpans_ProjectionUnsupported pins that a column list is refused before the backend is
+// consulted: the reader's capabilities are never asked for.
+func TestFindSpans_ProjectionUnsupported(t *testing.T) {
+	tqs := initializeBareTestQueryService()
+
+	query := SpanQueryParams{
+		StartTimeMin: testWindowStart,
+		StartTimeMax: testWindowEnd,
+		Projection:   []expression.Expression{p.Span().Duration.Term()},
+	}
+	seq := tqs.queryService.FindSpans(context.Background(), query)
+	_, err := jiter.CollectWithErrors(seq)
+	require.ErrorIs(t, err, ErrProjectionUnsupported)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	tqs.traceReader.AssertNotCalled(t, "SearchCapabilities", mock.Anything)
 }
 
 func TestFindTraces_Success(t *testing.T) {
@@ -1665,7 +1715,6 @@ func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.Tra
 // backends that do not evaluate a filter yet: the reader receives the predicate fields it
 // already understands and no filter at all.
 func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
-	enableStructuredFilters(t)
 	query := filterQuery(p.And(
 		p.Resource().Service.Eq("cart"),
 		tag(expression.OpEq, "http.status_code", "500")))
@@ -1690,7 +1739,6 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 // TestFindTraces_FilterReachesADeclaringReader covers the other branch: a reader that
 // declares filter support gets the filter itself.
 func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
-	enableStructuredFilters(t)
 	filter := p.Span().Attr("http.route").Matches("/cart/.*")
 	query := filterQuery(filter)
 
@@ -1716,7 +1764,6 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 // every service is satisfied by a filter that names one — and still refuses a filter that
 // does not.
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
-	enableStructuredFilters(t)
 	filterOn := func(level expression.Level, name, value string) *expression.Call {
 		return p.RefOf(&expression.FieldRef{Level: level, Name: name}).Eq(value)
 	}
@@ -1750,7 +1797,6 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 // reader that cannot report its capabilities reads as the least capable one, which is why an
 // unreachable backend refuses the same filter.
 func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
-	enableStructuredFilters(t)
 	query := filterQuery(p.Or(
 		tag(expression.OpEq, "a", "1"),
 		tag(expression.OpEq, "b", "2")))
@@ -1782,12 +1828,12 @@ func TestFindSpansOrdering(t *testing.T) {
 			tqs.traceReader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported}, nil)
 			query := SpanQueryParams{
 				StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-				OrderBy: []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}}},
+				OrderBy: []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", "")},
 			}
 			if supported {
 				expected := tracestore.SpanQueryParams{
 					StartTimeMin: testWindowStart, StartTimeMax: testWindowEnd,
-					OrderBy:    []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortAscending}},
+					OrderBy:    []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortAscending)},
 					Pagination: tracestore.Pagination{PageSize: DefaultPageSize},
 				}
 				tqs.traceReader.On("FindSpans", mock.Anything, expected).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(func(tracestore.PageChunk[ptrace.Traces], error) bool) {})).Once()
@@ -1817,4 +1863,27 @@ func TestSearchCapabilitiesForwardsTheReaderDeclaration(t *testing.T) {
 	got, err := tqs.queryService.SearchCapabilities(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+}
+
+func TestSearchCapabilities_PaginatedFollowsTheGate(t *testing.T) {
+	tests := []struct {
+		name        string
+		gateEnabled bool
+		paginated   bool
+	}{
+		{name: "gate disabled", gateEnabled: false, paginated: false},
+		{name: "gate enabled", gateEnabled: true, paginated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setPagination(t, tt.gateEnabled)
+			tqs := initializeBareTestQueryService()
+			tqs.traceReader.On("SearchCapabilities", mock.Anything).
+				Return(tracestore.SearchCapabilities{SpanSearch: true, Paginated: true}, nil)
+
+			got, err := tqs.queryService.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tracestore.SearchCapabilities{SpanSearch: true, Paginated: tt.paginated}, got)
+		})
+	}
 }

@@ -66,6 +66,9 @@ func NewMetricsReader(searcher esclient.Searcher, cfg config.Configuration, logg
 
 // GetLatencies retrieves latency metrics
 func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
 	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
@@ -100,6 +103,9 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 
 // GetCallRates retrieves call rate metrics
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
 	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
@@ -129,6 +135,9 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 
 // GetErrorRates retrieves error rate metrics
 func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	if len(params.Filters) > 0 {
+		return nil, fmt.Errorf("dimension filtering: %w", errors.ErrUnsupported)
+	}
 	timeRange, err := calculateRateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
@@ -159,6 +168,13 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	}
 
 	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
+}
+
+// GetDimensions returns the set of pre-configured filterable dimensions.
+// TODO(#7433): the Elasticsearch metricstore does not yet support dimension
+// filtering. Returning an empty slice tells the UI to hide the dropdowns.
+func (MetricsReader) GetDimensions(context.Context) ([]metricstore.Dimension, error) {
+	return nil, nil
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket

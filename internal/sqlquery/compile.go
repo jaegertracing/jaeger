@@ -28,10 +28,9 @@ import (
 type Kind string
 
 const (
-	KindFindTraceIDs       Kind = "FindTraceIDs"
-	KindFindSpans          Kind = "FindSpans"
-	KindFindTraces         Kind = "FindTraces"
-	KindFindTraceSummaries Kind = "FindTraceSummaries"
+	KindFindTraceIDs Kind = "FindTraceIDs"
+	KindFindSpans    Kind = "FindSpans"
+	KindFindTraces   Kind = "FindTraces"
 )
 
 // Query is a compiled statement: the parameters of a query service search, and the method
@@ -56,13 +55,22 @@ type Query struct {
 	Normalized string
 }
 
+// maxStatementBytes bounds the parser's recursion, whose stack overflow is fatal to the process
+// rather than a recoverable panic (RFC 0019 §8).
+const maxStatementBytes = 16 << 10
+
 // Compile parses and lowers one statement. now is the instant now() evaluates to, fixed once
 // per request by the caller so that the two bounds of a window agree.
 func Compile(sql string, now time.Time) (*Query, error) {
+	if len(sql) > maxStatementBytes {
+		return nil, newPositions(sql[:maxStatementBytes]).atOffset(maxStatementBytes,
+			fmt.Sprintf("the statement is %d bytes long", len(sql)),
+			fmt.Sprintf("A statement is limited to %d bytes (RFC 0019 §8)", maxStatementBytes))
+	}
 	c := &compiler{now: now, pos: newPositions(sql)}
-	stmts, err := parser.NewParser(sql).ParseStmts()
+	stmts, err := c.parse(sql)
 	if err != nil {
-		return nil, c.pos.fromParser(err)
+		return nil, err
 	}
 	if len(stmts) == 0 {
 		return nil, c.pos.atOffset(0, "the request holds no statement", "Send one SELECT statement")
@@ -85,6 +93,22 @@ func Compile(sql string, now time.Time) (*Query, error) {
 type compiler struct {
 	now time.Time
 	pos positions
+}
+
+// parse runs the parser library over the statement. The library can panic on text it does
+// not expect, and a panic carries no position, so it is reported as a syntax error at the end
+// of the statement.
+func (c *compiler) parse(sql string) (stmts []parser.Expr, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stmts, err = nil, c.pos.atOffset(len(sql), "the statement is incomplete or malformed", hintNotSQL)
+		}
+	}()
+	stmts, err = parser.NewParser(sql).ParseStmts()
+	if err != nil {
+		return nil, c.pos.fromParser(err)
+	}
+	return stmts, nil
 }
 
 func (c *compiler) statement(sel *parser.SelectQuery) (*Query, error) {
@@ -477,9 +501,10 @@ func (c *compiler) limit(clause *parser.LimitClause) (uint32, error) {
 	return uint32(n), nil
 }
 
-// traces compiles the one shape over traces: SELECT ... FROM traces WHERE trace_id IN (SELECT
-// trace_id FROM spans WHERE ...), which is FindTraces for * and FindTraceSummaries for a column
-// list (RFC 0019 §4.4).
+// traces compiles the one shape over traces: SELECT * FROM traces WHERE trace_id IN (SELECT
+// trace_id FROM spans WHERE ...), which is FindTraces (RFC 0019 §4.4). A column list over traces
+// is refused: the expression tree has no trace level to carry a summary column as a reference,
+// so the compiler has nowhere to put the list and no method shapes a result by it.
 func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error) {
 	const shape = "SELECT * FROM traces WHERE trace_id IN (SELECT trace_id FROM spans WHERE ...)"
 	query := &Query{Kind: KindFindTraces}
@@ -490,16 +515,12 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 		return nil, c.pos.at(sel, "DISTINCT applies to a span search", "SELECT DISTINCT trace_id FROM spans returns trace IDs; a traces query returns one row per trace already")
 	}
 	if len(sel.SelectItems) != 1 || !isStar(sel.SelectItems[0].Expr) {
-		query.Kind = KindFindTraceSummaries
 		for _, item := range sel.SelectItems {
 			if err := c.refuseSelectItem(item); err != nil {
 				return nil, err
 			}
-			name := columnName(item.Expr)
-			if name == "" || !isTracesColumn(name) || !sameScope(&scope{alias: alias}, item.Expr) {
-				return nil, c.pos.at(item, "traces has no column "+quoteName(item.Expr), "Its columns are "+columnNames(relationTraces)+", read as "+alias)
-			}
 		}
+		return nil, c.pos.at(sel.SelectItems[0], "a column list over traces is not supported yet", hintTracesColumns)
 	}
 	if sel.OrderBy != nil {
 		return nil, c.pos.at(sel.OrderBy, "a trace search has no ORDER BY", "Write SELECT * FROM spans to order spans")
@@ -544,10 +565,6 @@ func (c *compiler) traces(sel *parser.SelectQuery, alias string) (*Query, error)
 	}
 	query.Limit = limit
 	return query, nil
-}
-
-func quoteName(node parser.Expr) string {
-	return strconv.Quote(formatted(node))
 }
 
 // formatted prints one node back as SQL.

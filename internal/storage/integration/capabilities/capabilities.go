@@ -79,8 +79,6 @@ const (
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
-	// TODO: remove this after all storage backends return Source column from GetDependencies
-	getDependenciesMissingSource bool
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
 	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
@@ -127,11 +125,6 @@ func (c Capabilities) SearchRequiresServiceName() bool {
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
 func (c Capabilities) GetOperationsMissingSpanKind() bool {
 	return c.getOperationsMissingSpanKind
-}
-
-// GetDependenciesMissingSource returns true if the storage backend does not return the Source column from GetDependencies.
-func (c Capabilities) GetDependenciesMissingSource() bool {
-	return c.getDependenciesMissingSource
 }
 
 // SkipList returns a list of tests that should be skipped for this storage backend.
@@ -217,18 +210,19 @@ func GRPC() Capabilities {
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName:    true,
-		getDependenciesMissingSource: true,
+		searchRequiresServiceName: true,
 		skipList: []string{
 			// The reader implements neither FindSpans nor continuation tokens.
 			spanOrderingTest,
 			paginationTest,
-			// A search with a duration bound reads the duration_index table alone, which ignores
-			// the tag and operation predicates sent with it (ADR-001).
+			// A search with a duration bound reads the duration_index table alone, so the reader
+			// refuses one that also has tags (ADR-001).
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
 			"Tags_+_Operation_name_+_max_Duration",
 			"Tags_+_max_Duration",
+			// The reader does not refuse this search, which has no tags; why it is skipped is not
+			// recorded.
 			"Operation_name_+_max_Duration",
 			// The reader goes through the v1 span model, which has no scope or link attributes.
 			scopeAttributesTest,
@@ -245,9 +239,14 @@ func Cassandra() Capabilities {
 // fresh slice, so a caller may append to it.
 func clickHouseSkipList() []string {
 	return []string{
-		// The reader implements neither FindSpans nor continuation tokens.
-		spanOrderingTest,
-		paginationTest,
+		// The span search orders by the built-in span fields only; no backend orders by an
+		// attribute yet.
+		spanAttributeOrderingTest,
+		// The lowering maps five built-in fields; span.startTime is not among them yet.
+		"SpanOrdering/Basic/TimestampFilter",
+		// The trace searches do not page yet.
+		traceIDPaginationTest,
+		summaryPaginationTest,
 		// The lowering maps five built-in fields; event.name has a column but is not among them yet.
 		filterEventNameTest,
 		// The lowering declares the ordered comparisons but evaluates them on span.duration only, and
@@ -259,6 +258,9 @@ func clickHouseSkipList() []string {
 // ClickHouse returns the capabilities for the ClickHouse storage backend read directly.
 func ClickHouse() Capabilities {
 	return Capabilities{
+		// The span ID is the span search's tie-breaker and is not unique in the spans table,
+		// so the search loses the later copies of a span stored twice at a page boundary.
+		pagingDropsTiedSpans: true,
 		// The lowering has no mapping for span.traceState yet and refuses a filter naming it.
 		traceStateRefused: true,
 		skipList: append(
@@ -276,8 +278,9 @@ func ClickHouse() Capabilities {
 // through jaeger-query.
 func ClickHouseE2E() Capabilities {
 	return Capabilities{
-		traceStateRefused: true,
-		skipList:          clickHouseSkipList(),
+		pagingDropsTiedSpans: true,
+		traceStateRefused:    true,
+		skipList:             clickHouseSkipList(),
 	}
 }
 
@@ -356,8 +359,7 @@ func OpenSearch() Capabilities {
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName:    true,
-		getDependenciesMissingSource: true,
+		searchRequiresServiceName: true,
 		skipList: []string{
 			spanAttributeOrderingTest,
 			// The jaeger_proto and jaeger_json encodings go through the v1 span model, which keeps

@@ -141,10 +141,7 @@ already taken, rather than testing whatever else is listening — a stale Jaeger
 answers queries happily, and one built before the filter existed drops it as an
 unknown proto field, so every predicate silently stops filtering.
 
-It needs two things that are easy to miss. The filter is behind the
-`jaeger.query.structuredFilters` feature gate, Alpha and off by default, so `run.sh`
-enables it; without it a query carrying a filter is refused. And OpenSearch is not
-incidental: Elasticsearch/OpenSearch is the only backend that declares filter
+OpenSearch is not incidental: Elasticsearch/OpenSearch is the only backend that declares filter
 capabilities today, so it is the only one that evaluates a filter rather than having
 it down-converted to the legacy predicate fields. It declares the span, resource and
 event levels and every operator except `some`, and the test asserts that a filter

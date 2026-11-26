@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -102,15 +101,6 @@ func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
 	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
-}
-
-func TestNativeTraceSummariesGate_IsStable(t *testing.T) {
-	// A Stable gate cannot be disabled, so the reader always attempts the native
-	// aggregation and the fallback is decided by the backend alone.
-	assert.Equal(t, featuregate.StageStable, nativeTraceSummariesGate.Stage(),
-		"the gate is Stable: the native aggregation can no longer be turned off")
-	require.Error(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
-	assert.True(t, nativeTraceSummariesGate.IsEnabled())
 }
 
 func TestTraceReader_FindTraceSummaries_BadTraceID(t *testing.T) {
