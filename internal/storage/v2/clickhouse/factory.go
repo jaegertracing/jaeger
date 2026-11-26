@@ -270,6 +270,19 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
+	// The cluster is checked before the schema is created, because a Distributed table over
+	// a misconfigured cluster renders without error and only shows the misconfiguration
+	// later, by storing rows more than once or not fanning a search out to every shard.
+	if cfg.CreateSchema {
+		cluster, err := cfg.TableEngine.clusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		if err := checkClusterSetup(ctx, conn, cluster, cfg.warnOnFailedSetupCheck(), telset.Logger); err != nil {
+			return nil, err
+		}
+	}
+
 	// The layout is checked before the schema is created, because CREATE TABLE IF NOT EXISTS
 	// leaves a table of the other layout as it is, and a view that is created over that table
 	// fails with an error that does not name the layout. A table that does not exist passes.
