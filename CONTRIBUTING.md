@@ -279,7 +279,7 @@ Every transition except the introduction of a gate in Alpha changes what a deplo
 
 The feature gate lifecycle tracker (https://github.com/jaegertracing/jaeger/issues/9057) lists the registered gates and the next transition of each. A transition that the tracker lists needs no issue of its own. The PR that applies it links the tracker with `Part of #9057` and not with a closing keyword, which would close the tracker.
 
-1. **Read the stage from the code, not from the tracker.** The tracker is maintained by hand and can lag behind the code. This command prints the stage, `FromVersion` and `ToVersion` of every gate: `git grep -n -A5 'GlobalRegistry().MustRegister' -- '*.go' ':!*.pb.go' ':!*_test.go'`.
+1. **Read the stage from the code, not from the tracker.** The tracker is maintained by hand and can lag behind the code. `make echo-feature-gates` prints the stage, `FromVersion` and `ToVersion` of every gate.
 2. **Apply only what is due.** A transition is due when the tracker schedules it for the next release and does not mark it ✅. Do not advance a gate early, and do not apply a transition that the tracker does not list.
 3. **Delete the code for the disabled gate in the PR that makes the gate Stable.** A Stable gate cannot be disabled, even in a test, so from that release the code that ran with the gate disabled is unreachable. The PR deletes every `IsEnabled()` check of the gate, the code that ran when the check was false, and the tests that disabled the gate. The code that ran when the check was true now runs unconditionally. The registration stays, with its `ToVersion`.
 4. **In the release that `ToVersion` names, remove only the registration.** Step 3 left nothing else that depends on the gate.
