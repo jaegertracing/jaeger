@@ -14,6 +14,7 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 // eventNameKey is the logs.fields key the write path stores a span event's name under
