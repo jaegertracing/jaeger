@@ -17,8 +17,8 @@ import (
 
 // NewESClient builds an Elasticsearch/OpenSearch admin client from the CLI
 // config, threading auth (basic/bearer/API key) and TLS through the shared
-// transport stack. The config is checked with the shared Validate, which
-// rejects configuring more than one auth method.
+// transport stack. Only the shared auth rule is checked: the full Validate also
+// checks the server URL and would reject endpoints such as http://0.0.0.0:9200.
 func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
 	esCfg := &escfg.Configuration{
 		Servers:      []string{endpoint},
@@ -43,8 +43,8 @@ func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
-	if err := esCfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	if err := esCfg.Authentication.ValidateSingleMethod(); err != nil {
+		return nil, fmt.Errorf("only one of --es.username/--es.password, --es.token-file or --es.api-key-file may be set: %w", err)
 	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
