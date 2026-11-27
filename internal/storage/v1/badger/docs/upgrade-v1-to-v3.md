@@ -13,7 +13,7 @@ data  key
 000038.sst  000048.sst  000049.sst  000050.sst  000051.sst  000059.sst  000060.sst  000061.sst  000063.sst  000064.sst  000065.sst  000066.sst  MANIFEST
 ```
 
-2. Make a backup of your data directory to have a copy incase migration didn't work successfully.
+2. Make a backup of your data directory to have a copy in case migration didn't work successfully.
 
 ```sh
 ❯ cp -r /tmp/badger /tmp/badger.bk
