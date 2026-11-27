@@ -71,6 +71,24 @@ testAttemptsEnvSingleTry() {
   assertEquals "no sleeps with ATTEMPTS=1" 0 "$count"
 }
 
+testZeroPaddedBackoffUsesDecimal() {
+  local fake_bin="$TMPDIR_TEST/backoff-bin"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/sleep" <<'EOF'
+#!/bin/sh
+printf 'delay: %s\n' "$1"
+EOF
+  chmod +x "$fake_bin/sleep"
+
+  local out rc
+  out=$(PATH="$fake_bin:$PATH" ATTEMPTS=3 BACKOFF=08 bash "$retry" false 2>&1)
+  rc=$?
+  assertEquals "exit 1 after exhausting retries" 1 "$rc"
+  assertContains "$out" "delay: 8"
+  assertContains "$out" "delay: 16"
+  assertContains "$out" "failed after 3 attempts"
+}
+
 testRejectsNonNumericAttempts() {
   out=$(ATTEMPTS=foo BACKOFF=0 bash "$retry" true 2>&1)
   rc=$?

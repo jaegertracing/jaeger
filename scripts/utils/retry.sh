@@ -36,7 +36,8 @@ if [ "$ATTEMPTS" -lt 1 ]; then
 fi
 
 i=1
-backoff=$BACKOFF
+# Treat leading zeros as decimal digits, like sleep does.
+backoff=$((10#$BACKOFF))
 while true; do
   if "$@"; then
     exit 0
