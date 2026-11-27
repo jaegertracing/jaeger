@@ -101,7 +101,7 @@ The `WHERE` clause is a boolean expression over the columns above and compiles t
 | `=`, `<>` / `!=`, `>`, `<`, `>=`, `<=` | `eq`, `ne`, `gt`, `lt`, `gte`, `lte` | ordered operators obey the RFC 0005 domain rules; `kind > 'server'` is refused |
 | `x IN (a, b)`, `x NOT IN (…)` | `in`, `not_in` | literal lists only; a subquery on the right is refused except the `trace_id IN (SELECT …)` shape of §4.4 |
 | `x REGEXP 'regex'`, `match(x, 'regex')` | `regex` | two spellings for one operator, because models produce both; PostgreSQL's `~` is not in the parser's grammar and is a parse error |
-| `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references only; built-in fields always exist |
+| `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attribute references, and on the built-in fields a span can lack (`parent_span_id`, `trace_state`, `status_message`, `scope_name`, `scope_version`, and the `trace_state` of a link); the other built-in fields always exist and are refused |
 | `x LIKE 'a%b_'`, `x LIKE 'exact'` | `regex`, `eq` | `LIKE` is what models reach for first. The pattern is translated with `%`→`[\s\S]*` and `_`→`[\s\S]`, because SQL's wildcards match a newline and RE2's dot does not, and anchored at both ends, which RFC 0005 §5.3 lets every backend honor; a backslash escapes the character after it; a pattern without wildcards is an equality. `ILIKE` adds the `(?i)` flag |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | the function spelling exists because the operator's own `AND` reads as a conjunction beside the other conjuncts; both are inclusive |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | functions, because SQL has no standard text-search operator |
