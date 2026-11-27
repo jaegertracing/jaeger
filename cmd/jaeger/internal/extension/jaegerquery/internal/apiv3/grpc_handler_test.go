@@ -656,6 +656,7 @@ func TestFindSpans(t *testing.T) {
 // TestFindSpansPreservesNextPageToken pins that the page token on the final chunk reaches the
 // caller unchanged; the handler does not read or interpret it.
 func TestFindSpansPreservesNextPageToken(t *testing.T) {
+	enablePagination(t)
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{SpanSearch: true}, nil)
 	reader.On("FindSpans", mock.Anything, mock.Anything).
@@ -788,7 +789,6 @@ func TestFindSpansSendError(t *testing.T) {
 // TestFindSpansWithFilter covers what the handler contributes to the filter plumbing: it
 // decodes the proto filter into the AST and hands it to the query service.
 func TestFindSpansWithFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{
 		SpanSearch: true,
 		Filter: &tracestore.FilterCapabilities{
@@ -826,7 +826,6 @@ func TestFindSpansWithFilter(t *testing.T) {
 // TestFindSpansMalformedFilter pins that a filter this build cannot make sense of reaches the
 // caller as InvalidArgument rather than as an unknown error.
 func TestFindSpansMalformedFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindSpans(context.Background(), &api_v3.FindSpansRequest{
@@ -953,13 +952,17 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 	}
 }
 
-// enableStructuredFilters turns the filter feature gate on for one test and restores it
-// afterwards. The gate belongs to the query service, so it is named here by ID rather than
-// held; a test needs it only when it dispatches far enough to reach that check.
-func enableStructuredFilters(t *testing.T) {
-	gate := querysvc.StructuredFiltersGate
+// enablePagination turns the pagination feature gate on for one test and restores it afterwards.
+// The query service returns a reader's continuation token only while the gate is enabled.
+func enablePagination(t *testing.T) {
+	setPagination(t, true)
+}
+
+// setPagination sets the pagination feature gate for one test and restores it afterwards.
+func setPagination(t *testing.T, enabled bool) {
+	gate := querysvc.PaginationGate
 	original := gate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), enabled))
 	t.Cleanup(func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
 	})
@@ -970,7 +973,6 @@ func enableStructuredFilters(t *testing.T) {
 // declares filter support so the filter arrives at the reader as the handler built it; what
 // the query service does for a backend that declares none is that package's own test.
 func TestFindTracesWithFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{
 		WithoutServiceName: true,
 		Filter: &tracestore.FilterCapabilities{
@@ -1021,7 +1023,6 @@ func TestFindTracesWithFilter(t *testing.T) {
 // query service, which is where a decoded tree is validated; what this asserts is the gRPC
 // mapping of it.
 func TestFindTracesMalformedFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -1042,7 +1043,6 @@ func TestFindTracesMalformedFilter(t *testing.T) {
 // AST has no node for: the request never reaches the query service, so the reader here has no
 // expectations and a call to it would fail the test.
 func TestFindTracesUndecodableFilter(t *testing.T) {
-	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -1144,11 +1144,6 @@ func TestAsStatusError(t *testing.T) {
 			wantReason: tracestore.FilterUnsupportedReason,
 		},
 		{
-			name:     "filter gate off maps to Unimplemented",
-			err:      fmt.Errorf("%w: enable the gate", querysvc.ErrFilterDisabled),
-			wantCode: codes.Unimplemented,
-		},
-		{
 			name:     "generic error passes through",
 			err:      errors.New("something broke"),
 			wantCode: codes.Unknown,
@@ -1176,7 +1171,7 @@ func TestFindSpansGRPCOrdering(t *testing.T) {
 	for _, supported := range []bool{false, true} {
 		t.Run(strconv.FormatBool(supported), func(t *testing.T) {
 			tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{SpanSearch: true, SpanSorting: supported})
-			order := []tracestore.SpanSortOrder{{Expression: &expression.FieldRef{Level: expression.LevelSpan, Name: "duration"}, Direction: tracestore.SortDescending}}
+			order := []tracestore.SpanSortOrder{tracestore.OrderBySpanField("duration", tracestore.SortDescending)}
 			start, end := time.Now().Add(-time.Hour).UTC(), time.Now().UTC()
 			if supported {
 				tsc.reader.On("FindSpans", matchContext, tracestore.SpanQueryParams{StartTimeMin: start, StartTimeMax: end, OrderBy: order, Pagination: tracestore.Pagination{PageSize: querysvc.DefaultPageSize}}).Return(iter.Seq2[tracestore.PageChunk[ptrace.Traces], error](func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {

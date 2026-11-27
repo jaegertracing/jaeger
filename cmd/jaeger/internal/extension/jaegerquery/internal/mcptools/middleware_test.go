@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,116 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
+
+type capabilitiesAnswer struct {
+	caps tracestore.SearchCapabilities
+	err  error
+}
+
+// stubCapabilitiesQueryService gives one answer per call, in order, so a test can tell a
+// middleware that asks on every request from one that remembers the first answer.
+type stubCapabilitiesQueryService struct {
+	answers []capabilitiesAnswer
+	calls   int
+}
+
+func (s *stubCapabilitiesQueryService) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	answer := s.answers[s.calls]
+	s.calls++
+	return answer.caps, answer.err
+}
+
+func TestFindSpansFilterMiddlewareAsksOnEveryToolsList(t *testing.T) {
+	withSpanSearch := tracestore.SearchCapabilities{SpanSearch: true}
+	steps := []struct {
+		name      string
+		answer    capabilitiesAnswer
+		wantTools []string
+	}{
+		{
+			name: "capabilities cannot be reported",
+			answer: capabilitiesAnswer{
+				caps: withSpanSearch,
+				err:  errors.ErrUnsupported,
+			},
+			wantTools: []string{"find_traces", "get_services"},
+		},
+		{
+			name:      "span search declared",
+			answer:    capabilitiesAnswer{caps: withSpanSearch},
+			wantTools: []string{"find_traces", findSpansToolName, "get_services"},
+		},
+		{
+			name:      "span search not declared",
+			answer:    capabilitiesAnswer{},
+			wantTools: []string{"find_traces", "get_services"},
+		},
+	}
+	queryAPI := &stubCapabilitiesQueryService{}
+	for _, step := range steps {
+		queryAPI.answers = append(queryAPI.answers, step.answer)
+	}
+	handler := createFindSpansFilterMiddleware(queryAPI)(
+		func(context.Context, string, mcp.Request) (mcp.Result, error) {
+			return &mcp.ListToolsResult{
+				Tools: []*mcp.Tool{
+					{Name: "find_traces"},
+					{Name: findSpansToolName},
+					{Name: "get_services"},
+				},
+			}, nil
+		},
+	)
+	for _, step := range steps {
+		result, err := handler(context.Background(), "tools/list", nil)
+		require.NoError(t, err, step.name)
+		var names []string
+		for _, tool := range result.(*mcp.ListToolsResult).Tools {
+			names = append(names, tool.Name)
+		}
+		assert.Equal(t, step.wantTools, names, step.name)
+	}
+}
+
+func TestFindSpansFilterMiddlewarePassesOtherResultsThrough(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		result mcp.Result
+		err    error
+	}{
+		{
+			name:   "another method",
+			method: mcpMethodToolsCall,
+			result: &mcp.CallToolResult{},
+		},
+		{
+			name:   "failed tools/list",
+			method: "tools/list",
+			err:    errors.New("list failed"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queryAPI := &stubCapabilitiesQueryService{}
+			handler := createFindSpansFilterMiddleware(queryAPI)(
+				func(context.Context, string, mcp.Request) (mcp.Result, error) {
+					return test.result, test.err
+				},
+			)
+			result, err := handler(context.Background(), test.method, nil)
+			assert.Equal(t, test.result, result)
+			assert.Equal(t, test.err, err)
+			assert.Zero(t, queryAPI.calls)
+		})
+	}
+}
 
 func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 	capture := newTraceCapture(t)
@@ -59,13 +167,13 @@ func TestTracingMiddlewareRecordsArgumentsAndResult(t *testing.T) {
 		}, nil
 	})
 
-	req := newToolCallRequestWithArguments("search_traces", `{"service_name":"frontend"}`)
+	req := newToolCallRequestWithArguments("find_traces", `{"sql":"SELECT DISTINCT trace_id FROM spans"}`)
 	result, err := wrapped(context.Background(), mcpMethodToolsCall, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
 	spanData := capture.singleSpan(t)
-	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallArguments("").Key), `{"service_name":"frontend"}`)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallArguments("").Key), `{"sql":"SELECT DISTINCT trace_id FROM spans"}`)
 
 	resultAttr := findAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallResult("").Key))
 	assert.Contains(t, resultAttr.Value.AsString(), "3 services found")
@@ -97,7 +205,7 @@ func TestTracingMiddlewareTruncatesOversizedResult(t *testing.T) {
 		}, nil
 	})
 
-	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.NoError(t, err)
 
 	spanData := capture.singleSpan(t)
@@ -161,11 +269,11 @@ func TestTruncateForSpanCutsOnRuneBoundary(t *testing.T) {
 }
 
 func TestToolArgumentsFromRequest(t *testing.T) {
-	req := newToolCallRequestWithArguments("search_traces", `{"a":1}`)
+	req := newToolCallRequestWithArguments("find_traces", `{"a":1}`)
 	assert.Equal(t, `{"a":1}`, toolArgumentsFromRequest(mcpMethodToolsCall, req))
 	assert.Empty(t, toolArgumentsFromRequest("initialize", req))
 	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, nil))
-	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, newToolCallRequest("search_traces")))
+	assert.Empty(t, toolArgumentsFromRequest(mcpMethodToolsCall, newToolCallRequest("find_traces")))
 }
 
 func TestToolArgumentsFromRequestWrongParams(t *testing.T) {
@@ -204,12 +312,12 @@ func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 		return nil, expectedErr
 	})
 
-	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.ErrorIs(t, err, expectedErr)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, mcpMethodToolsCall+" search_traces", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assert.Equal(t, mcpMethodToolsCall+" find_traces", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "find_traces")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
@@ -361,8 +469,8 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 }
 
 func TestToolNameFromRequest(t *testing.T) {
-	req := newToolCallRequest("search_traces")
-	assert.Equal(t, "search_traces", toolNameFromRequest(mcpMethodToolsCall, req))
+	req := newToolCallRequest("find_traces")
+	assert.Equal(t, "find_traces", toolNameFromRequest(mcpMethodToolsCall, req))
 	assert.Empty(t, toolNameFromRequest("initialize", req))
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, nil))
 }
@@ -542,42 +650,6 @@ func chainMiddleware(middlewares ...mcp.Middleware) mcp.Middleware {
 	}
 }
 
-func TestSessionIDFromRequestNilCases(t *testing.T) {
-	assert.Empty(t, sessionIDFromRequest(nil))
-
-	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: nil,
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(req))
-
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ClientSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ServerSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
-func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
-	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ClientSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(clientReq))
-
-	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: &mcp.ServerSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
-	}
-	assert.Empty(t, sessionIDFromRequest(serverReq))
-}
-
 func TestIsNil(t *testing.T) {
 	var nilMap map[string]any
 	var nilSlice []string
@@ -682,7 +754,7 @@ func TestMetricsMiddlewareToolCallError(t *testing.T) {
 		return nil, expectedErr
 	})
 
-	_, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	_, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("find_traces"))
 	require.ErrorIs(t, err, expectedErr)
 
 	metrics := capture.collect(t)
@@ -691,7 +763,7 @@ func TestMetricsMiddlewareToolCallError(t *testing.T) {
 	require.Len(t, counterDP.DataPoints, 1)
 	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
 	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusError)
-	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "find_traces")
 }
 
 func TestMetricsMiddlewareToolCallResultError(t *testing.T) {
@@ -862,4 +934,53 @@ func (m *failingMeter) Float64Histogram(name string, opts ...metric.Float64Histo
 		return nil, errors.New("histogram creation failed")
 	}
 	return m.Meter.Float64Histogram(name, opts...)
+}
+
+func TestRecoveryMiddlewareToolCallPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("tool failed")
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_span_details"))
+	require.NoError(t, err)
+	callResult, ok := result.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.True(t, callResult.IsError)
+	require.ErrorIs(t, callResult.GetError(), errToolPanicked)
+
+	entries := logs.All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	assert.Equal(t, mcpMethodToolsCall, fields["method"])
+	assert.Equal(t, "get_span_details", fields["tool"])
+	assert.Equal(t, "tool failed", fields["panic"])
+	assert.Contains(t, fields["stack"], "TestRecoveryMiddlewareToolCallPanic")
+}
+
+func TestRecoveryMiddlewareNonToolMethodPanic(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		panic("listing failed")
+	})
+
+	result, err := wrapped(context.Background(), "tools/list", nil)
+	assert.Nil(t, result)
+	var wireErr *jsonrpc.Error
+	require.ErrorAs(t, err, &wireErr)
+	assert.EqualValues(t, jsonrpc.CodeInternalError, wireErr.Code)
+	assert.Equal(t, 1, logs.Len())
+}
+
+func TestRecoveryMiddlewarePassesThrough(t *testing.T) {
+	core, logs := observer.New(zap.ErrorLevel)
+	want := &mcp.CallToolResult{}
+	wrapped := createRecoveryMiddleware(zap.New(core))(func(context.Context, string, mcp.Request) (mcp.Result, error) {
+		return want, nil
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	assert.Same(t, want, result)
+	assert.Zero(t, logs.Len())
 }

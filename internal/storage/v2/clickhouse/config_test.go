@@ -21,6 +21,15 @@ func TestValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:   "map attribute layout",
+			mutate: func(cfg *Configuration) { cfg.AttributeLayout = "map" },
+		},
+		{
+			name:    "unknown attribute layout",
+			mutate:  func(cfg *Configuration) { cfg.AttributeLayout = "json" },
+			wantErr: `attribute_layout must be nested or map, not "json"`,
+		},
+		{
 			name:   "defaults with native protocol",
 			mutate: func(cfg *Configuration) { cfg.Protocol = "native" },
 		},
@@ -44,6 +53,13 @@ func TestValidate(t *testing.T) {
 				cfg.AttributeMetadataCacheMaxSize = 0
 				cfg.AttributeMetadataCacheTTL = 0
 			},
+		},
+		{
+			name: "invalid hoisted attribute",
+			mutate: func(cfg *Configuration) {
+				cfg.HoistedAttributes = []HoistedAttribute{{Key: "k"}}
+			},
+			wantErr: "hoisted_attributes[0]",
 		},
 		{
 			name:    "unsupported protocol",
@@ -184,6 +200,68 @@ func TestValidate(t *testing.T) {
 			mutate:  func(cfg *Configuration) { cfg.AttributeMetadataCacheMaxSize = -1 },
 			wantErr: "attribute_metadata_cache_max_size must be a non-negative number",
 		},
+		{
+			name: "replicated with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "merge_tree with cluster is accepted",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
+		{
+			name: "cluster without a name",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{})
+			},
+			wantErr: "`table_engine.cluster.name` is required when `table_engine.cluster` is set",
+		},
+		{
+			name: "cluster name with a quote",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "it's"})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "cluster name with a backslash",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: `my\cluster`})
+			},
+			wantErr: "`table_engine.cluster.name` must not contain a single quote or a backslash",
+		},
+		{
+			name: "database with a quote is fine without cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.MergeTree = configoptional.Some(MergeTreeEngine{})
+			},
+		},
+		{
+			// database is never quoted in a Distributed(...) statement: it renders as
+			// currentDatabase(), a constant expression ClickHouse resolves server-side.
+			name: "database with a quote is fine with cluster",
+			mutate: func(cfg *Configuration) {
+				cfg.CreateSchema = true
+				cfg.Database = "it's"
+				cfg.TableEngine.Replicated = configoptional.Some(ReplicatedEngine{})
+				cfg.TableEngine.Cluster = configoptional.Some(ClusterConfig{Name: "my_cluster"})
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -200,6 +278,31 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHoistedAttributes_Unmarshal(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"hoisted_attributes": []any{
+			map[string]any{
+				"key":    "gen_ai.usage.input_tokens",
+				"level":  "span",
+				"type":   "int",
+				"column": "input_tokens",
+				"codec":  "ZSTD(3)",
+			},
+		},
+	})
+	cfg := DefaultConfiguration()
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Equal(t, []HoistedAttribute{
+		{
+			Key:    "gen_ai.usage.input_tokens",
+			Level:  "span",
+			Type:   "int",
+			Column: "input_tokens",
+			Codec:  "ZSTD(3)",
+		},
+	}, cfg.HoistedAttributes)
 }
 
 // TestTableEngine_Unmarshal checks that each variant is selected by its key the way the

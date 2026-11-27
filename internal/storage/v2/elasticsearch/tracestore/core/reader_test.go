@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
@@ -1377,6 +1380,99 @@ func newSnapshotReaderWithParams(searcher esclient.Searcher, override func(*Span
 	}
 	override(&params)
 	return NewSpanReader(params)
+}
+
+// TestSpanReader_ForwardsCapturedHeaders runs the reader's queries for services,
+// operations, trace IDs and traces over a real esclient.Client, because the
+// header is set in the client's transport and a reader over a mocked Searcher
+// would not show whether it reaches the server.
+func TestSpanReader_ForwardsCapturedHeaders(t *testing.T) {
+	const headerName = "X-Forwarded-User"
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	traceQuery := dbmodel.TraceQueryParameters{
+		ServiceName:  "test-service",
+		StartTimeMin: start,
+		StartTimeMax: start.Add(time.Hour),
+		SearchDepth:  20,
+	}
+	queries := map[string]func(ctx context.Context, reader *SpanReader) error{
+		"GetServices": func(ctx context.Context, reader *SpanReader) error {
+			_, err := reader.GetServices(ctx)
+			return err
+		},
+		"GetOperations": func(ctx context.Context, reader *SpanReader) error {
+			_, err := reader.GetOperations(ctx, dbmodel.OperationQueryParameters{ServiceName: "test-service"})
+			return err
+		},
+		"FindTraceIDs": func(ctx context.Context, reader *SpanReader) error {
+			_, err := reader.FindTraceIDs(ctx, traceQuery)
+			return err
+		},
+		"GetTraces": func(ctx context.Context, reader *SpanReader) error {
+			_, err := reader.GetTraces(ctx, []dbmodel.TraceID{"1234567890abcdef"})
+			return err
+		},
+	}
+	contexts := map[string]struct {
+		ctx                 context.Context
+		expectedHeaderValue string
+	}{
+		"captured header": {
+			ctx: headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+				{
+					Header: &headerforwarding.ForwardedHeader{
+						HTTPName: headerName,
+						Role:     headerforwarding.RoleUsername,
+					},
+					Value: "alice",
+				},
+			}),
+			expectedHeaderValue: "alice",
+		},
+		"no captured header": {
+			ctx:                 context.Background(),
+			expectedHeaderValue: "",
+		},
+	}
+
+	for queryName, runQuery := range queries {
+		for contextName, tc := range contexts {
+			t.Run(queryName+"/"+contextName, func(t *testing.T) {
+				var (
+					mu           sync.Mutex
+					headerValues []string
+				)
+				rec := dataRecorder()
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					mu.Lock()
+					headerValues = append(headerValues, r.Header.Get(headerName))
+					mu.Unlock()
+					rec.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				esClient, err := esclient.NewClient(
+					context.Background(),
+					&config.Configuration{
+						Servers: []string{server.URL},
+						Version: 8,
+					},
+					zap.NewNop(),
+					nil,
+				)
+				require.NoError(t, err)
+				reader := newSnapshotReader(esclient.SearchClient{Client: esClient})
+
+				require.NoError(t, runQuery(tc.ctx, reader))
+
+				mu.Lock()
+				defer mu.Unlock()
+				require.NotEmpty(t, headerValues, "the query should reach the server")
+				for _, value := range headerValues {
+					assert.Equal(t, tc.expectedHeaderValue, value)
+				}
+			})
+		}
+	}
 }
 
 // TestReaderRequestSnapshots freezes the wire format of the trace-read path:

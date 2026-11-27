@@ -104,7 +104,7 @@ func isBulk(r *http.Request) bool {
 // injectServiceUnavailable rewrites an upstream response into a 503 after the
 // upstream has already applied the request.
 func injectServiceUnavailable(resp *http.Response) {
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	body := `{"error":"acknowledgement dropped by esFaultProxy"}`
 	resp.StatusCode = http.StatusServiceUnavailable
 	resp.Status = http.StatusText(http.StatusServiceUnavailable)

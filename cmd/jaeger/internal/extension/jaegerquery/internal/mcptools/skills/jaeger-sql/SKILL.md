@@ -1,17 +1,20 @@
 ---
 name: jaeger-sql
 description: >-
-  Write the sql input of search_traces. Use when the user writes the search as
-  SQL, or when the structured inputs cannot say it: OR, NOT, a comparison on an
-  attribute, a text pattern, or a condition on a span's events or links.
-allowed-tools: search_traces
+  Write the sql input of find_traces or find_spans: the statement shapes, the
+  columns, the values and the predicates, including OR, NOT, a comparison on
+  an attribute, a text pattern, and a condition on a span's events or links.
+  Read it before the first call to either tool.
+allowed-tools: find_traces find_spans
 ---
 
 # Jaeger SQL
 
-Search traces with one read-only `SELECT` in the `sql` input of `search_traces`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `search_traces` returns traces, so it takes the first and third shapes below; it refuses the second, which is reserved for a span search that no tool serves yet.
+Find traces or spans with one read-only `SELECT` in the `sql` input of `find_traces` or `find_spans`. The statement is compiled to Jaeger's filter; nothing is executed as SQL. `find_traces` returns traces, so it takes the first and third shapes below. `find_spans` returns spans, so it takes the second.
 
 ## Three statement shapes
+
+`SELECT *` is the only select list over `spans` and over `traces`; a column list is refused by both tools. `SELECT DISTINCT trace_id FROM spans` is the one other form.
 
 Trace IDs of the traces that have a matching span:
 
@@ -59,14 +62,15 @@ Column names are `snake_case` and match exactly.
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message` | text | any |
+| `name` | text | any |
+| `status_message` | text | any; a span without a status message has no value, so no comparison on it matches that span |
 | `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339 `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
 | `duration` | duration | Go syntax with a unit: `'2s'`, `'250ms'`, `'1h30m'` |
 | `service` | text | the service name |
-| `scope_name`, `scope_version` | text | the instrumentation scope |
+| `scope_name`, `scope_version` | text | the instrumentation scope; a span whose scope has an empty name or version has no value for that column, so no comparison on it matches that span |
 | `attributes['key']` | map | span attributes; the value is compared at the type storage holds |
 | `resource_attributes['key']` | map | resource attributes |
 | `scope_attributes['key']` | map | scope attributes |
@@ -78,11 +82,11 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 | Relation | Columns |
 |---|---|
 | `events` | `name` text, `time` instant, `time_since_start` duration, `attributes['key']` map |
-| `links` | `linked_trace_id` and `linked_span_id` hex text, `trace_state` text, `attributes['key']` map |
+| `links` | `linked_trace_id` and `linked_span_id` hex text, `trace_state` text (a link without a trace state has no value, so no comparison on it matches that link), `attributes['key']` map |
 
 ### `traces`
 
-`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may be selected but not filtered on; the only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
+`trace_id`, `root_service`, `root_name`, `start_time`, `duration`, `span_count`, `error_count`. These columns may not be filtered on, and `find_traces` returns the whole summary of each trace, so write `SELECT *`; a column list is refused. The only `WHERE` on `traces` is `trace_id IN (SELECT trace_id FROM spans WHERE ...)`.
 
 ## Values
 
@@ -94,7 +98,7 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 `=`, `<>`, `<`, `<=`, `>`, `>=`, `IN (...)`, `NOT IN`, `between(x, a, b)`, `AND`, `OR`, `NOT`, parentheses.
 
 - Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL, `x ILIKE 'get %'` to ignore case, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless it starts with `^` or ends with `$` (anchors elsewhere are refused), and is case-sensitive unless it starts with `(?i)`.
-- Presence: `attributes['key'] IS NOT NULL`. Built-in fields always exist.
+- Presence: `attributes['key'] IS NOT NULL`, and `IS NULL` for absence. They also apply to a column that can have no value, so `parent_span_id IS NULL` selects root spans. A column every span has, such as `name`, is refused.
 - Events and links of the span: `EXISTS (SELECT 1 FROM events WHERE name = 'exception' AND attributes['exception.type'] = 'TimeoutError')`. Inside `EXISTS`, `events` and `links` are this span's own; no join condition is needed.
 
 ## Not supported

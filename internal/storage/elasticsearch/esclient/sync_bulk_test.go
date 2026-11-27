@@ -236,6 +236,74 @@ func TestSyncBulkWriter_DropPoison_MixedRetries(t *testing.T) {
 	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len(), "the terminal item is still dropped and logged")
 }
 
+func TestSyncBulkWriter_PoisonDroppedMetric(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		dropPoison bool
+		statuses   []int
+		wantDrops  int
+		wantError  bool
+	}{
+		{
+			name:       "successful and conflicting documents",
+			dropPoison: true,
+			statuses:   []int{201, 409},
+		},
+		{
+			name:      "terminal documents in fail mode",
+			statuses:  []int{400, 400},
+			wantError: true,
+		},
+		{
+			name:       "transient failures in drop mode",
+			dropPoison: true,
+			statuses:   []int{429, 503},
+			wantError:  true,
+		},
+		{
+			name:       "terminal documents in drop mode",
+			dropPoison: true,
+			statuses:   []int{400, 400},
+			wantDrops:  2,
+		},
+		{
+			name:       "mixed terminal and transient failures",
+			dropPoison: true,
+			statuses:   []int{400, 429},
+			wantDrops:  1,
+			wantError:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			results := make([]string, len(tt.statuses))
+			items := make([]BulkItem, len(tt.statuses))
+			for i, status := range tt.statuses {
+				results[i] = fmt.Sprintf(`{"index":{"status":%d}}`, status)
+				items[i] = BulkItem{Index: "idx", Body: map[string]any{"value": i}}
+			}
+			_, url := bulkServer(t, func(w http.ResponseWriter) {
+				fmt.Fprintf(w, `{"items":[%s]}`, strings.Join(results, ","))
+			})
+			mf := metricstest.NewFactory(time.Second)
+			t.Cleanup(mf.Stop)
+			w := NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), 0, tt.dropPoison, mf, zap.NewNop())
+
+			for attempt := 1; attempt <= 2; attempt++ {
+				err := w.WriteBatch(context.Background(), items)
+				if tt.wantError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{
+					Name:  "bulk_index.poison-dropped",
+					Value: attempt * tt.wantDrops,
+				})
+			}
+		})
+	}
+}
+
 func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()

@@ -15,7 +15,7 @@ func TestElasticsearchStorage(t *testing.T) {
 
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-elasticsearch.yaml",
-		FeatureGates: searchGates,
+		FeatureGates: paginationGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -61,17 +61,17 @@ func TestElasticsearchStorage_BackwardCompatibility(t *testing.T) {
 	},
 		compatScenario{
 			Name:         "numeric attributes off on the new reader",
-			NewGates:     searchGates,
+			NewGates:     paginationGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "false"},
-			Capabilities: capabilities.Elasticsearch().WithoutNumericAttributes(),
+			Capabilities: capabilities.Elasticsearch().WithoutNumericAttributes().WithoutNonFiniteDoubles(),
 		},
 		compatScenario{
 			Name:         "numeric attributes turned on at upgrade, over indices written without them",
-			NewGates:     searchGates,
+			NewGates:     paginationGates,
 			OldEnv:       map[string]string{numericAttributesEnvVar: "false"},
 			NewEnv:       map[string]string{numericAttributesEnvVar: "true"},
-			Capabilities: capabilities.Elasticsearch().WithNumericAttributesEnabledAtUpgrade(),
+			Capabilities: capabilities.Elasticsearch().WithNumericAttributesEnabledAtUpgrade().WithoutNonFiniteDoubles(),
 		},
 	)
 }

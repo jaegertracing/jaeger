@@ -127,7 +127,7 @@ func probabilitiesAndQPSToString(probabilities model.ServiceOperationProbabiliti
 			if _, ok := qps[svc]; ok {
 				opQPS = qps[svc][op]
 			}
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				svc, op, strconv.FormatFloat(probability, 'f', -1, 64),
 				strconv.FormatFloat(opQPS, 'f', -1, 64),
 			})
@@ -155,7 +155,7 @@ func throughputToString(throughput []*model.Throughput) string {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 	for _, t := range throughput {
-		writer.Write([]string{t.Service, t.Operation, strconv.Itoa(int(t.Count)), probabilitiesSetToString(t.Probabilities)})
+		_ = writer.Write([]string{t.Service, t.Operation, strconv.Itoa(int(t.Count)), probabilitiesSetToString(t.Probabilities)})
 	}
 	writer.Flush()
 	return buf.String()

@@ -24,6 +24,9 @@ const (
 type column struct {
 	Level ast.Level
 	Field string
+	// MayBeAbsent marks a built-in field that a span can lack, such as the parent of a root
+	// span, so that a negated comparison on it holds only where the field has a value.
+	MayBeAbsent bool
 }
 
 func (c column) isMap() bool { return c.Field == "" }
@@ -33,18 +36,18 @@ func (c column) isMap() bool { return c.Field == "" }
 var spansColumns = map[string]column{
 	"trace_id":            {Level: ast.LevelSpan, Field: ast.SpanFieldTraceID},
 	"span_id":             {Level: ast.LevelSpan, Field: ast.SpanFieldSpanID},
-	"parent_span_id":      {Level: ast.LevelSpan, Field: ast.SpanFieldParentSpanID},
-	"trace_state":         {Level: ast.LevelSpan, Field: ast.SpanFieldTraceState},
+	"parent_span_id":      {Level: ast.LevelSpan, Field: ast.SpanFieldParentSpanID, MayBeAbsent: true},
+	"trace_state":         {Level: ast.LevelSpan, Field: ast.SpanFieldTraceState, MayBeAbsent: true},
 	"name":                {Level: ast.LevelSpan, Field: ast.SpanFieldName},
 	"kind":                {Level: ast.LevelSpan, Field: ast.SpanFieldKind},
 	"start_time":          {Level: ast.LevelSpan, Field: ast.SpanFieldStartTime},
 	"end_time":            {Level: ast.LevelSpan, Field: ast.SpanFieldEndTime},
 	"duration":            {Level: ast.LevelSpan, Field: ast.SpanFieldDuration},
 	"status":              {Level: ast.LevelSpan, Field: ast.SpanFieldStatus},
-	"status_message":      {Level: ast.LevelSpan, Field: ast.SpanFieldStatusMessage},
+	"status_message":      {Level: ast.LevelSpan, Field: ast.SpanFieldStatusMessage, MayBeAbsent: true},
 	"service":             {Level: ast.LevelResource, Field: ast.ResourceFieldService},
-	"scope_name":          {Level: ast.LevelScope, Field: ast.ScopeFieldName},
-	"scope_version":       {Level: ast.LevelScope, Field: ast.ScopeFieldVersion},
+	"scope_name":          {Level: ast.LevelScope, Field: ast.ScopeFieldName, MayBeAbsent: true},
+	"scope_version":       {Level: ast.LevelScope, Field: ast.ScopeFieldVersion, MayBeAbsent: true},
 	"attributes":          {Level: ast.LevelSpan},
 	"resource_attributes": {Level: ast.LevelResource},
 	"scope_attributes":    {Level: ast.LevelScope},
@@ -60,13 +63,23 @@ var eventsColumns = map[string]column{
 var linksColumns = map[string]column{
 	"linked_trace_id": {Level: ast.LevelLink, Field: ast.LinkFieldTraceID},
 	"linked_span_id":  {Level: ast.LevelLink, Field: ast.LinkFieldSpanID},
-	"trace_state":     {Level: ast.LevelLink, Field: ast.LinkFieldTraceState},
+	"trace_state":     {Level: ast.LevelLink, Field: ast.LinkFieldTraceState, MayBeAbsent: true},
 	"attributes":      {Level: ast.LevelLink},
 }
 
-// tracesColumns are the RFC 0011 summary fields. They have no expression-level counterpart yet,
-// so a traces column may be selected but not filtered on (RFC 0019 §4.4).
-var tracesColumns = []string{"trace_id", "root_service", "root_name", "start_time", "duration", "span_count", "error_count"}
+// absentFields holds the built-in fields whose column is marked MayBeAbsent, keyed by the
+// reference that a predicate on the column compiles to.
+var absentFields = func() map[ast.FieldRef]bool {
+	fields := map[ast.FieldRef]bool{}
+	for _, columns := range []map[string]column{spansColumns, eventsColumns, linksColumns} {
+		for _, col := range columns {
+			if col.MayBeAbsent {
+				fields[ast.FieldRef{Name: col.Field, Level: col.Level}] = true
+			}
+		}
+	}
+	return fields
+}()
 
 // correlationColumns are the columns of events and links that tie a row to its span. They are
 // not predicates: the EXISTS shape of RFC 0019 §4.3 consumes them.
@@ -98,10 +111,6 @@ func columnNames(rel relation) string {
 	default:
 		return "trace_id, root_service, root_name, start_time, duration, span_count, error_count"
 	}
-}
-
-func isTracesColumn(name string) bool {
-	return slices.Contains(tracesColumns, name)
 }
 
 func isCorrelationColumn(name string) bool {

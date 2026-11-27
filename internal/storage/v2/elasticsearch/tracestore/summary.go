@@ -8,28 +8,8 @@ import (
 	"iter"
 	"time"
 
-	"go.opentelemetry.io/collector/featuregate"
-
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
-)
-
-// nativeTraceSummariesGate records that trace summaries (the metadata shown on
-// the search-results page) are computed natively in Elasticsearch/OpenSearch via
-// a single aggregation query, instead of loading full traces and aggregating them
-// in the query service. The gate is Stable and can no longer be disabled; it stays
-// registered only so existing --feature-gates values keep working until it is
-// removed in v2.24.0.
-var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
-	"jaeger.es.nativeTraceSummaries",
-	featuregate.StageStable,
-	featuregate.WithRegisterFromVersion("v2.20.0"),
-	featuregate.WithRegisterToVersion("v2.24.0"),
-	featuregate.WithRegisterDescription(
-		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
-			"instead of loading full traces and aggregating in the query service. Requires "+
-			"inline (Painless) scripts to be enabled on the cluster.",
-	),
 )
 
 // FindTraceSummaries computes trace summaries via a storage-side aggregation. When
@@ -41,7 +21,7 @@ func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.T
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
 		// FindTraceSummaries contract).
-		query, err := paginationAsDepth(query)
+		query, err := query.ReplacePaginationWithDepth()
 		if err != nil {
 			yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, err)
 			return

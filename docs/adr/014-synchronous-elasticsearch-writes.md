@@ -1,7 +1,7 @@
 # ADR-014: Synchronous Elasticsearch/OpenSearch Writes and Lossless Pipelines
 
 * **Status**: Implemented — graduated from [RFC 0007](../rfc/0007-synchronous-elasticsearch-writes.md)
-* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split, extended 2026-10-08 so a spelled-out `queue.batch` also sets `partition.idle_timeout` and `partition.cache_size`
+* **Date**: 2026-09-22, extended 2026-09-24 with the batch-size headroom rule, extended 2026-09-29 to state that neither batch nor fetch settings raise the Kafka batch above one record per partition, and to track the RFC 0007 M8/M9 split, extended 2026-10-08 so a spelled-out `queue.batch` also sets `partition.idle_timeout` and `partition.cache_size`, extended 2026-11-12 so an omitted `queue.batch.partition` inherits those exporterhelper defaults, extended 2026-11-20 with the poison-document drop counter
 
 ## Context
 
@@ -43,7 +43,7 @@ The writer keeps an in-memory cache of the service and operation pairs it has al
 
 A poison pill is a document the backend rejects identically on every attempt, such as a span whose attribute type conflicts with the index mapping. The writer sorts per-item results into three groups: transient (`429`, `500`, `502`, `503`, `504`, and an item whose status could not be parsed), terminal (every other non-success status, which in practice is `400` for mapping and validation rejections), and `409`, which means the document is already stored and counts as success. A transient failure returns an error for the whole batch. A terminal one is disposed of according to a decision that is deliberately split between two components:
 
-* **The writer decides whether to report or discard.** `poison_pill_handling: fail`, the default, returns the rejection as an error and holds whatever is upstream. `drop` discards the rejected documents, logs a sample of the reasons, and completes the batch. There is no third enum value.
+* **The writer decides whether to report or discard.** `poison_pill_handling: fail`, the default, returns the rejection as an error and holds whatever is upstream. `drop` discards the rejected documents, logs a sample of the reasons, and completes the batch. The `bulk_index.poison-dropped` counter tracks these terminal document drops separately from `bulk_index.errors`, which also includes transient failures. It counts documents, including service/operation documents, rather than unique spans: retrying a batch with mixed terminal and transient failures can count the same terminal document again. There is no third enum value.
 * **The pipeline decides what a report means.** Declared under `exporters:`, `jaeger_storage_exporter` treats a reported rejection as a failed batch. Declared under `connectors:`, it treats it as a set of spans to forward to another pipeline.
 
 In `fail` mode the writer returns a `*tracestore.RejectedSpansError` that names every terminally rejected span by trace id and span id with the backend's reason, and says whether transient failures also occurred and whether any rejected document could not be attributed to a span. The type lives in the storage API rather than in the Elasticsearch packages so that the connector depends on neither.
@@ -77,7 +77,7 @@ The two topologies need two different shapes. Both drop the `batch` processor an
 | `processors` | `[]` | `[]` |
 | `exporters` / `connectors` | `jaeger_storage_exporter` under `exporters:` | `jaeger_storage_exporter` under `exporters:`, or under `connectors:` with a dead-letter pipeline |
 | `queue.wait_for_result` | `true` | `true` |
-| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds, and positive `partition.idle_timeout` / `partition.cache_size` (exporterhelper defaults 90s and 10000; an omitted partition unmarshals as zero) | same |
+| `queue.batch` | `sizer: bytes`, a positive `min_size`, `max_size` at most half of `bulk_processing.max_bytes`, `flush_timeout` in the low hundreds of milliseconds, and positive `partition.idle_timeout` / `partition.cache_size` (exporterhelper defaults 90s and 10000, filled in when `partition` is omitted) | same |
 | `retry_on_failure` | disabled: the client retries, and a collector-side retry would only hold the client's request open | `enabled: true`, `max_elapsed_time: 0` |
 | `queue.block_on_overflow` | default `false`: a full queue answers the client with a retryable error, which is the back-pressure signal | `true`: a full queue must wait, not fail the record |
 | receiver | `otlp` with defaults | `kafka` with `message_marking.after: true`, `on_error: false` |

@@ -74,8 +74,10 @@ var (
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("malformed request object")
 
-	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
-	ErrDurationAndTagQueryNotSupported = errors.New("cannot query for duration and tags simultaneously")
+	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set. It matches
+	// errors.ErrUnsupported, because the same query is valid on a backend that can intersect the
+	// two indices.
+	ErrDurationAndTagQueryNotSupported = tracestore.Unsupported("cannot query for duration and tags simultaneously")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
 	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
@@ -290,8 +292,8 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.Tr
 }
 
 func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery *tracestore.TraceQueryParams) (dbmodel.UniqueTraceIDs, error) {
-	// See docs/adr/cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
-	// and are handled as a separate path. Other query parameters (like tags) are ignored when duration is specified.
+	// See docs/adr/001-cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
+	// and are handled as a separate path. validateQuery has already refused a query that also has tags.
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}

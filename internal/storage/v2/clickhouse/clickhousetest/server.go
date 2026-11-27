@@ -52,6 +52,6 @@ func NewServer(failures FailureConfig) *httptest.Server {
 		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
 
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write(buf.Buf)
+		_, _ = w.Write(buf.Buf)
 	}))
 }

@@ -77,3 +77,10 @@ func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metric
 	m.getErrorRatesMetrics.emit(err, time.Since(start))
 	return retMe, err
 }
+
+// GetDimensions implements metricstore.Reader#GetDimensions as a passthrough.
+// This is a metadata call (returns configuration, not query results), so no
+// per-call instrumentation is emitted.
+func (m *ReadMetricsDecorator) GetDimensions(ctx context.Context) ([]metricstore.Dimension, error) {
+	return m.reader.GetDimensions(ctx)
+}

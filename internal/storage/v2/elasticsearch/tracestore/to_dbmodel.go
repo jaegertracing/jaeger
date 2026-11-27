@@ -8,6 +8,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"math"
 
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -27,23 +28,15 @@ const (
 	tagError         = "error"
 )
 
-// omitParentSpanIDReferenceGate, when enabled, stops the write path from encoding a
-// span's parent span ID as a synthetic CHILD_OF entry in the References field. Since
-// v2.20 the parent is written to its own dedicated parentSpanID field, so the synthetic
-// reference is redundant. The gate is enabled by default; disabling it restores the
-// synthetic reference so that query-service readers older than v2.20, which derive the
-// parent from References, keep working against the same index during a rolling upgrade.
-// Once no supported reader depends on the synthetic reference, the compat write and this
-// gate can be removed.
-var omitParentSpanIDReferenceGate = featuregate.GlobalRegistry().MustRegister(
+var _ = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.omitParentSpanIDReference",
-	featuregate.StageBeta,
+	featuregate.StageStable,
 	featuregate.WithRegisterFromVersion("v2.20.0"),
+	featuregate.WithRegisterToVersion("v2.26.0"),
 	featuregate.WithRegisterDescription(
-		"When enabled (the default), the Elasticsearch/OpenSearch write path no longer encodes "+
-			"the parent span ID as a synthetic CHILD_OF reference; the parent is written only to "+
-			"the dedicated parentSpanID field. Disable it for compatibility with readers older "+
-			"than v2.20 that derive the parent span from the references list.",
+		"The Elasticsearch/OpenSearch write path does not encode the parent span ID as a "+
+			"synthetic CHILD_OF reference; the parent is written only to the dedicated "+
+			"parentSpanID field.",
 	),
 )
 
@@ -55,14 +48,10 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 		return nil
 	}
 
-	// Read the gate once per batch rather than per span. It is deliberately not read
-	// inside spanToDbSpan: a feature-gate call in that hot leaf function trips
-	// golangci-lint's contextcheck/nolintlint whole-program analysis on unrelated files.
-	omitParentSpanIDReference := omitParentSpanIDReferenceGate.IsEnabled()
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToDbSpans(rs, omitParentSpanIDReference)
+		batch := resourceSpansToDbSpans(rs)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -71,7 +60,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans, omitParentSpanIDReference bool) []dbmodel.Span {
+func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -87,7 +76,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans, omitParentSpanID
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
-			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process, omitParentSpanIDReference)
+			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
 			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
@@ -128,6 +117,8 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
+	case pcommon.ValueTypeDouble:
+		tag = dbmodel.KeyValue{Key: key, Value: doubleToDbValue(attr.Double())}
 	default:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
 	}
@@ -146,16 +137,31 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process, omitParentSpanIDReference bool) dbmodel.Span {
-	traceID := dbmodel.TraceID(span.TraceID().String())
-	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
+// doubleToDbValue returns a finite double unchanged. NaN and the infinities
+// become the OTLP/JSON tokens "NaN", "Infinity", and "-Infinity", because
+// encoding/json rejects the bare floats and would drop the whole span. The
+// tag keeps Float64Type, and FromDBModel parses the token back into a double.
+func doubleToDbValue(f float64) any {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	default:
+		return f
+	}
+}
+
+func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	startTime := span.StartTimestamp().AsTime()
 	return dbmodel.Span{
-		TraceID:         traceID,
+		TraceID:         dbmodel.TraceID(span.TraceID().String()),
 		SpanID:          dbmodel.SpanID(span.SpanID().String()),
-		ParentSpanID:    parentSpanID,
+		ParentSpanID:    dbmodel.SpanID(span.ParentSpanID().String()),
 		OperationName:   span.Name(),
-		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID, omitParentSpanIDReference),
+		References:      linksToDbSpanRefs(span.Links()),
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
@@ -218,49 +224,20 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	return tags
 }
 
-// linksToDbSpanRefs constructs jaeger span references based on parent span ID and span links.
-// The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of
-// the links. When omitParentSpanIDReference is set (see omitParentSpanIDReferenceGate) the parent
-// is not encoded as a reference at all — it lives only in the dedicated parentSpanID field — and
-// only the span links are written.
-func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID, omitParentSpanIDReference bool) []dbmodel.Reference {
-	includeParentRef := parentSpanID != "" && !omitParentSpanIDReference
-
-	refsCount := links.Len()
-	if includeParentRef {
-		refsCount++
-	}
-
-	if refsCount == 0 {
+// linksToDbSpanRefs converts span links into jaeger span references. It adds no reference
+// for the parent span ID, which is stored in the parentSpanID field of the span.
+func linksToDbSpanRefs(links ptrace.SpanLinkSlice) []dbmodel.Reference {
+	if links.Len() == 0 {
 		return nil
 	}
 
-	refs := make([]dbmodel.Reference, 0, refsCount)
-
-	// Put parent span ID at the first place because usually backends look for it
-	// as the first CHILD_OF item in the model.SpanRef slice.
-	if includeParentRef {
-		refs = append(refs, dbmodel.Reference{
-			TraceID: traceID,
-			SpanID:  parentSpanID,
-			RefType: dbmodel.ChildOf,
-		})
-	}
-
+	refs := make([]dbmodel.Reference, 0, links.Len())
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		linkTraceID := dbmodel.TraceID(link.TraceID().String())
-		linkSpanID := dbmodel.SpanID(link.SpanID().String())
-		linkRefType := refTypeFromLink(link)
-		if includeParentRef && linkTraceID == traceID && linkSpanID == parentSpanID {
-			// We already added a reference to this span, but maybe with the wrong type, so override.
-			refs[0].RefType = linkRefType
-			continue
-		}
 		refs = append(refs, dbmodel.Reference{
-			TraceID: linkTraceID,
-			SpanID:  linkSpanID,
-			RefType: linkRefType,
+			TraceID: dbmodel.TraceID(link.TraceID().String()),
+			SpanID:  dbmodel.SpanID(link.SpanID().String()),
+			RefType: refTypeFromLink(link),
 		})
 	}
 

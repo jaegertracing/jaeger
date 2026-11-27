@@ -16,10 +16,6 @@ JAEGER_CONFIG="$REPO_ROOT/cmd/jaeger/config-opensearch.yaml"
 JAEGER_BIN="$HERE/.build/jaeger"
 JAEGER_PID=""
 
-# The structured filter is behind an Alpha feature gate, off by default, and a query
-# carrying one is refused until it is on.
-FEATURE_GATES="jaeger.query.structuredFilters"
-
 # These are the ports the test needs. It refuses to start when one of them is already
 # taken, rather than testing whatever else is listening. A stale Jaeger on 16685 answers
 # queries quite happily, and one built before the filter existed drops the filter as an
@@ -81,8 +77,8 @@ curl --silent --fail http://localhost:9200 >/dev/null
 log "building Jaeger"
 (cd "$REPO_ROOT" && go build -o "$JAEGER_BIN" ./cmd/jaeger)
 
-log "starting Jaeger ($JAEGER_CONFIG, gates: $FEATURE_GATES)"
-(cd "$REPO_ROOT" && exec "$JAEGER_BIN" --config "$JAEGER_CONFIG" --feature-gates "$FEATURE_GATES") &
+log "starting Jaeger ($JAEGER_CONFIG)"
+(cd "$REPO_ROOT" && exec "$JAEGER_BIN" --config "$JAEGER_CONFIG") &
 JAEGER_PID=$!
 
 # The test waits for the query service itself, and for OpenSearch to index what it

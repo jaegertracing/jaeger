@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -91,4 +92,28 @@ func parseDependencyTime(input string, defaultTime time.Time) (time.Time, error)
 		return defaultTime, nil
 	}
 	return parseTimeParam(input)
+}
+
+// parseTimeParam parses time parameters supporting RFC3339 and relative time formats.
+// Relative formats: "-1h", "-30m", "-5s", "now"
+func parseTimeParam(input string) (time.Time, error) {
+	input = strings.TrimSpace(input)
+
+	if input == "now" {
+		return time.Now(), nil
+	}
+
+	if strings.HasPrefix(input, "-") {
+		duration, err := time.ParseDuration(input[1:])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid relative time format: %w", err)
+		}
+		return time.Now().Add(-duration), nil
+	}
+
+	t, err := time.Parse(time.RFC3339, input)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("time must be RFC3339 or relative format (e.g., '-1h', 'now'): %w", err)
+	}
+	return t, nil
 }
