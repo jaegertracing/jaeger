@@ -616,35 +616,6 @@ func TestBuildRotations(t *testing.T) {
 			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
-			name: "alias rotation",
-			cfg: escfg.Configuration{
-				UseReadWriteAliases: configoptional.Some(true),
-			},
-			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
-			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
-		},
-		{
-			name: "alias with custom suffixes",
-			cfg: escfg.Configuration{
-				UseReadWriteAliases: configoptional.Some(true),
-				ReadAliasSuffix:     "archive-read",
-				WriteAliasSuffix:    "archive-write",
-			},
-			readIndices:  []string{"jaeger-span-archive-read", "jaeger-service-archive-read"},
-			writeIndices: []string{"jaeger-span-archive-write", "jaeger-service-archive-write"},
-		},
-		{
-			name: "explicit aliases",
-			cfg: escfg.Configuration{
-				SpanWriteAlias:    configoptional.Some("custom-span-write"),
-				SpanReadAlias:     configoptional.Some("custom-span-read"),
-				ServiceWriteAlias: configoptional.Some("custom-service-write"),
-				ServiceReadAlias:  configoptional.Some("custom-service-read"),
-			},
-			readIndices:  []string{"custom-span-read", "custom-service-read"},
-			writeIndices: []string{"custom-span-write", "custom-service-write"},
-		},
-		{
 			name: "with index prefix",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{

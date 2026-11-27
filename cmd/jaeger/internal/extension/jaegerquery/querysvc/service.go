@@ -215,7 +215,17 @@ func (qs QueryService) FindSpans(
 		}
 		spans := qs.traceReader.FindSpans(ctx, readerQuery)
 		spansIter := qs.interceptSpanResults(ctx, spans)
-		spansIter(yield)
+		if PaginationGate.IsEnabled() {
+			spansIter(yield)
+			return
+		}
+		// With the gate disabled, the next request would refuse the token, so none is returned.
+		for chunk, err := range spansIter {
+			chunk.NextPageToken = ""
+			if !yield(chunk, err) {
+				return
+			}
+		}
 	}
 }
 
@@ -257,8 +267,16 @@ func (qs QueryService) FindTraces(
 //
 // A reader that cannot say returns an error wrapping errors.ErrUnsupported, which callers read
 // as the least capable backend.
+//
+// Paginated is reported as false while PaginationGate is disabled, whatever the reader declares.
+// The gate refuses every continuation token, and a client that was told the search pages would
+// take a full page without a token for the last one.
 func (qs QueryService) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
-	return qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if !PaginationGate.IsEnabled() {
+		caps.Paginated = false
+	}
+	return caps, err
 }
 
 // SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
@@ -293,10 +311,6 @@ func (qs QueryService) prepareSearchQuery(
 	if query.Filter != nil {
 		// None of these refusals depends on the backend, so they come before the capability call
 		// rather than after it.
-		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrFilterDisabled, StructuredFiltersGate.ID())
-		}
 		if err := query.EnsureFilterStandsAlone(); err != nil {
 			return ctx, query, err
 		}
@@ -353,13 +367,9 @@ func (qs QueryService) prepareSpanSearchQuery(
 		return ctx, query, ErrProjectionUnsupported
 	}
 	// A search over the time range alone carries no filter and is the base case of a span query
-	// (RFC 0016 §5.1), so the gate and finalization apply only when the caller sent one. Neither
-	// depends on the backend, so both come before the capability call rather than after it.
+	// (RFC 0016 §5.1), so finalization applies only when the caller sent one. It does not depend
+	// on the backend, so it comes before the capability call rather than after it.
 	if query.Filter != nil {
-		if !StructuredFiltersGate.IsEnabled() {
-			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
-				ErrFilterDisabled, StructuredFiltersGate.ID())
-		}
 		finalized, err := tracestore.FinalizeFilter(query.Filter)
 		if err != nil {
 			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
@@ -404,7 +414,7 @@ func ensureSpanPaginationSupported(caps tracestore.SearchCapabilities, paginatio
 // its capabilities reads as the least capable one, which serves only the legacy predicate fields
 // and no span search.
 func (qs QueryService) readerSearchCapabilitiesOrDefault(ctx context.Context) tracestore.SearchCapabilities {
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	caps, err := qs.SearchCapabilities(ctx)
 	if err != nil {
 		caps = tracestore.SearchCapabilities{}
 	}

@@ -568,6 +568,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 // TestHTTPGatewayGetCapabilities pins the JSON shape of a full declaration, which is what a
 // client or the UI reads.
 func TestHTTPGatewayGetCapabilities(t *testing.T) {
+	enablePagination(t)
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
 	gw.reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
@@ -794,6 +795,7 @@ func mockFindSpansQuery() (url.Values, tracestore.SpanQueryParams) {
 }
 
 func TestHTTPGatewayFindSpans(t *testing.T) {
+	enablePagination(t)
 	q, qp := mockFindSpansQuery()
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.ExpectedCalls = nil
@@ -888,6 +890,7 @@ func TestHTTPGatewayFindSpansMalformedQuery(t *testing.T) {
 // service (here, the feature gate) reaches the HTTP caller as a 501, since another deployment
 // serves the same query, and not as a 500.
 func TestHTTPGatewayFindSpansPaginationRefusal(t *testing.T) {
+	setPagination(t, false)
 	q, _ := mockFindSpansQuery()
 	q.Set("query.pagination.pageToken", "opaque-cursor")
 	gw := setupHTTPGatewayNoServer(t, "")

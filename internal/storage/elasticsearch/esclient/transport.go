@@ -12,6 +12,8 @@ import (
 
 	"github.com/elastic/elastic-transport-go/v8/elastictransport"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
 
 // rawClient is the shared low-level transport beneath the Elasticsearch/OpenSearch
@@ -75,7 +77,9 @@ func newRawClient(ctx context.Context, base http.RoundTripper, opts rawClientOpt
 	// plane can opt into the pool's read retry when it adopts rawClient in Stage B.
 	transportOpts := []elastictransport.Option{
 		elastictransport.WithURLs(urls...),
-		elastictransport.WithTransport(base),
+		// The headers that jaeger_query captured from the caller are set here, outside
+		// base, so that an authenticator in base signs the request with them included.
+		elastictransport.WithTransport(headerforwarding.NewHTTPClientRoundTripper(base)),
 		elastictransport.WithDisableRetry(),
 	}
 	if opts.compressRequestBody {

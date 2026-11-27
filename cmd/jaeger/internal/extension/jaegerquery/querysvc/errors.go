@@ -35,12 +35,6 @@ var ErrSpanSearchUnsupported = tracestore.Unsupported("this storage backend does
 // refused rather than served as if every column had been selected.
 var ErrProjectionUnsupported = tracestore.Unsupported("a column list is not supported: a span search returns whole spans. Use SELECT *")
 
-// ErrFilterDisabled is returned for a query carrying a filter to a deployment that has not
-// enabled StructuredFiltersGate. The query is refused rather than served with the filter
-// ignored, because dropping a predicate would answer with every trace in the time range. The
-// same query is valid on a deployment with the gate on.
-var ErrFilterDisabled = tracestore.Unsupported("the structured query filter is disabled")
-
 // ErrPaginationDisabled is returned for a query carrying Pagination while PaginationGate is off.
 // The same query is valid on a deployment with the gate on.
 var ErrPaginationDisabled = tracestore.Unsupported("pagination is disabled")

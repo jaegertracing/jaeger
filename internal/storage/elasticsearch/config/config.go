@@ -227,59 +227,9 @@ type Configuration struct {
 
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
-
-	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
-	// Use this option with Elasticsearch rollover API. It requires an external component
-	// to create aliases before startup and then performing its management.
-	//
-	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
-	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
-	// SpanReadAlias specifies the exact alias name to use for reading spans.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// This allows integration with existing Elasticsearch setups that have custom alias names.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-span-reader"
-	//
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
-	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
-	// SpanWriteAlias specifies the exact alias name to use for writing spans.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-span-writer"
-	//
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
-	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
-	// ServiceReadAlias specifies the exact alias name to use for reading services.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-service-reader"
-	//
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
-	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
-	// ServiceWriteAlias specifies the exact alias name to use for writing services.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-service-writer"
-	//
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
-	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
-	// ReadAliasSuffix is the suffix to append to the index name used for reading.
-	// This configuration only exists to provide backwards compatibility for jaeger-v1
-	// which is why it is not exposed as a configuration option for jaeger-v2
-	ReadAliasSuffix string `mapstructure:"-"`
-	// WriteAliasSuffix is the suffix to append to the write index name.
-	// This configuration only exists to provide backwards compatibility for jaeger-v1
-	// which is why it is not exposed as a configuration option for jaeger-v2
-	WriteAliasSuffix string `mapstructure:"-"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
-	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
-	//
-	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
-	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -522,41 +472,6 @@ func (c *Configuration) Validate() error {
 			"the top-level tags_as_fields is no longer supported; move it under 'indices.spans.tags_as_fields'; " +
 				"to temporarily disable this check, use --feature-gates=-" + RejectLegacyTagsAsFields.ID(),
 		)
-	}
-
-	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
-		return fmt.Errorf(
-			"deprecated ES rotation flags (%s) "+
-				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
-				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
-				"to temporarily disable this check, use --feature-gates=-jaeger.es.config.rejectLegacyRotationFlags",
-			legacyRotationFlagsList,
-		)
-	}
-
-	if c.getUseILM() && !c.getUseReadWriteAliases() {
-		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	if c.CreateIndexTemplates && c.getUseILM() {
-		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
-	}
-
-	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
-		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
-
-	if hasAnyExplicitAlias && !c.getUseReadWriteAliases() {
-		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
-	}
-
-	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
-	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
-
-	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
-		return errors.New("both span_read_alias and span_write_alias must be set together")
-	}
-
-	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
-		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
 	if err := validateWriteMode(c.WriteMode); err != nil {
