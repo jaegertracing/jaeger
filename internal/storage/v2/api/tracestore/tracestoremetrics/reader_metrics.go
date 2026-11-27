@@ -5,6 +5,7 @@ package tracestoremetrics
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"time"
 
@@ -182,6 +183,11 @@ func (m *ReadMetricsDecorator) FindTraceSummaries(ctx context.Context, query tra
 		var err error
 		length := 0
 		defer func() {
+			// A bare errors.ErrUnsupported means the reader has no native summaries and the
+			// query service falls back to FindTraces, whose own metrics record the real work.
+			if errors.Is(err, errors.ErrUnsupported) && tracestore.ErrorReason(err) == "" {
+				return
+			}
 			m.findTraceSummariesMetrics.emit(err, time.Since(start), length)
 		}()
 		for chunk, iterErr := range m.traceReader.FindTraceSummaries(ctx, query) {

@@ -4,8 +4,12 @@
 package clickhouse
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -203,6 +207,66 @@ func TestNewHoistedColumns_SpansTableColumns(t *testing.T) {
 	assert.Len(t, spansColumnPattern.FindAllStringSubmatch(sql.CreateSpansTable, -1), len(spansColumns))
 }
 
+// tableEngine is one row of the lookup of the table engines.
+type tableEngine struct {
+	name   string
+	engine string
+}
+
+// hoistedColumnConn exists because the column lookups of the two tables send the same query
+// text, by which the shared test driver selects a response. It answers the lookup of the
+// table engines from the tables field, and a column lookup by the table name in the query
+// arguments.
+type hoistedColumnConn struct {
+	driver.Conn
+
+	tables         []tableEngine
+	tableLookupErr error
+	tableScanErr   error
+	tableRowsErr   error
+	// columnStateByTable holds how each table declares the column; a table without an
+	// entry does not have the column.
+	columnStateByTable map[string]hoistedColumnState
+	columnLookupErr    error
+	columnScanErr      error
+	columnRowsErr      error
+
+	// tableLookupArgs holds the arguments of the lookup of the table engines.
+	tableLookupArgs []any
+	// columnLookupArgs holds the arguments of every column lookup, in call order.
+	columnLookupArgs [][]any
+}
+
+func (c *hoistedColumnConn) Query(_ context.Context, query string, args ...any) (driver.Rows, error) {
+	if strings.Contains(query, "FROM system.tables") {
+		c.tableLookupArgs = args
+		return &clickhousetest.Rows[tableEngine]{
+			Data:    c.tables,
+			ScanErr: c.tableScanErr,
+			RowsErr: c.tableRowsErr,
+			ScanFn: func(dest any, src tableEngine) error {
+				fields := dest.([]any)
+				*fields[0].(*string) = src.name
+				*fields[1].(*string) = src.engine
+				return nil
+			},
+		}, c.tableLookupErr
+	}
+	c.columnLookupArgs = append(c.columnLookupArgs, args)
+	rows := &clickhousetest.Rows[hoistedColumnState]{
+		ScanErr: c.columnScanErr,
+		RowsErr: c.columnRowsErr,
+		ScanFn: func(dest any, src hoistedColumnState) error {
+			*dest.(*hoistedColumnState) = src
+			return nil
+		},
+	}
+	if state, ok := c.columnStateByTable[args[1].(string)]; ok {
+		rows.Data = []hoistedColumnState{state}
+	}
+	return rows, c.columnLookupErr
+}
+
 func TestCheckHoistedColumns(t *testing.T) {
 	columns, err := newHoistedColumns([]HoistedAttribute{
 		{
@@ -220,131 +284,238 @@ func TestCheckHoistedColumns(t *testing.T) {
 		Codec:          "CODEC(ZSTD(1))",
 		SameExpression: 1,
 	}
-	rowsWith := func(mutate func(state *hoistedColumnState)) *clickhousetest.Rows[hoistedColumnState] {
+	stateWith := func(mutate func(state *hoistedColumnState)) hoistedColumnState {
 		state := matchingState
 		mutate(&state)
-		return &clickhousetest.Rows[hoistedColumnState]{Data: []hoistedColumnState{state}}
+		return state
+	}
+	stateWithAnotherCodec := stateWith(func(state *hoistedColumnState) { state.Codec = "CODEC(ZSTD(3))" })
+	nonDistributedTables := []tableEngine{
+		{name: "spans", engine: "MergeTree"},
+	}
+	distributedTables := []tableEngine{
+		{name: "spans", engine: "Distributed"},
+		{name: "spans_local", engine: "ReplicatedMergeTree"},
+	}
+	nonDistributedConn := func(state hoistedColumnState) *hoistedColumnConn {
+		return &hoistedColumnConn{
+			tables:             nonDistributedTables,
+			columnStateByTable: map[string]hoistedColumnState{"spans": state},
+		}
 	}
 	tests := []struct {
-		name     string
-		rows     *clickhousetest.Rows[hoistedColumnState]
-		queryErr error
-		// tables answers the lookup of the spans table; nil means that the table exists.
-		tables    *clickhousetest.Rows[uint8]
-		tablesErr error
-		wantErr   string
+		name string
+		conn *hoistedColumnConn
+		// wantCheckedTables holds the tables whose column the check reads, in order.
+		wantCheckedTables []string
 	}{
 		{
-			name: "column matches",
-			rows: rowsWith(func(*hoistedColumnState) {}),
+			name:              "non-Distributed table, column matches",
+			conn:              nonDistributedConn(matchingState),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name: "column is missing",
-			rows: &clickhousetest.Rows[hoistedColumnState]{},
-			wantErr: `hoisted attribute column "input_tokens" is missing from the spans table; ` +
-				"add it with: ALTER TABLE spans ADD COLUMN `input_tokens` Nullable(Int64) MATERIALIZED ",
+			name:              "non-Distributed table, column is missing",
+			conn:              &hoistedColumnConn{tables: nonDistributedTables},
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:    "table is missing",
-			rows:    &clickhousetest.Rows[hoistedColumnState]{},
-			tables:  &clickhousetest.Rows[uint8]{},
-			wantErr: "hoisted attributes are configured, but the spans table does not exist; create the schema first",
+			name:              "non-Distributed table, another type",
+			conn:              nonDistributedConn(stateWith(func(state *hoistedColumnState) { state.Type = "Nullable(String)" })),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:    "table lookup fails",
-			rows:    &clickhousetest.Rows[hoistedColumnState]{},
-			tables:  &clickhousetest.Rows[uint8]{RowsErr: assert.AnError},
-			wantErr: "failed to look up the spans table",
-		},
-		{
-			name:      "table lookup query fails",
-			rows:      &clickhousetest.Rows[hoistedColumnState]{},
-			tablesErr: assert.AnError,
-			wantErr:   "failed to look up the spans table",
-		},
-		{
-			name:    "another type",
-			rows:    rowsWith(func(state *hoistedColumnState) { state.Type = "Nullable(String)" }),
-			wantErr: "the spans table declares it as [Nullable(String) MATERIALIZED if(",
-		},
-		{
-			name: "an ordinary column",
-			rows: rowsWith(func(state *hoistedColumnState) {
+			name: "non-Distributed table, an ordinary column",
+			conn: nonDistributedConn(stateWith(func(state *hoistedColumnState) {
 				state.Kind = ""
 				state.Expression = ""
 				state.SameExpression = 0
-			}),
-			wantErr: "the spans table declares it as [Nullable(Int64) CODEC(ZSTD(1))], and the configuration needs [Nullable(Int64) MATERIALIZED if(",
+			})),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:    "a default in place of a materialized column",
-			rows:    rowsWith(func(state *hoistedColumnState) { state.Kind = "DEFAULT" }),
-			wantErr: "the spans table declares it as [Nullable(Int64) DEFAULT if(",
+			name:              "non-Distributed table, a default in place of a materialized column",
+			conn:              nonDistributedConn(stateWith(func(state *hoistedColumnState) { state.Kind = "DEFAULT" })),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:    "another expression",
-			rows:    rowsWith(func(state *hoistedColumnState) { state.SameExpression = 0 }),
-			wantErr: "does not match its configuration",
+			name: "non-Distributed table, another expression",
+			conn: nonDistributedConn(stateWith(func(state *hoistedColumnState) {
+				state.Expression = "if(has(int_attributes.key, 'another.key'), int_attributes.value[indexOf(int_attributes.key, 'another.key')], NULL)"
+				state.SameExpression = 0
+			})),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:    "another codec",
-			rows:    rowsWith(func(state *hoistedColumnState) { state.Codec = "CODEC(ZSTD(3))" }),
-			wantErr: "a changed hoisted attribute needs a schema migration",
+			name:              "non-Distributed table, another codec",
+			conn:              nonDistributedConn(stateWithAnotherCodec),
+			wantCheckedTables: []string{"spans"},
 		},
 		{
-			name:     "query fails",
-			queryErr: assert.AnError,
-			wantErr:  `failed to read the hoisted attribute column "input_tokens"`,
-		},
-		{
-			name: "scan fails",
-			rows: &clickhousetest.Rows[hoistedColumnState]{
-				Data:    []hoistedColumnState{matchingState},
-				ScanErr: assert.AnError,
-			},
-			wantErr: `failed to read the hoisted attribute column "input_tokens"`,
-		},
-		{
-			name:    "rows fail",
-			rows:    &clickhousetest.Rows[hoistedColumnState]{RowsErr: assert.AnError},
-			wantErr: `failed to read the hoisted attribute column "input_tokens"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.rows != nil {
-				tt.rows.ScanFn = func(dest any, src hoistedColumnState) error {
-					*dest.(*hoistedColumnState) = src
-					return nil
-				}
-			}
-			tables := tt.tables
-			if tables == nil {
-				tables = &clickhousetest.Rows[uint8]{Data: []uint8{1}}
-			}
-			conn := &clickhousetest.Driver{
-				QueryResponses: map[string]*clickhousetest.QueryResponse{
-					"FROM system.columns": {
-						Rows: tt.rows,
-						Err:  tt.queryErr,
-					},
-					"FROM system.tables": {
-						Rows: tables,
-						Err:  tt.tablesErr,
-					},
+			name: "non-Distributed table beside an unrelated spans_local, column is missing",
+			conn: &hoistedColumnConn{
+				tables: []tableEngine{
+					{name: "spans", engine: "MergeTree"},
+					{name: "spans_local", engine: "MergeTree"},
 				},
-			}
-
-			err := checkHoistedColumns(t.Context(), conn, columns)
-
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tt.wantErr)
-			}
-			// The server compares the stored expression with the one the configuration
-			// renders, and looks the column up by its name.
-			require.Equal(t, []any{columns[0].SourceExpression(), "input_tokens"}, conn.RecordedArgs[0])
-		})
+			},
+			wantCheckedTables: []string{"spans"},
+		},
+		{
+			name: "Distributed table, both tables match",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans_local": matchingState,
+					"spans":       matchingState,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table, only the Distributed table has the column",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans": matchingState,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table, only the storage table has the column",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans_local": matchingState,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name:              "Distributed table, neither table has the column",
+			conn:              &hoistedColumnConn{tables: distributedTables},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table, the storage table declares another codec",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans_local": stateWithAnotherCodec,
+					"spans":       matchingState,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table, both tables declare another codec",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans_local": stateWithAnotherCodec,
+					"spans":       stateWithAnotherCodec,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table, the storage table lacks the column and the Distributed table declares another codec",
+			conn: &hoistedColumnConn{
+				tables: distributedTables,
+				columnStateByTable: map[string]hoistedColumnState{
+					"spans": stateWithAnotherCodec,
+				},
+			},
+			wantCheckedTables: []string{"spans_local", "spans"},
+		},
+		{
+			name: "Distributed table without a spans_local table, column is missing",
+			conn: &hoistedColumnConn{
+				tables: []tableEngine{
+					{name: "spans", engine: "Distributed"},
+				},
+			},
+			wantCheckedTables: []string{"spans"},
+		},
+		{
+			name: "spans_local without spans",
+			conn: &hoistedColumnConn{
+				tables: []tableEngine{
+					{name: "spans_local", engine: "MergeTree"},
+				},
+			},
+		},
+		{
+			name: "no tables",
+			conn: &hoistedColumnConn{},
+		},
+		{
+			name: "table lookup fails",
+			conn: &hoistedColumnConn{tableLookupErr: assert.AnError},
+		},
+		{
+			name: "table lookup scan fails",
+			conn: &hoistedColumnConn{
+				tables:       nonDistributedTables,
+				tableScanErr: assert.AnError,
+			},
+		},
+		{
+			name: "table lookup rows fail",
+			conn: &hoistedColumnConn{tableRowsErr: assert.AnError},
+		},
+		{
+			name: "column lookup fails",
+			conn: &hoistedColumnConn{
+				tables:          nonDistributedTables,
+				columnLookupErr: assert.AnError,
+			},
+			wantCheckedTables: []string{"spans"},
+		},
+		{
+			name: "column lookup scan fails",
+			conn: &hoistedColumnConn{
+				tables:             nonDistributedTables,
+				columnStateByTable: map[string]hoistedColumnState{"spans": matchingState},
+				columnScanErr:      assert.AnError,
+			},
+			wantCheckedTables: []string{"spans"},
+		},
+		{
+			name: "column lookup rows fail",
+			conn: &hoistedColumnConn{
+				tables:        nonDistributedTables,
+				columnRowsErr: assert.AnError,
+			},
+			wantCheckedTables: []string{"spans"},
+		},
 	}
+	var errorsByCase strings.Builder
+	for _, tt := range tests {
+		err := checkHoistedColumns(t.Context(), tt.conn, columns)
+
+		message := "no error"
+		if err != nil {
+			message = err.Error()
+		}
+		fmt.Fprintf(&errorsByCase, "-- %s\n%s\n\n", tt.name, message)
+		assert.Equal(t, []any{"spans", "spans_local"}, tt.conn.tableLookupArgs, tt.name)
+		// The server compares the stored expression with the one that the configuration
+		// renders, and looks the column up by its table and its name.
+		var wantColumnLookupArgs [][]any
+		for _, table := range tt.wantCheckedTables {
+			wantColumnLookupArgs = append(wantColumnLookupArgs, []any{columns[0].SourceExpression(), table, "input_tokens"})
+		}
+		assert.Equal(t, wantColumnLookupArgs, tt.conn.columnLookupArgs, tt.name)
+	}
+	clickhousetest.VerifyQuerySnapshot(t, errorsByCase.String())
+}
+
+func TestCheckHoistedColumns_NoColumns(t *testing.T) {
+	conn := &clickhousetest.Driver{}
+
+	require.NoError(t, checkHoistedColumns(t.Context(), conn, nil))
+
+	assert.Empty(t, conn.RecordedQueries)
 }

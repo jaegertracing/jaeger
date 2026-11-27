@@ -185,6 +185,8 @@ requires connection to Cassandra
 
 Jaeger changes are reviewed through GitHub pull requests. Reviewers are expected to evaluate whether a change is appropriate for the project, whether the implementation is correct and maintainable, and whether it is covered by suitable tests and documentation.
 
+[REVIEW.md](./REVIEW.md) states what a review reports, including how the operational risk of a change is assessed. It applies to a human reviewer and to an AI agent alike.
+
 Before approving a pull request, reviewers should check that:
 
 * the change is understandable, scoped to the stated problem, and consistent with the project's architecture and coding style,
@@ -249,21 +251,40 @@ For example:
 
 ## Using Feature Gates for Breaking Changes
 
-As much as possible, use OTel Collector's [feature gates][feature_gates] to manage breaking changes. For example, consider that we discovered a bug in the existing behavior, such as https://github.com/jaegertracing/jaeger/issues/5270. Simply changing the behavior might be a breaking change, so we implement a new behavior and create an internal config setting that enables or disables it. But how will users ever know and be encouraged to migrate to the new behavior? For that we can create a feature gate (without even creating any additional user-facing configuration), as follows:
-  * Introduce a new feature gate, with the name `jaeger.***`.
-  * If we don't want to change the default behavior right away, we can start the feature in the Alpha state, where it is disabled by default. No breaking changes need to be called out in the changelog.
-  * If we do want to change the default behavior right away, we can start the feature in the Beta state, where it is enabled by default, but the user can still disable it. Call out a breaking change in the changelog.
-  * Two releases later change the gate to Stable, where it is not only enabled by default, but trying to disable it will cause a runtime error. The code for the old behavior should be removed. Call out a breaking change in the changelog.
-  * Two releases later remove the feature gate as unused. Call out a breaking change in the changelog.
+Changing how Jaeger already behaves breaks the deployments that rely on the old behavior. Make such a change behind an OTel Collector [feature gate][feature_gates]. A gate switches between the old behavior and the new one, and its stage says which of the two a deployment gets by default and whether a user can still choose the other. A user enables a gate with `--feature-gates=<id>` and disables it with `--feature-gates=-<id>`. A gate needs no configuration setting of its own.
 
-See https://github.com/jaegertracing/jaeger/pull/6441 for an example of this workflow.
+Use a gate when every deployment is meant to end up with the new behavior and the code for the old one is to be deleted. The gate gives users a limited time to go back to the old behavior. Use a configuration setting when both behaviors stay supported and the right one depends on the deployment. A gate is not a substitute for a setting, because the choice disappears when the gate becomes Stable.
 
-Conventions for Jaeger feature gates:
-  * **Naming.** Every new gate ID MUST use the `jaeger.` prefix (e.g. `jaeger.es.config.rejectLegacyRotationFlags`). Jaeger shares the process-wide OTel `featuregate.GlobalRegistry()` with the embedded Collector and its contrib components, and the prefix avoids ID collisions with their gates. A legacy ID that predates this convention (e.g. `storage.clickhouse`) may stay registered without the prefix for the duration of its deprecation/removal window, but it must not be the canonical ID for new work: introduce the `jaeger.`-prefixed name and treat the old one as a deprecated alias per the renaming cycle below.
-  * **`FromVersion` records introduction, not stage.** Set `WithRegisterFromVersion` to the release in which the gate ID is first added, and do not change it when the gate graduates between stages — it is not a "current stage since" marker.
-  * **`ToVersion` is the removal release.** It is required once a gate is Stable or Deprecated (registration panics otherwise) and names the release in which the gate ID is removed. A Stable gate can no longer be disabled; explicitly enabling one logs that it will be removed in `ToVersion`.
-  * **Renaming a gate is itself a breaking change.** A gate ID is user-facing config (`--feature-gates=<id>`) and the OTel API has no built-in ID alias, so a rename needs a deprecation cycle: register the new ID and keep the old one working as a deprecated alias via `internal/featuregate.RenamedGate` for a window, then remove the old ID in a later release. `RenamedGate` supports only Alpha and Beta, so a renamed gate must have its legacy alias removed before it can be promoted to Stable.
+A gate moves through these stages:
 
-The current inventory of registered gates and their recommended transitions is tracked in https://github.com/jaegertracing/jaeger/issues/9057.
+| Stage | Behavior by default | Can a user change it? | Code change that moves a gate to this stage |
+|---|---|---|---|
+| Alpha | old behavior | yes | Register the gate and add the new behavior behind it. |
+| Beta | new behavior | yes | Change the stage in the registration. A gate can skip Alpha and start in Beta, which makes the new behavior the default immediately. |
+| Stable | new behavior | no, disabling the gate is a startup error | Change the stage, set `ToVersion`, and delete the code for the old behavior. |
+| removed | new behavior | no, any mention of the gate is a startup error | Delete the registration. |
+
+A gate moves from Alpha to Beta when the maintainers decide that the new behavior is ready to be the default. After that, the recommended time between stages is two releases. It is a recommendation and not a rule.
+
+Every transition except the introduction of a gate in Alpha changes what a deployment does or what a `--feature-gates` value is accepted, so it is a breaking change. Label its PR `changelog:breaking-change`, which lists the PR under the breaking changes of the release notes, and put the migration instructions in the PR description.
+
+### Conventions
+
+  * **Every gate ID starts with `jaeger.`**, for example `jaeger.es.config.rejectLegacyRotationFlags`. Jaeger shares the process-wide `featuregate.GlobalRegistry()` with the embedded Collector and its contrib components, and the prefix keeps the IDs of Jaeger from colliding with theirs.
+  * **Set `FromVersion` when a gate is first registered.** `WithRegisterFromVersion` names the release that introduced the gate ID. Do not change it when the gate changes stage.
+  * **Set `ToVersion` when a gate becomes Stable.** `WithRegisterToVersion` names the future release in which the gate ID will be removed. A Stable gate must have it: the OTel registry panics on a Stable registration without `ToVersion`. When a user explicitly enables a Stable gate, the log says that the gate will be removed in that release.
+  * **A rename is a breaking change.** A gate ID is user-facing configuration, and the OTel API has no alias for an ID. Register the new ID, keep the old ID working as an alias through `internal/featuregate.RenamedGate`, and remove the old ID in a later release; the recommended time is two releases. The two IDs are registered at the same stage and change stage in the same PR, because `NewRenamedGate` panics when their stages differ. `RenamedGate` supports only Alpha and Beta, so the alias is removed before the gate becomes Stable.
+
+### Applying a Gate Transition
+
+The feature gate lifecycle tracker (https://github.com/jaegertracing/jaeger/issues/9057) lists the registered gates and the next transition of each. A transition that the tracker lists needs no issue of its own. The PR that applies it links the tracker with `Part of #9057` and not with a closing keyword, which would close the tracker.
+
+1. **Read the stage from the code, not from the tracker.** The tracker is maintained by hand and can lag behind the code. `make feature-gates` prints the stage, `FromVersion` and `ToVersion` of every gate.
+2. **Apply only what is due.** A transition is due when the tracker schedules it for the next release. Do not advance a gate early, and do not apply a transition that the tracker does not list.
+3. **Delete the code for the disabled gate in the PR that makes the gate Stable.** A Stable gate cannot be disabled, even in a test, so from that release the code that ran with the gate disabled is unreachable. The PR deletes every `IsEnabled()` check of the gate, the code that ran when the check was false, and the tests that disabled the gate. The code that ran when the check was true now runs unconditionally. The registration stays, with its `ToVersion`.
+4. **In the release that `ToVersion` names, remove only the registration.** Step 3 left nothing else that depends on the gate.
+5. **Remove a legacy alias together with its `RenamedGate` wiring.** The `jaeger.`-prefixed gate is then registered directly.
+6. **Report a mismatch.** When the code and the tracker disagree, such as a gate at an unexpected stage or a tracker row whose gate is gone, say so in the PR description and do not reconcile them silently.
+7. **A maintainer updates the tracker when the PR merges.** The maintainer writes the new stage, a link to the PR, `Stage since` and the next transition into the row. The row of a gate ID that the PR removed is deleted.
 
 [feature_gates]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md

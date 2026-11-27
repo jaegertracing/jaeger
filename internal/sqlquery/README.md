@@ -13,14 +13,15 @@ A statement reads `spans` or `traces` in `FROM`, optionally aliased. `events` an
 | Column | Type | Values |
 |---|---|---|
 | `trace_id`, `span_id`, `parent_span_id` | text | lower-case hex; a root span has no `parent_span_id`, and no comparison on it matches a root span |
-| `name`, `status_message` | text | any |
+| `name` | text | any |
+| `status_message` | text | any; a span without a status message has no value, so no comparison on it matches that span |
 | `trace_state` | text | any; a span without a trace state has no value, so no comparison on it matches that span |
 | `kind` | word | `'server'`, `'client'`, `'producer'`, `'consumer'`, `'internal'`, `'unspecified'` |
 | `status` | word | `'ok'`, `'error'`, `'unset'` |
 | `start_time`, `end_time` | instant | RFC 3339, `'2026-10-23T12:00:00Z'`, or `now() - '1h'` |
 | `duration` | duration | Go syntax with a unit, `'2s'`, `'250ms'`; `INTERVAL '250' MILLISECOND` is rewritten to it |
 | `service` | text | the resource's `service.name` |
-| `scope_name`, `scope_version` | text | the instrumentation scope |
+| `scope_name`, `scope_version` | text | the instrumentation scope; a span whose scope has an empty name or version has no value for that column, so no comparison on it matches that span |
 | `attributes['key']` | map | span attributes; a value is compared at the type storage holds |
 | `resource_attributes['key']` | map | resource attributes |
 | `scope_attributes['key']` | map | instrumentation scope attributes |
@@ -36,7 +37,7 @@ The three map columns compile to an attribute reference at the span, resource or
 | `events` | `time_since_start` | duration | Go syntax with a unit |
 | `events` | `attributes['key']` | map | event attributes |
 | `links` | `linked_trace_id`, `linked_span_id` | text | lower-case hex |
-| `links` | `trace_state` | text | any |
+| `links` | `trace_state` | text | any; a link without a trace state has no value, so no comparison on it matches that link |
 | `links` | `attributes['key']` | map | link attributes |
 
 The `span_id` and `trace_id` of an event or link appear only in the optional correlation with the outer span, `e.span_id = s.span_id`; a predicate on them is refused, because inside `EXISTS` the collection is already the span's own.
@@ -89,7 +90,7 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `x ILIKE 'get %'` | `regex` | as `LIKE`, with `(?i)` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
 | `x NOT LIKE 'GET %'`, `x NOT ILIKE 'get %'` | `and(exists, not(regex))`; `ne` without a wildcard | on an attribute, or on a column that can have no value (see the column tables), holds only where `x` has a value, as `NOT IN` does; on a column every span has, `not` of the `LIKE`. `NOT (x LIKE ...)` is a boolean `not` and still matches a span where `x` has no value |
-| `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on attributes only; a built-in field is always present |
+| `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on an attribute, or on a column that can have no value (see the column tables), so `parent_span_id IS NULL` selects root spans; a column every span has is refused |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | inclusive at both ends; the function form has no `AND` of its own, so it reads better beside other conjuncts. `NOT` negates either |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words of every quoted argument are split on whitespace |
 | `EXISTS (SELECT 1 FROM events WHERE ...)` | `some` over events | the span's own events; see below |

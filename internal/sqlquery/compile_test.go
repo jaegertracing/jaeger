@@ -183,6 +183,53 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "not like on a built-in field that can be absent holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND parent_span_id NOT LIKE 'abc%'
+					AND trace_state NOT ILIKE 'k=%'
+					AND status_message NOT LIKE 'ok'
+					AND scope_name NOT LIKE 'io.%'
+					AND scope_version NOT LIKE '1.%'
+					AND name NOT LIKE '%health'
+					AND service NOT LIKE 'probe%'`,
+			want: p.And(
+				p.Span().ParentSpanID.Exists(),
+				p.Not(p.Span().ParentSpanID.Matches(`^abc[\s\S]*$`)),
+				p.Span().TraceState.Exists(),
+				p.Not(p.Span().TraceState.Matches(`(?i)^k=[\s\S]*$`)),
+				p.Span().StatusMessage.Ne("ok"),
+				p.Scope().Name.Exists(),
+				p.Not(p.Scope().Name.Matches(`^io\.[\s\S]*$`)),
+				p.Scope().Version.Exists(),
+				p.Not(p.Scope().Version.Matches(`^1\.[\s\S]*$`)),
+				p.Not(p.Span().Name.Matches(`^[\s\S]*health$`)),
+				p.Not(p.Resource().Service.Matches(`^probe[\s\S]*$`)),
+			),
+		},
+		{
+			name: "not like on the trace state of a link holds only where it has a value",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.trace_state NOT LIKE 'k=%'
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.And(
+					p.Link().TraceState.Exists(),
+					p.Not(p.Link().TraceState.Matches(`^k=[\s\S]*$`)),
+				),
+			),
+		},
+		{
 			name: "not like and not ilike on an attribute hold only where it is present",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -223,6 +270,42 @@ func TestCompileFilters(t *testing.T) {
 			want: p.And(
 				p.Span().Attr("error").Exists(),
 				p.Not(p.Resource().Attr("k8s.pod.name").Exists()),
+			),
+		},
+		{
+			name: "is null and is not null on a built-in field that can be absent",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND parent_span_id IS NULL
+					AND trace_state IS NOT NULL
+					AND status_message IS NOT NULL
+					AND scope_name IS NULL
+					AND scope_version IS NOT NULL`,
+			want: p.And(
+				p.Not(p.Span().ParentSpanID.Exists()),
+				p.Span().TraceState.Exists(),
+				p.Span().StatusMessage.Exists(),
+				p.Not(p.Scope().Name.Exists()),
+				p.Scope().Version.Exists(),
+			),
+		},
+		{
+			name: "is null on the trace state of a link",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.trace_state IS NULL
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.Not(p.Link().TraceState.Exists()),
 			),
 		},
 		{
@@ -737,6 +820,16 @@ func TestRefusals(t *testing.T) {
 			want: "The statement did not parse as SQL",
 		},
 		{
+			name: "order by cut off after AS",
+			sql: `
+				SELECT *
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+				ORDER BY duration AS`,
+			at:   "",
+			want: "The statement did not parse as SQL",
+		},
+		{
 			name: "tilde is not an operator",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -1044,7 +1137,7 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND name IS NOT NULL`,
 			at:   "name IS NOT NULL",
-			want: "IS NOT NULL applies to an attribute",
+			want: "IS NOT NULL applies to an attribute or to a column that can have no value, and this column is always present",
 		},
 		{
 			name: "parametric predicate function",
@@ -1567,7 +1660,7 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND name IS NULL`,
 			at:   "name IS NULL",
-			want: "IS NULL applies to an attribute",
+			want: "IS NULL applies to an attribute or to a column that can have no value, and this column is always present",
 		},
 		{
 			name: "duration without unit",

@@ -44,7 +44,7 @@ Throughout this issue, tick each item when it is done, or when it does not apply
 
 1. Update your clone: `git switch main && git pull --ff-only && git fetch --tags`. Your `main` must track `jaegertracing/jaeger`, not a fork; `git rev-parse --abbrev-ref main@{upstream}` names the remote it tracks.
 2. Land the feature gate transitions due in vX.Y.Z before preparing the release.
-  * Review the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z.
+  * Review the feature gate lifecycle tracker (https://github.com/jaegertracing/jaeger/issues/9057), then merge PRs for every gate stage advancement and legacy-ID removal due in vX.Y.Z. [Applying a Gate Transition](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#applying-a-gate-transition) documents the process.
   * Confirm no gate on main still carries `WithRegisterToVersion("vX.Y.Z")`. This must print nothing: `git grep -n 'WithRegisterToVersion("vX.Y.Z")' -- '*.go' ':!*_test.go'`.
   * The tracker is maintained by hand, so it can miss gates. Compare the gate IDs registered in the code with the tracker's rows. This prints nothing when they match. A `<` line is a gate in the code with no tracker row; a `>` line is a tracker row whose gate is gone. Raise any difference with the maintainers before you prepare the release.
     ```bash
@@ -114,7 +114,7 @@ Do these after the documentation is published.
 
 <!-- BEGIN_WRAPUP -->
 
-1. Update the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, drop the rows for gate IDs this release removed, and reword notes that say a change ships in vX.Y.Z to say it shipped.
+1. Update the [feature gate lifecycle tracker](https://github.com/jaegertracing/jaeger/issues/9057): set "Latest released version" to vX.Y.Z and "Next release" to the version after it, and drop the rows for gate IDs this release removed. Then post a comment on the tracker that lists the gate transitions vX.Y.Z shipped, each with its PR. The body of the tracker holds only pending transitions, and its comments hold the history.
 2. Close the tracking issue with a comment that links the UI release, the backend release, and the documentation PR.
 
 <!-- END_WRAPUP -->

@@ -20,7 +20,7 @@ import (
 func runClickHouseStorageSuite(t *testing.T, configFile string, storage string) {
 	s := &E2EStorageIntegration{
 		ConfigFile:   configFile,
-		FeatureGates: searchGates,
+		FeatureGates: paginationGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.ClickHouseE2E(),

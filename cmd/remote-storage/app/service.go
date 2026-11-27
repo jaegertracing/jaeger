@@ -16,8 +16,6 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapgrpc"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/ports"
@@ -110,11 +108,6 @@ func (s *Service) Start(cfg ServiceConfig) error {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
 	s.Logger = logger
-	grpclog.SetLoggerV2(zapgrpc.NewLogger(
-		logger.WithOptions(
-			zap.AddCallerSkip(5), // ensure the actual caller:lineNo is shown
-		),
-	))
 
 	metricsBuilder := cfg.Metrics
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")

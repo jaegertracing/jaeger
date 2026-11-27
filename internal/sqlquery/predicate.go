@@ -306,13 +306,13 @@ func (c *compiler) predicate(sc *scope, node parser.Expr) (*ast.Call, error) {
 		}
 		return builder.Not(inner), nil
 	case *parser.IsNullExpr:
-		ref, err := c.attributeReference(sc, n.Expr, "IS NULL")
+		ref, err := c.nullTestReference(sc, n.Expr, "IS NULL")
 		if err != nil {
 			return nil, err
 		}
 		return builder.Not(ref.Exists()), nil
 	case *parser.IsNotNullExpr:
-		ref, err := c.attributeReference(sc, n.Expr, "IS NOT NULL")
+		ref, err := c.nullTestReference(sc, n.Expr, "IS NOT NULL")
 		if err != nil {
 			return nil, err
 		}
@@ -334,15 +334,17 @@ func (c *compiler) predicate(sc *scope, node parser.Expr) (*ast.Call, error) {
 	return nil, c.pos.at(node, "expected a predicate here", "A predicate is a comparison, IN, LIKE, REGEXP, IS [NOT] NULL, between(), EXISTS (SELECT ...), match(), phrase() or fulltext(), joined by AND, OR and NOT")
 }
 
-// attributeReference resolves the operand of IS [NOT] NULL, which applies to attributes only:
-// a built-in field is always present (RFC 0019 §4.2).
-func (c *compiler) attributeReference(sc *scope, node parser.Expr, op string) (expression.Ref, error) {
+// nullTestReference resolves the operand of IS [NOT] NULL, which applies to a reference that a
+// span can lack: an attribute, or a built-in field whose column is marked MayBeAbsent
+// (RFC 0019 §4.2). A column that every span has is refused, since the test would tell no two
+// spans apart.
+func (c *compiler) nullTestReference(sc *scope, node parser.Expr, op string) (expression.Ref, error) {
 	ref, err := c.reference(sc, node)
 	if err != nil {
 		return expression.Ref{}, err
 	}
-	if _, ok := ref.(*ast.AttributeRef); !ok {
-		return expression.Ref{}, c.pos.at(node, op+" applies to an attribute, and a built-in field is always present", "Write attributes['key'] IS NOT NULL")
+	if !mayBeAbsent(ref) {
+		return expression.Ref{}, c.pos.at(node, op+" applies to an attribute or to a column that can have no value, and this column is always present", "Write attributes['key'] IS NOT NULL")
 	}
 	return builder.RefOf(ref), nil
 }
@@ -456,8 +458,8 @@ func (c *compiler) binary(sc *scope, n *parser.BinaryOperation) (*ast.Call, erro
 		if !strings.HasPrefix(op, "NOT") {
 			return call, nil
 		}
-		// Like x NOT IN and x <>, an infix NOT LIKE holds only where the attribute is present.
-		if _, isAttr := refExpr.(*ast.AttributeRef); !isAttr {
+		// Like x NOT IN and x <>, an infix NOT LIKE holds only where x has a value.
+		if !mayBeAbsent(refExpr) {
 			return builder.Not(call), nil
 		}
 		if call.Op == ast.OpEq {
@@ -845,6 +847,17 @@ func likeHasWildcard(pattern string) bool {
 		}
 	}
 	return false
+}
+
+// mayBeAbsent reports whether a reference can have no value on a span: an attribute the span
+// does not carry, or a built-in field whose column is marked MayBeAbsent, such as the parent of
+// a root span or the trace state of a span that has none.
+func mayBeAbsent(ref ast.Expression) bool {
+	if field, ok := ref.(*ast.FieldRef); ok {
+		return absentFields[*field]
+	}
+	_, isAttribute := ref.(*ast.AttributeRef)
+	return isAttribute
 }
 
 // likeLiteral reads a LIKE pattern without wildcards as the text it matches, with its

@@ -4,13 +4,15 @@
 name: 'PR Linked Issue'
 description: >-
   Require that a pull request from an outside contributor is linked to an open
-  help wanted issue, by labelling and commenting on the pull requests that are not.
+  help wanted issue, by labelling and commenting on the pull requests that are
+  not, and by closing them a week later.
 
 inputs:
   token:
     description: >-
-      Token used to label and comment. Needs issues:write and pull-requests:write,
-      so pass the workflow token from a job that declares those permissions.
+      Token used to label, comment and close. Needs issues:write and
+      pull-requests:write, so pass the workflow token from a job that declares
+      those permissions.
     required: true
   pull-request-number:
     description: 'Pull request to check. Takes precedence over issue-number.'
@@ -22,6 +24,12 @@ inputs:
       checked.
     required: false
     default: ''
+  close-expired-pull-requests:
+    description: >-
+      Check only the pull requests that carry a flag label, and close each one
+      that still violates the policy a week after it was flagged.
+    required: false
+    default: 'false'
   dry-run:
     description: 'Report which pull requests violate the policy without writing anything.'
     required: false
@@ -36,6 +44,7 @@ runs:
         # body, so a value from a workflow input cannot inject JavaScript.
         LINKED_ISSUE_PR_NUMBER: ${{ inputs.pull-request-number }}
         LINKED_ISSUE_ISSUE_NUMBER: ${{ inputs.issue-number }}
+        LINKED_ISSUE_CLOSE_EXPIRED_PULL_REQUESTS: ${{ inputs.close-expired-pull-requests }}
         LINKED_ISSUE_DRY_RUN: ${{ inputs.dry-run }}
       with:
         github-token: ${{ inputs.token }}
@@ -48,5 +57,6 @@ runs:
             repo: context.repo.repo,
             pullRequestNumber: process.env.LINKED_ISSUE_PR_NUMBER,
             issueNumber: process.env.LINKED_ISSUE_ISSUE_NUMBER,
+            closeExpiredPullRequests: process.env.LINKED_ISSUE_CLOSE_EXPIRED_PULL_REQUESTS === 'true',
             dryRun: process.env.LINKED_ISSUE_DRY_RUN === 'true'
           })

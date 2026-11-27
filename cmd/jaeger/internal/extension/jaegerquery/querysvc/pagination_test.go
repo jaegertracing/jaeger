@@ -29,11 +29,6 @@ func setPagination(t *testing.T, enabled bool) {
 	})
 }
 
-func TestPaginationGate_IsAlpha(t *testing.T) {
-	assert.Equal(t, featuregate.StageAlpha, PaginationGate.Stage(),
-		"Alpha is what keeps pagination off unless a deployment asks for it")
-}
-
 // TestFindTraces_RejectsPagination pins that FindTraces refuses any query carrying Pagination
 // outright, before prepareSearchQuery — which FindTraceSummaries shares and which does admit
 // Pagination — ever sees it. FindTraces streams whole traces with no field to carry a
@@ -53,7 +48,7 @@ func TestFindTraces_RejectsPagination(t *testing.T) {
 	assert.False(t, next.findCalled, "storage must not be queried")
 }
 
-// TestPrepareSearchQuery_PaginationDisabled pins what a deployment that has not opted in does
+// TestPrepareSearchQuery_PaginationDisabled pins what a deployment that disables the gate does
 // with a query carrying Pagination: it is refused before the reader is asked anything, the same
 // posture TestPrepareSearchQuery_FilterDisabled pins for the filter gate. Driven through
 // FindTraceSummaries, since FindTraces refuses Pagination unconditionally regardless of the
@@ -240,7 +235,6 @@ func TestPrepareSearchQuery_PageTokenAcceptedWhenSupported(t *testing.T) {
 // does not expose Pagination, so it has to come from the pre-interceptor query.
 func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 	enablePagination(t)
-	enableStructuredFilters(t)
 	filter := tag(expression.OpEq, "a", "1")
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	next.capabilities = &tracestore.SearchCapabilities{
@@ -267,7 +261,7 @@ func TestPagination_SurvivesInterceptorFilterRewrite(t *testing.T) {
 
 // TestPrepareSearchQuery_PaginationZeroValueSkipsGate pins that a query with no Pagination at
 // all takes the same path it always did: the gate is never consulted, so a deployment that has
-// not enabled it sees exactly today's behavior for an unpaginated search (RFC 0014 G5). Driven
+// disabled it sees exactly today's behavior for an unpaginated search (RFC 0014 G5). Driven
 // through FindTraces, which is the RPC a zero Pagination must still work on.
 func TestPrepareSearchQuery_PaginationZeroValueSkipsGate(t *testing.T) {
 	setPagination(t, false)
