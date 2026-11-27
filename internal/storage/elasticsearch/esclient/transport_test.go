@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -249,6 +250,32 @@ func TestRawClientCompressesBeforeBaseRoundTripper(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, replay.Close())
 	assert.Equal(t, spy.body, replayed, "GetBody must replay the same compressed bytes the transport sends")
+}
+
+// TestRawClientForwardsHeadersBeforeBaseRoundTripper checks that the base
+// RoundTripper, which holds the authenticator, receives the forwarded header.
+// A signer that ran before the header was set would sign a request without it.
+func TestRawClientForwardsHeadersBeforeBaseRoundTripper(t *testing.T) {
+	base := &recordingRoundTripper{}
+	rc, err := newRawClient(t.Context(), base, rawClientOptions{servers: []string{"http://localhost:9200"}})
+	require.NoError(t, err)
+
+	ctx := headerforwarding.ContextWithCaptured(t.Context(), []headerforwarding.CapturedHeader{
+		{
+			Header: &headerforwarding.ForwardedHeader{
+				HTTPName: "X-Forwarded-User",
+				Role:     headerforwarding.RoleUsername,
+			},
+			Value: "alice",
+		},
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/_search", http.NoBody)
+	require.NoError(t, err)
+	resp, err := rc.perform(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "alice", base.req.Header.Get("X-Forwarded-User"))
 }
 
 // gzipMagic is the two-byte header every gzip stream starts with.
