@@ -268,14 +268,30 @@ func (h *Handler) FindTraceIDs(
 	}, nil
 }
 
-func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) (
-	ptraceotlp.ExportResponse,
-	error,
-) {
-	err := h.traceWriter.WriteTraces(ctx, sanitizer.Sanitize(request.Traces()))
+func (h *Handler) Export(
+	ctx context.Context,
+	request ptraceotlp.ExportRequest,
+) (ptraceotlp.ExportResponse, error) {
+	err := h.traceWriter.WriteTraces(
+		ctx,
+		sanitizer.Sanitize(request.Traces()),
+	)
 	if err != nil {
+		var partial *partialWriteError
+		if errors.As(err, &partial) {
+			response := ptraceotlp.NewExportResponse()
+			response.PartialSuccess().SetRejectedSpans(
+				partial.rejectedSpans,
+			)
+			response.PartialSuccess().SetErrorMessage(
+				partial.message,
+			)
+			return response, nil
+		}
+
 		return ptraceotlp.NewExportResponse(), err
 	}
+
 	return ptraceotlp.NewExportResponse(), nil
 }
 
