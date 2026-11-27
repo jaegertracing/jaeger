@@ -21,6 +21,11 @@
                   "term": {
                     "tags.value": "GET"
                   }
+                },
+                {
+                  "term": {
+                    "tags.type": "string"
+                  }
                 }
               ]
             }

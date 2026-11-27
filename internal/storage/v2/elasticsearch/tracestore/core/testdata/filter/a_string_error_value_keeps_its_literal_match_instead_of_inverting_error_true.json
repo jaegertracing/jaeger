@@ -1,0 +1,37 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.error": "false"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "error"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "false"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

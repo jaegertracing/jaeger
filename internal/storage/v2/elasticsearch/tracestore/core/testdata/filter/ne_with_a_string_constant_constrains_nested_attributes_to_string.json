@@ -1,0 +1,62 @@
+{
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          {
+            "exists": {
+              "field": "tag.http@status_code"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "term": {
+                  "tags.key": "http.status_code"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "term": {
+              "tag.http@status_code": "200"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "tags.key": "http.status_code"
+                      }
+                    },
+                    {
+                      "term": {
+                        "tags.value": "200"
+                      }
+                    },
+                    {
+                      "term": {
+                        "tags.type": "string"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

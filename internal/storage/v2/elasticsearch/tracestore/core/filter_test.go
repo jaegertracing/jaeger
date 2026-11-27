@@ -394,15 +394,36 @@ func TestBuildFilterQuery(t *testing.T) {
 			filter: p.Span().Attr("http.method").In("GET", "POST"),
 		},
 		{
+			// A list declaring string constrains nested queries to <path>.type == "string", while
+			// elevated object fields carry no type discriminator.
 			name:   "a list declaring string, beside an attribute this schema matches as text",
 			filter: p.Span().Attr("http.method").In(p.List(expression.ValueTypeString, "GET")),
 		},
 		{
-			// The legacy tag search carried a map of strings, so a string constant matched a value
-			// of any stored type. A declared string asks for that same comparison, the only one
-			// this schema performs on an attribute.
+			// A declared string constrains nested queries to <path>.type == "string", so an
+			// attribute stored as an int, double, or bool is not matched in the nested array.
 			name:   "a string constant, beside an attribute this schema matches as text",
 			filter: p.Span().Attr("http.route").Eq(p.String("/cart")),
+		},
+		{
+			name:   "ne with a string constant constrains nested attributes to string",
+			filter: p.Span().Attr("http.status_code").Ne(p.String("200")),
+		},
+		{
+			name:   "not_in with a list declaring string constrains nested attributes to string",
+			filter: p.Span().Attr("http.status_code").NotIn(p.List(expression.ValueTypeString, "200", "404")),
+		},
+		{
+			name:   "regex with a string constant constrains nested attributes to string",
+			filter: p.Compare(expression.OpRegex, p.Span().Attr("http.status_code"), p.String("^200$")),
+		},
+		{
+			name:   "a string constant against an unqualified attribute constrains nested attributes at both levels",
+			filter: p.Attr("http.status_code").Eq(p.String("200")),
+		},
+		{
+			name:   "a string error value keeps its literal match instead of inverting error=true",
+			filter: p.Span().Attr("error").Eq(p.String("false")),
 		},
 		{
 			name:   "not_in against an attribute requires the attribute to be present",
