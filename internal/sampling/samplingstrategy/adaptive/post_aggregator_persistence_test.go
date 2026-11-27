@@ -535,3 +535,207 @@ func TestPostAggregatorSteadyLeaderBoundedStorageReads(t *testing.T) {
 
 	mockStorage.AssertNumberOfCalls(t, "GetLatestProbabilities", 4)
 }
+
+func TestPostAggregatorStartupReadFailureDefersUntilRetrySucceeds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logger, logBuffer := testutils.NewLogger()
+		mockStorage := &smocks.Store{}
+		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return([]*model.Throughput{
+			{
+				Service:       "svcA",
+				Operation:     http.MethodGet,
+				Count:         1,
+				Probabilities: map[string]struct{}{"0.000100": {}},
+			},
+		}, nil)
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities(nil), errors.New("storage down")).Twice()
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.0001}}, nil).Once()
+
+		var saved model.ServiceOperationProbabilities
+		mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				saved = args.Get(1).(model.ServiceOperationProbabilities)
+			}).
+			Return(nil).
+			Once()
+
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("IsLeader").Return(true)
+
+		pa, err := newPostAggregator(newTestAdaptiveOpts(time.Second, 1.0, 0.1), "host", mockStorage, mockEP, metrics.NullFactory, logger)
+		require.NoError(t, err)
+
+		// Initial Start() read fails; leader must defer calculation and publication on tick 1 while read fails.
+		pa.Start()
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		match, errMsg := testutils.LogMatcher(2, "failed to initialize probabilities", logBuffer.Lines())
+		assert.True(t, match, errMsg)
+		mockStorage.AssertNotCalled(t, "InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything)
+		pa.mu.RLock()
+		assert.Empty(t, pa.probabilities)
+		pa.mu.RUnlock()
+
+		// Retry tick succeeds: restores 0.0001 and computes/saves 0.0001 rather than InitialSamplingProbability (0.1).
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		require.InDelta(t, 0.0001, saved["svcA"][http.MethodGet], 1e-9)
+		pa.mu.RLock()
+		got := pa.probabilities["svcA"][http.MethodGet]
+		pa.mu.RUnlock()
+		assert.InDelta(t, 0.0001, got, 1e-9)
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestPostAggregatorPromotionRefreshFailureDefersUntilRetrySucceeds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockStorage := &smocks.Store{}
+		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return([]*model.Throughput{
+			{
+				Service:       "svcA",
+				Operation:     http.MethodGet,
+				Count:         1,
+				Probabilities: map[string]struct{}{"0.000100": {}},
+			},
+		}, nil)
+		// Start() as follower reads stale 0.05; promotion refresh fails once, then retry succeeds with 0.0001.
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.05}}, nil).Once()
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities(nil), errors.New("storage down")).Once()
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.0001}}, nil).Once()
+
+		var saved model.ServiceOperationProbabilities
+		mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				saved = args.Get(1).(model.ServiceOperationProbabilities)
+			}).
+			Return(nil).
+			Once()
+
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("IsLeader").Return(false).Once()
+		mockEP.On("IsLeader").Return(true)
+
+		pa, err := newPostAggregator(newTestAdaptiveOpts(time.Second, 1.0, 0.1), "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
+		pa.Start()
+
+		// First leader tick after promotion fails refresh: must preserve 0.05 in memory and publish nothing.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		mockStorage.AssertNotCalled(t, "InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything)
+		pa.mu.RLock()
+		preserved := pa.probabilities["svcA"][http.MethodGet]
+		pa.mu.RUnlock()
+		assert.InDelta(t, 0.05, preserved, 1e-9)
+
+		// Second tick retry succeeds with 0.0001 and publishes 0.0001 rather than stale 0.05.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		require.InDelta(t, 0.0001, saved["svcA"][http.MethodGet], 1e-9)
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+func TestPostAggregatorLeadershipChangeBeforeCheckUsesPostPromotionRead(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sharedStore := memory.NewSamplingStore(10)
+		require.NoError(t, sharedStore.InsertProbabilitiesAndQPS(
+			"node-1",
+			model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.05}},
+			model.ServiceOperationQPS{"svcA": {http.MethodGet: 1.0}},
+		))
+
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("IsLeader").Return(false).Once()
+		// Simulate previous leader persisting newer 0.0001 right before this node observes promotion.
+		mockEP.On("IsLeader").
+			Run(func(mock.Arguments) {
+				require.NoError(t, sharedStore.InsertProbabilitiesAndQPS(
+					"node-1",
+					model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.0001}},
+					model.ServiceOperationQPS{"svcA": {http.MethodGet: 1.0}},
+				))
+			}).
+			Return(true).
+			Once()
+
+		pa, err := newPostAggregator(newTestAdaptiveOpts(time.Second, 1.0, 0.1), "node-2", sharedStore, mockEP, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
+		pa.Start()
+
+		time.Sleep(time.Second)
+		require.NoError(t, sharedStore.InsertThroughput([]*model.Throughput{
+			{
+				Service:       "svcA",
+				Operation:     http.MethodGet,
+				Count:         1,
+				Probabilities: map[string]struct{}{"0.000100": {}},
+			},
+		}))
+		synctest.Wait()
+		pa.runCalculation()
+
+		got, err := sharedStore.GetLatestProbabilities()
+		require.NoError(t, err)
+		assert.InDelta(t, 0.0001, got["svcA"][http.MethodGet], 1e-9)
+		mockEP.AssertExpectations(t)
+	})
+}
+
+func TestPostAggregatorInsertFailurePreservesInMemoryProgress(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockStorage := &smocks.Store{}
+		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return([]*model.Throughput{
+			{
+				Service:       "svcA",
+				Operation:     http.MethodGet,
+				Count:         2,
+				Probabilities: map[string]struct{}{"0.100000": {}, "0.050000": {}},
+			},
+		}, nil)
+		// Persisted rate remains 0.1 across ticks because Tick 1's InsertProbabilitiesAndQPS fails.
+		mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{"svcA": {http.MethodGet: 0.1}}, nil).Times(3)
+		mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.Anything, mock.Anything).Return(errors.New("write failed")).Once()
+
+		var tick2Saved model.ServiceOperationProbabilities
+		mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				tick2Saved = args.Get(1).(model.ServiceOperationProbabilities)
+			}).
+			Return(nil).
+			Once()
+
+		mockEP := &epmocks.ElectionParticipant{}
+		mockEP.On("IsLeader").Return(true)
+
+		pa, err := newPostAggregator(newTestAdaptiveOpts(time.Second, 1.0, 0.1), "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
+		pa.Start()
+
+		// Tick 1: 2 QPS at 0.1 -> computes 0.05 in memory, write fails so storage keeps 0.1.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		pa.mu.RLock()
+		assert.InDelta(t, 0.05, pa.probabilities["svcA"][http.MethodGet], 1e-9)
+		pa.mu.RUnlock()
+
+		// Tick 2: continuing leader refreshes storage (still 0.1), must not roll back 0.05 -> scales 0.05 to 0.025.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		pa.runCalculation()
+
+		require.InDelta(t, 0.025, tick2Saved["svcA"][http.MethodGet], 1e-9)
+		mockStorage.AssertExpectations(t)
+	})
+}
