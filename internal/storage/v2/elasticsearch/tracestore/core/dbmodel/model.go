@@ -160,6 +160,14 @@ type OperationQueryParameters struct {
 	SpanKind    string
 }
 
+// GetTraceParameters identifies a trace to read by its ID. StartTime and EndTime optionally
+// bound the start times of its spans; a zero value leaves that end of the window to the reader.
+type GetTraceParameters struct {
+	TraceID   TraceID
+	StartTime time.Time
+	EndTime   time.Time
+}
+
 // TraceQueryParameters contains parameters of a trace query.
 type TraceQueryParameters struct {
 	ServiceName   string

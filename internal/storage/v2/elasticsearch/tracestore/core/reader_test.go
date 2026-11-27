@@ -278,7 +278,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: hits}},
 		}, nil)
-		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID(testingTraceId)}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
@@ -358,7 +358,10 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime, string(spanID1.SpanID))
 		})).Return(secondRound, nil).Once()
 
-		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []traceRead{
+			{traceID: traceID1, startTime: date, endTime: date},
+			{traceID: traceID2, startTime: date, endTime: date},
+		})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -458,7 +461,7 @@ func TestSpanReader_multiRead_tieBreakerAvoidsSpanLoss(t *testing.T) {
 		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
 	})
 
-	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, base, base.Add(time.Hour))
+	traces, err := reader.multiRead(context.Background(), []traceRead{{traceID: traceID, startTime: base, endTime: base.Add(time.Hour)}})
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
 
@@ -483,7 +486,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		}
 		mockMultiSearchService(r).Return(resp, nil).Times(2)
 
-		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID("testing-id")}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
@@ -496,11 +499,143 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 	})
 }
 
+// newTimeRangeReader returns a reader with daily indices, a 72h maxSpanAge and a 24h
+// maxTraceDuration, and the requests of each MultiSearch call it makes.
+func newTimeRangeReader(t *testing.T, responses ...[]esclient.SearchResponse) (*SpanReader, *[][]esclient.MultiSearchRequest) {
+	searcher := esclientmocks.NewSearcher(t)
+	var calls [][]esclient.MultiSearchRequest
+	for _, resp := range responses {
+		searcher.On("MultiSearch", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			calls = append(calls, args.Get(1).([]esclient.MultiSearchRequest))
+		}).Return(resp, nil).Once()
+	}
+	reader := NewSpanReader(SpanReaderParams{
+		Searcher:         searcher,
+		Logger:           zap.NewNop(),
+		Tracer:           noop.NewTracerProvider().Tracer("test"),
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 24 * time.Hour,
+		MaxDocCount:      defaultMaxDocCount,
+		SpanRotation:     indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+		ServiceRotation:  indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+	})
+	return reader, &calls
+}
+
+// expectedTraceRead is the request that reads the first page of traceID in [start, end], padded
+// by the reader's maxTraceDuration.
+func expectedTraceRead(r *SpanReader, traceID dbmodel.TraceID, start, end time.Time, cursor *traceReadCursor) esclient.MultiSearchRequest {
+	start, end = start.Add(-r.maxTraceDuration), end.Add(r.maxTraceDuration)
+	query := esquery.NewBoolQuery().Must(buildTraceByIDQuery(traceID)).Must(r.buildStartTimeQuery(start, end))
+	return esclient.MultiSearchRequest{
+		Indices: r.spanRotation.ReadTargets(start, end),
+		Search:  r.buildTraceReadRequest(query, cursor),
+	}
+}
+
+func TestSpanReader_GetTracesUsesTheRequestedTimeRange(t *testing.T) {
+	traceID1 := dbmodel.TraceID(testingTraceId + "1")
+	traceID2 := dbmodel.TraceID(testingTraceId + "2")
+	// Both windows are older than now-maxSpanAge, which GetTraces used to search regardless.
+	start1 := time.Date(2020, 1, 10, 5, 0, 0, 0, time.UTC)
+	end1 := start1.Add(time.Hour)
+	start2 := time.Date(2020, 3, 20, 5, 0, 0, 0, time.UTC)
+	end2 := start2.Add(time.Hour)
+
+	span := dbmodel.Span{
+		SpanID:    "0",
+		TraceID:   traceID1,
+		StartTime: model.TimeAsEpochMicroseconds(start1),
+		Tags:      []dbmodel.KeyValue{},
+		Process:   dbmodel.Process{Tags: []dbmodel.KeyValue{}},
+	}
+	spanBytes, err := json.Marshal(span)
+	require.NoError(t, err)
+	// traceID1 reports two spans but returns one, so it is read again from the next page.
+	firstRound := []esclient.SearchResponse{
+		{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytes}}}},
+		{},
+	}
+	secondRound := []esclient.SearchResponse{
+		{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytes}}}},
+	}
+	reader, calls := newTimeRangeReader(t, firstRound, secondRound)
+
+	traces, err := reader.GetTraces(context.Background(), []dbmodel.GetTraceParameters{
+		{TraceID: traceID1, StartTime: start1, EndTime: end1},
+		{TraceID: traceID2, StartTime: start2, EndTime: end2},
+	})
+	require.NoError(t, err)
+	require.Len(t, traces, 1)
+	assert.Len(t, traces[0].Spans, 2)
+
+	require.Len(t, *calls, 2)
+	assert.Equal(t, []esclient.MultiSearchRequest{
+		expectedTraceRead(reader, traceID1, start1, end1, nil),
+		expectedTraceRead(reader, traceID2, start2, end2, nil),
+	}, (*calls)[0])
+	// The next page of traceID1 is read in its own window, not in the default one.
+	assert.Equal(t, []esclient.MultiSearchRequest{
+		expectedTraceRead(reader, traceID1, start1, end1, &traceReadCursor{startTime: span.StartTime, spanID: "0"}),
+	}, (*calls)[1])
+}
+
+func TestSpanReader_GetTracesDefaultsTheMissingEndsOfTheTimeRange(t *testing.T) {
+	end := time.Date(2020, 1, 10, 5, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		params func(now time.Time) dbmodel.GetTraceParameters
+		// expectedRange is the unpadded range the reader should search, given the current time.
+		expectedRange func(now time.Time) (time.Time, time.Time)
+	}{
+		{
+			name: "no range reads maxSpanAge back from now",
+			params: func(time.Time) dbmodel.GetTraceParameters {
+				return dbmodel.GetTraceParameters{TraceID: testingTraceId}
+			},
+			expectedRange: func(now time.Time) (time.Time, time.Time) { return now.Add(-72 * time.Hour), now },
+		},
+		{
+			name: "end only reads maxSpanAge back from the end",
+			params: func(time.Time) dbmodel.GetTraceParameters {
+				return dbmodel.GetTraceParameters{TraceID: testingTraceId, EndTime: end}
+			},
+			expectedRange: func(time.Time) (time.Time, time.Time) { return end.Add(-72 * time.Hour), end },
+		},
+		{
+			name: "start only reads up to now",
+			params: func(now time.Time) dbmodel.GetTraceParameters {
+				return dbmodel.GetTraceParameters{TraceID: testingTraceId, StartTime: now.Add(-48 * time.Hour)}
+			},
+			expectedRange: func(now time.Time) (time.Time, time.Time) { return now.Add(-48 * time.Hour), now },
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader, calls := newTimeRangeReader(t, []esclient.SearchResponse{{}})
+			before := time.Now()
+			_, err := reader.GetTraces(context.Background(), []dbmodel.GetTraceParameters{test.params(before)})
+			require.NoError(t, err)
+			after := time.Now()
+
+			require.Len(t, *calls, 1)
+			require.Len(t, (*calls)[0], 1)
+			// Daily indices: the read targets depend only on the dates of the padded range.
+			// The day may change during the call, so accept the targets on either side of it.
+			targets := func(now time.Time) []string {
+				start, end := test.expectedRange(now)
+				return reader.spanRotation.ReadTargets(start.Add(-24*time.Hour), end.Add(24*time.Hour))
+			}
+			assert.Contains(t, [][]string{targets(before), targets(after)}, (*calls)[0][0].Indices)
+		})
+	}
+}
+
 func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// An empty _msearch response set ends multiRead without producing traces.
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{}, nil)
-		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID("testing-id")}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
@@ -514,7 +649,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 			{Hits: esclient.HitsResult{}},
 		}, nil)
 
-		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID(testingTraceId)}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
@@ -536,7 +671,7 @@ func TestSpanReader_GetTraceMultiSearchItemError(t *testing.T) {
 			},
 		}, nil)
 
-		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID(testingTraceId)}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.ErrorContains(t, err, "status 503")
@@ -551,7 +686,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 			{Hits: esclient.HitsResult{Hits: []esclient.SearchHit{{Source: data}}}},
 		}, nil)
 
-		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		query := []dbmodel.GetTraceParameters{{TraceID: dbmodel.TraceID(testingTraceId)}}
 		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
@@ -1258,7 +1393,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			withArchiveSpanReader(t, tc.useAliases, tc.suffix, func(r *spanReaderTest) {
 				// An empty trace-ID list short-circuits multiRead before any search,
 				// so no searcher call is expected regardless of the rotation config.
-				query := []dbmodel.TraceID{}
+				query := []dbmodel.GetTraceParameters{}
 				trace, err := r.reader.GetTraces(context.Background(), query)
 				require.NoError(t, err)
 				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
@@ -1491,7 +1626,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		DurationMax:   time.Minute,
 		SearchDepth:   20,
 	}
-	traceIDs := []dbmodel.TraceID{"1234567890abcdef"}
+	traceReads := []traceRead{{traceID: "1234567890abcdef", startTime: start, endTime: end}}
 
 	findTraceIDs := map[es.BackendVersion]string{}
 	getTraces := map[es.BackendVersion]string{}
@@ -1512,7 +1647,7 @@ func TestReaderRequestSnapshots(t *testing.T) {
 		findTraceIDs[version] = rec.Marshal(t)
 
 		rec.Reset()
-		_, err = reader.multiRead(ctx, traceIDs, start, end)
+		_, err = reader.multiRead(ctx, traceReads)
 		require.NoError(t, err)
 		getTraces[version] = rec.Marshal(t)
 	}
