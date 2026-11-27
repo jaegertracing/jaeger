@@ -214,13 +214,74 @@ func prepareFilter(filter *expression.Call) (preparedFilter, error) {
 		if err != nil {
 			return preparedFilter{}, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 		}
-		filter = resolved
+		filter = lowerIDConstants(resolved)
 	}
 	p := preparedFilter{call: filter, regexps: map[*expression.Call]*regexp.Regexp{}}
 	if err := p.compileRegexps(filter); err != nil {
 		return preparedFilter{}, err
 	}
 	return p, nil
+}
+
+// lowerIDConstants rebuilds filter so that a constant compared with a trace or span ID field
+// (span trace_id, span_id or parent_span_id, or a link's traceID or spanID) is lower case, the
+// form pcommon.TraceID.String() and pcommon.SpanID.String() produce. Without it an uppercase
+// constant matches nothing here while the Elasticsearch reader, which lowers it too, finds the
+// span. A regex pattern folds case instead, because lowering its text would turn an escape such
+// as `\D` into another one. The input is not modified.
+func lowerIDConstants(filter *expression.Call) *expression.Call {
+	args := make([]expression.Expression, len(filter.Args))
+	for i, arg := range filter.Args {
+		if nested, ok := arg.(*expression.Call); ok {
+			args[i] = lowerIDConstants(nested)
+		} else {
+			args[i] = arg
+		}
+	}
+	if len(args) == 2 && isIDField(args[0]) {
+		args[1] = lowerConstant(filter.Op, args[1])
+	}
+	return &expression.Call{Op: filter.Op, Args: args}
+}
+
+func isIDField(expr expression.Expression) bool {
+	ref, ok := expr.(*expression.FieldRef)
+	if !ok {
+		return false
+	}
+	switch ref.Level {
+	case expression.LevelSpan:
+		return ref.Name == expression.SpanFieldTraceID || ref.Name == expression.SpanFieldSpanID ||
+			ref.Name == expression.SpanFieldParentSpanID
+	case expression.LevelLink:
+		return ref.Name == expression.LinkFieldTraceID || ref.Name == expression.LinkFieldSpanID
+	default:
+		return false
+	}
+}
+
+func lowerConstant(op expression.Operator, value expression.Expression) expression.Expression {
+	switch v := value.(type) {
+	case *expression.StringValue:
+		return &expression.StringValue{Value: lowerHex(op, v.Value)}
+	case *expression.AnyValue:
+		return &expression.AnyValue{Value: lowerHex(op, v.Value)}
+	case *expression.List:
+		values := make([]string, len(v.Values))
+		for i, text := range v.Values {
+			values[i] = strings.ToLower(text)
+		}
+		return &expression.List{Values: values, Type: v.Type}
+	default:
+		return value
+	}
+}
+
+func lowerHex(op expression.Operator, text string) string {
+	if op == expression.OpRegex {
+		return "(?i)" + text
+	}
+	return strings.ToLower(text)
 }
 
 func (p preparedFilter) compileRegexps(filter *expression.Call) error {
