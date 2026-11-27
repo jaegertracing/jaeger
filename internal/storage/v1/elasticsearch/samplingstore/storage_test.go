@@ -256,6 +256,10 @@ func TestGetLatestProbabilities(t *testing.T) {
 			indexPresent: true,
 		},
 		{
+			name:         "no matching index",
+			indexPresent: false,
+		},
+		{
 			name:          "bad probabilities",
 			searchResult:  hitsResponse(`badJson{hello}world`),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",

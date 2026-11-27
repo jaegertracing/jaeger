@@ -4,6 +4,7 @@
 package adaptive
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -23,10 +24,15 @@ import (
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
+	esdbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -738,4 +744,114 @@ func TestPostAggregatorInsertFailurePreservesInMemoryProgress(t *testing.T) {
 		require.InDelta(t, 0.025, tick2Saved["svcA"][http.MethodGet], 1e-9)
 		mockStorage.AssertExpectations(t)
 	})
+}
+
+func TestPostAggregatorElasticsearchMissingIndexVsFailures(t *testing.T) {
+	throughputRaw, err := json.Marshal(esdbmodel.TimeThroughput{
+		Timestamp: time.Unix(0, 0).UTC(),
+		Throughput: esdbmodel.Throughput{
+			Service:       "svcA",
+			Operation:     http.MethodGet,
+			Count:         2,
+			Probabilities: map[string]struct{}{"0.100000": {}},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		indexExists    bool
+		indexErr       error
+		probSearchErr  error
+		expectPersists bool
+	}{
+		{
+			name:           "no matching index",
+			indexExists:    false,
+			expectPersists: true,
+		},
+		{
+			name:           "existing index without probability documents",
+			indexExists:    true,
+			expectPersists: true,
+		},
+		{
+			name:           "index check failure defers calculation",
+			indexErr:       errors.New("index check failed"),
+			expectPersists: false,
+		},
+		{
+			name:           "search failure defers calculation",
+			indexExists:    true,
+			probSearchErr:  errors.New("search failed"),
+			expectPersists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				indexClient := esclientmocks.NewIndexAPI(t)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-sampling-read").Return(tt.indexExists, tt.indexErr)
+
+				searcher := esclientmocks.NewSearcher(t)
+				searcher.On("Search", mock.Anything, mock.Anything, mock.MatchedBy(func(req esclient.SearchRequest) bool {
+					return req.Query != nil
+				})).Return(&esclient.SearchResponse{
+					Hits: esclient.HitsResult{
+						Hits: []esclient.SearchHit{{Source: json.RawMessage(throughputRaw)}},
+					},
+				}, nil)
+				if tt.indexExists && tt.indexErr == nil {
+					searcher.On("Search", mock.Anything, []string{"jaeger-sampling-read"}, mock.MatchedBy(func(req esclient.SearchRequest) bool {
+						return req.Query == nil
+					})).Return(&esclient.SearchResponse{}, tt.probSearchErr)
+				}
+
+				batchWriter := esclientmocks.NewBatchWriter(t)
+				var written []esclient.BulkItem
+				if tt.expectPersists {
+					batchWriter.On("WriteBatch", mock.Anything, mock.Anything).
+						Run(func(args mock.Arguments) {
+							written = args.Get(1).([]esclient.BulkItem)
+						}).
+						Return(nil).
+						Once()
+				}
+
+				store := essamplestore.NewSamplingStore(essamplestore.Params{
+					Searcher:    searcher,
+					BatchWriter: batchWriter,
+					IndexClient: indexClient,
+					Logger:      zap.NewNop(),
+					MaxDocCount: 1000,
+					Lookback:    72 * time.Hour,
+					Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
+				})
+
+				mockEP := &epmocks.ElectionParticipant{}
+				mockEP.On("IsLeader").Return(true)
+
+				pa, err := newPostAggregator(newTestAdaptiveOpts(time.Second, 1.0, 0.1), "host", store, mockEP, metrics.NullFactory, zap.NewNop())
+				require.NoError(t, err)
+				pa.Start()
+
+				time.Sleep(time.Second)
+				synctest.Wait()
+				pa.runCalculation()
+
+				if tt.expectPersists {
+					require.Len(t, written, 1)
+					assert.Equal(t, "jaeger-sampling-write", written[0].Index)
+					body := written[0].Body.(*esdbmodel.TimeProbabilitiesAndQPS)
+					assert.InDelta(t, 0.05, body.ProbabilitiesAndQPS.Probabilities["svcA"][http.MethodGet], 1e-9)
+				} else {
+					batchWriter.AssertNotCalled(t, "WriteBatch", mock.Anything, mock.Anything)
+					pa.mu.RLock()
+					assert.Empty(t, pa.probabilities)
+					pa.mu.RUnlock()
+				}
+			})
+		})
+	}
 }

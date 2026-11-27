@@ -26,6 +26,8 @@ type IndexExistenceChecker interface {
 	IndexExists(ctx context.Context, index string) (bool, error)
 }
 
+var errLatestIndexNotFound = errors.New("failed to find latest index")
+
 type SamplingStore struct {
 	searcher    esclient.Searcher
 	batchWriter esclient.BatchWriter
@@ -123,6 +125,9 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	ctx := context.Background()
 	index, err := s.getLatestIndex(ctx)
 	if err != nil {
+		if errors.Is(err, errLatestIndexNotFound) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
 	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
@@ -174,7 +179,7 @@ func (s *SamplingStore) getLatestIndex(ctx context.Context) (string, error) {
 			return idx, nil
 		}
 	}
-	return "", errors.New("failed to find latest index")
+	return "", errLatestIndexNotFound
 }
 
 func buildTSQuery(start, end time.Time) query.Query {
