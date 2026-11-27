@@ -98,7 +98,7 @@ Every attribute predicate names its level. When the level is unknown, `attribute
 `=`, `<>`, `<`, `<=`, `>`, `>=`, `IN (...)`, `NOT IN`, `between(x, a, b)`, `AND`, `OR`, `NOT`, parentheses.
 
 - Text search: `x LIKE 'GET %'` with `%` and `_` as in SQL, `x ILIKE 'get %'` to ignore case, or `x REGEXP 'pat'` / `match(x, 'pat')` in RE2 syntax. A regex matches anywhere in the value unless it starts with `^` or ends with `$` (anchors elsewhere are refused), and is case-sensitive unless it starts with `(?i)`.
-- Presence: `attributes['key'] IS NOT NULL`. Built-in fields always exist.
+- Presence: `attributes['key'] IS NOT NULL`, and `IS NULL` for absence. They also apply to a column that can have no value, so `parent_span_id IS NULL` selects root spans. A column every span has, such as `name`, is refused.
 - Events and links of the span: `EXISTS (SELECT 1 FROM events WHERE name = 'exception' AND attributes['exception.type'] = 'TimeoutError')`. Inside `EXISTS`, `events` and `links` are this span's own; no join condition is needed.
 
 ## Not supported

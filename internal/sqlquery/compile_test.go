@@ -273,6 +273,42 @@ func TestCompileFilters(t *testing.T) {
 			),
 		},
 		{
+			name: "is null and is not null on a built-in field that can be absent",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans
+				WHERE between(start_time, now() - '1h', now())
+					AND parent_span_id IS NULL
+					AND trace_state IS NOT NULL
+					AND status_message IS NOT NULL
+					AND scope_name IS NULL
+					AND scope_version IS NOT NULL`,
+			want: p.And(
+				p.Not(p.Span().ParentSpanID.Exists()),
+				p.Span().TraceState.Exists(),
+				p.Span().StatusMessage.Exists(),
+				p.Not(p.Scope().Name.Exists()),
+				p.Scope().Version.Exists(),
+			),
+		},
+		{
+			name: "is null on the trace state of a link",
+			sql: `
+				SELECT DISTINCT trace_id
+				FROM spans s
+				WHERE between(start_time, now() - '1h', now())
+					AND EXISTS (
+						SELECT 1
+						FROM links l
+						WHERE l.trace_state IS NULL
+							AND s.span_id = l.span_id
+					)`,
+			want: p.Some(
+				p.Link(),
+				p.Not(p.Link().TraceState.Exists()),
+			),
+		},
+		{
 			name: "phrase and fulltext",
 			sql: `
 				SELECT DISTINCT trace_id
@@ -1101,7 +1137,7 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND name IS NOT NULL`,
 			at:   "name IS NOT NULL",
-			want: "IS NOT NULL applies to an attribute",
+			want: "IS NOT NULL applies to an attribute or to a column that can have no value, and this column is always present",
 		},
 		{
 			name: "parametric predicate function",
@@ -1624,7 +1660,7 @@ func TestRefusals(t *testing.T) {
 				WHERE between(start_time, now() - '1h', now())
 					AND name IS NULL`,
 			at:   "name IS NULL",
-			want: "IS NULL applies to an attribute",
+			want: "IS NULL applies to an attribute or to a column that can have no value, and this column is always present",
 		},
 		{
 			name: "duration without unit",
