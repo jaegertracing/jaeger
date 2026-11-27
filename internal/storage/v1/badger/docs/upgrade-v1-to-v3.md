@@ -27,7 +27,7 @@ data  key
 ❯ go install
 ```
 
-This will install the badger command line utility into your $GOBIN path eg ~/go/bin/badger.
+This will install the badger command line utility into your $GOBIN path e.g. ~/go/bin/badger.
 
 4. Use badger utility to take backup of data.
 
@@ -57,7 +57,7 @@ This will create a badger.bak file in the current directory.
 ❯ go install
 ```
 
-This will install the badger command line utility into your $GOBIN path eg ~/go/bin/badger.
+This will install the badger command line utility into your $GOBIN path e.g. ~/go/bin/badger.
 
 6. Restore the data from backup.
 
