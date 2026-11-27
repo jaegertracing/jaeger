@@ -10,7 +10,9 @@ service:
       exporters: [kafka]
   telemetry:
     resource:
-      service.name: jaeger_collector
+      attributes:
+        - name: service.name
+          value: jaeger_collector
     metrics:
       level: detailed
       readers:

@@ -14,7 +14,9 @@ service:
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
-      service.name: jaeger_ingester
+      attributes:
+        - name: service.name
+          value: jaeger_ingester
     logs:
       level: info
 
