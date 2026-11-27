@@ -293,10 +293,11 @@ func (s *SpanReader) buildComparison(
 		return nil, err
 	}
 	if ref.attribute {
-		if _, declared := value.(*expression.StringValue); declared && ordersValues(op) {
+		_, declaredString := value.(*expression.StringValue)
+		if declaredString && ordersValues(op) {
 			return nil, errOrderedString(op, ref)
 		}
-		return s.buildAttributeComparison(op, ref, text)
+		return s.buildAttributeComparison(op, ref, text, declaredString)
 	}
 	switch {
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
@@ -328,10 +329,9 @@ func lowercaseHex(op expression.Operator, text string) string {
 }
 
 // constantText returns the text that a constant contributes to a comparison. It accepts an untyped
-// constant and one declaring string, because this schema compares text whether the reference is an
-// attribute or a built-in field holding text, so a string declaration asks for the comparison the
-// caller already gets. Any other declared type names typed storage this schema lacks
-// (RFC 0005 §5.4).
+// constant and one declaring string: built-in text fields hold strings, and nested attribute
+// queries constrain `<path>.type` to "string" when a string type was declared (RFC 0005 §5.4).
+// Any other declared type names typed storage this schema lacks.
 func constantText(value expression.Expression) (string, error) {
 	switch constant := value.(type) {
 	case *expression.AnyValue:
@@ -427,27 +427,30 @@ func (s *SpanReader) buildAttributeComparison(
 	op expression.Operator,
 	ref reference,
 	value string,
+	stringOnly bool,
 ) (esquery.Query, error) {
 	locations, ok := attributeLocations[ref.level]
 	if !ok {
 		return nil, errUnsupportedLevel(ref.level)
 	}
-	if isError, ok := asErrorTagEquality(op, ref, value); ok {
-		// The write path records the error tag only for a span whose status is an error
-		// (getTagFromStatusCode), so a span that succeeded carries no error tag and matching
-		// error=false literally returns nothing. Read it as the complement — every span that
-		// is not an error — as the legacy tag search and the in-memory store both do (#9096).
-		errored := s.attributeQuery(locations, ref.name, termMatch("true"))
-		if isError {
-			return errored, nil
+	if !stringOnly {
+		if isError, ok := asErrorTagEquality(op, ref, value); ok {
+			// The write path records the error tag only for a span whose status is an error
+			// (getTagFromStatusCode), so a span that succeeded carries no error tag and matching
+			// error=false literally returns nothing. Read it as the complement — every span that
+			// is not an error — as the legacy tag search and the in-memory store both do (#9096).
+			errored := s.attributeQuery(locations, ref.name, termMatch("true"), false)
+			if isError {
+				return errored, nil
+			}
+			return esquery.NewBoolQuery().MustNot(errored), nil
 		}
-		return esquery.NewBoolQuery().MustNot(errored), nil
 	}
 	match, err := s.attributeValueMatch(op, ref, value)
 	if err != nil {
 		return nil, err
 	}
-	return s.attributeQuery(locations, ref.name, match), nil
+	return s.attributeQuery(locations, ref.name, match, stringOnly), nil
 }
 
 // buildEventNameComparison compares the event name stored in the nested event attributes. Unlike
@@ -462,20 +465,27 @@ func (s *SpanReader) buildEventNameComparison(
 	if err != nil {
 		return nil, err
 	}
-	return s.attributeQuery(attributeLocations[eventNameAsAttribute.level], eventNameKey, match), nil
+	return s.attributeQuery(attributeLocations[eventNameAsAttribute.level], eventNameKey, match, false), nil
 }
 
 // attributeQuery matches an attribute in every field its level keeps attributes in.
-func (s *SpanReader) attributeQuery(locations attributeLocation, key string, match valueMatch) esquery.Query {
+// When stringOnly is true, nested queries also require <path>.type to equal "string" so a
+// string-typed constant matches only attributes stored as strings (RFC 0005 §5.4); elevated
+// object fields (tag.*, process.tag.*) carry no type discriminator and remain untyped there.
+func (s *SpanReader) attributeQuery(locations attributeLocation, key string, match valueMatch, stringOnly bool) esquery.Query {
 	queries := make([]esquery.Query, 0, len(locations.object)+len(locations.nested))
 	for _, field := range locations.object {
 		queries = append(queries, match(s.objectAttributeField(field, key)))
 	}
 	for _, path := range locations.nested {
-		queries = append(queries, esquery.NewNestedQuery(path, esquery.NewBoolQuery().Must(
+		must := []esquery.Query{
 			esquery.NewTermQuery(nestedField(path, tagKeyField), key),
 			match(nestedField(path, tagValueField)),
-		)))
+		}
+		if stringOnly {
+			must = append(must, esquery.NewTermQuery(nestedField(path, tagTypeField), string(dbmodel.StringType)))
+		}
+		queries = append(queries, esquery.NewNestedQuery(path, esquery.NewBoolQuery().Must(must...)))
 	}
 	return anyOf(queries)
 }
@@ -823,9 +833,9 @@ func errNotANumber(op expression.Operator, ref reference, value string) error {
 
 // errTypedConstant refuses a constant that declares a type this schema cannot search. A declared
 // type is authoritative: the backend must match only the values stored at that type (RFC 0005 §5.4).
-// This schema stores every attribute value as text, so it can honor a string declaration but has
-// nowhere to search for an integer, a double or a boolean. RFC 0015 adds the typed indexing that
-// would make those searchable.
+// Nested attribute arrays record each value's type so a string declaration constrains <path>.type
+// there, while this schema has no separate typed storage to match an integer, a double, or a
+// boolean constant across both representations. RFC 0015 adds the numeric sub-field for ordering.
 func errTypedConstant(value expression.Expression) error {
 	return fmt.Errorf("%w: %s declares a type this schema cannot search",
 		tracestore.ErrFilterUnsupported, constantKind(value))

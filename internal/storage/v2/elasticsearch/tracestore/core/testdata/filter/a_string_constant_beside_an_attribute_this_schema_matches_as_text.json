@@ -21,6 +21,11 @@
                   "term": {
                     "tags.value": "/cart"
                   }
+                },
+                {
+                  "term": {
+                    "tags.type": "string"
+                  }
                 }
               ]
             }
