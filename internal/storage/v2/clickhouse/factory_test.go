@@ -118,7 +118,11 @@ func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newSchemaBuilder(cfg, layout, hoistedColumns)
+	cluster, err := cfg.TableEngine.clusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	return newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
 }
 
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for

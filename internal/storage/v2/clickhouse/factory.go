@@ -109,16 +109,13 @@ func newSchemaBuilder(
 	cfg Configuration,
 	layout chtracestore.AttributeLayout,
 	hoistedColumns []chtracestore.HoistedColumn,
+	cluster *ClusterConfig,
 ) (*schemaBuilder, error) {
 	mergeTree, err := cfg.TableEngine.engineClause(mergeTreeFamily)
 	if err != nil {
 		return nil, err
 	}
 	aggregatingMergeTree, err := cfg.TableEngine.engineClause(aggregatingMergeTreeFamily)
-	if err != nil {
-		return nil, err
-	}
-	cluster, err := cfg.TableEngine.clusterConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -219,12 +216,17 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, err
 	}
 	var builder *schemaBuilder
+	var cluster *ClusterConfig
 	if cfg.CreateSchema {
 		if cfg.TableEngine.Cluster.HasValue() && cfg.TableEngine.MergeTree.HasValue() {
 			telset.Logger.Warn("table_engine.cluster is set with merge_tree: the data has no second copy, " +
 				"and a node that is down affects every shard, not only its own (RFC 0022 §6.8)")
 		}
-		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns)
+		cluster, err = cfg.TableEngine.clusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		builder, err = newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -273,14 +275,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	// The cluster is checked before the schema is created, because a Distributed table over
 	// a misconfigured cluster renders without error and only shows the misconfiguration
 	// later, by storing rows more than once or not fanning a search out to every shard.
-	if cfg.CreateSchema {
-		cluster, err := cfg.TableEngine.clusterConfig()
-		if err != nil {
-			return nil, err
-		}
-		if err := checkClusterSetup(ctx, conn, cluster, cfg.warnOnFailedSetupCheck(), telset.Logger); err != nil {
-			return nil, err
-		}
+	if err := checkClusterSetup(ctx, conn, cluster, cfg.warnOnFailedSetupCheck(), telset.Logger); err != nil {
+		return nil, err
 	}
 
 	// The layout is checked before the schema is created, because CREATE TABLE IF NOT EXISTS
