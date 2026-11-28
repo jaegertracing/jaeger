@@ -989,3 +989,17 @@ func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildScopeFieldComparisonRefusal pins the error branch of the scope field builder: every
+// operator the public routing sends it has an answer, so the refusal exists for an operator that
+// reaches the builder without one, and it must say the field is held as a keyword rather than a
+// number.
+func TestBuildScopeFieldComparisonRefusal(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		ref := reference{name: expression.ScopeFieldName, level: expression.LevelScope}
+		query, err := r.reader.buildScopeFieldComparison(expression.OpNe, ref, scopeNameAsAttribute, "lib")
+		assert.Nil(t, query)
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		assert.Contains(t, err.Error(), `as a keyword rather than a number`)
+	})
+}
