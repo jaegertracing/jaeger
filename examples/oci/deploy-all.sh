@@ -29,7 +29,7 @@ PUBLIC_BASE_URL="${JAEGER_DEMO_PUBLIC_BASE_URL:-https://demo.jaegertracing.io}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
 # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
-PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
+PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.18.0}"
 CLEAN_UNINSTALL_TIMEOUT="${JAEGER_DEMO_CLEAN_UNINSTALL_TIMEOUT:-10m0s}"
 
 uninstall_release() {
