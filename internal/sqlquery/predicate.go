@@ -386,11 +386,14 @@ func (c *compiler) between(sc *scope, r rangeTest) (*ast.Call, error) {
 		return nil, err
 	}
 	ro := builder.RefOf(ref)
-	call := builder.And(ro.Gte(low), ro.Lte(high))
 	if r.negated {
-		return builder.Not(call), nil
+		// The complement of the range, as two ordered comparisons, rather than a boolean
+		// `not` around it: `not` is also true where the range is false because the value
+		// could not be compared, such as an absent attribute or one stored as a boolean, and
+		// NOT BETWEEN must not match those (RFC 0005 §5.3, the same rule as NOT IN).
+		return builder.Or(ro.Lt(low), ro.Gt(high)), nil
 	}
-	return call, nil
+	return builder.And(ro.Gte(low), ro.Lte(high)), nil
 }
 
 // operand lowers the right-hand side of a comparison: a reference compares two values on the
