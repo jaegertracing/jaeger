@@ -31,6 +31,8 @@ var (
 	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
 )
 
+const uiContentSecurityPolicy = "base-uri 'self'; script-src 'self' 'unsafe-inline'"
+
 // uiConfigReloadInterval is the TTL on the cached UI config: deriveIndexHTML
 // re-reads the file from disk when the cached value is older than this. A
 // package-level var (not const) so tests can shorten it. Matches the
@@ -288,6 +290,7 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 
 func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", uiContentSecurityPolicy)
 	// The page carries capabilities decided for this caller, so a shared cache must
 	// not hand one caller's page to another. The assets under /static stay cacheable.
 	w.Header().Set("Cache-Control", "no-store")
