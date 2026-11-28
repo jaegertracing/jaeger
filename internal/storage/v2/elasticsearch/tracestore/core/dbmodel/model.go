@@ -7,7 +7,6 @@ package dbmodel
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -25,16 +24,12 @@ type TraceID string
 // SpanID is the id of a span
 type SpanID string
 
-// ToOTEL decodes the hex trace ID into its pdata form, left-padding a shorter
-// (e.g. 64-bit) id with zeros.
+// ToOTEL decodes the hex trace ID into its pdata form
 func (t TraceID) ToOTEL() (pcommon.TraceID, error) {
 	var traceID [16]byte
 	traceIDHex := string(t)
-	if len(traceIDHex) > 32 {
-		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d chars", len(traceIDHex))
-	}
-	if len(traceIDHex) < 32 {
-		traceIDHex = strings.Repeat("0", 32-len(traceIDHex)) + traceIDHex
+	if len(traceIDHex) != 32 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is NOT 32 chars: %d chars", len(traceIDHex))
 	}
 	traceBytes, err := hex.DecodeString(traceIDHex)
 	if err != nil {
@@ -44,16 +39,12 @@ func (t TraceID) ToOTEL() (pcommon.TraceID, error) {
 	return traceID, nil
 }
 
-// ToOTEL decodes the hex span ID into its pdata form, left-padding a shorter id
-// with zeros.
+// ToOTEL decodes the hex span ID into its pdata form
 func (s SpanID) ToOTEL() (pcommon.SpanID, error) {
 	var spanID [8]byte
 	spanIDHex := string(s)
-	if len(spanIDHex) > 16 {
-		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d chars", len(spanIDHex))
-	}
-	if len(spanIDHex) < 16 {
-		spanIDHex = strings.Repeat("0", 16-len(spanIDHex)) + spanIDHex
+	if len(spanIDHex) != 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is NOT 16 chars: %d chars", len(spanIDHex))
 	}
 	spanIDBytes, err := hex.DecodeString(spanIDHex)
 	if err != nil {
