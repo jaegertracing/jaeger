@@ -716,14 +716,61 @@ func TestGetTraces_IterBreak(t *testing.T) {
 	traceID2 := fromString(t, "00000000000000020000000000000000")
 	iter := store.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID1}, tracestore.GetTraceParams{TraceID: traceID2})
 	expected := loadOutputTraces(t, 1)
-	iterLength := 1
+	origMarshal := marshalTraces
+	var copies int
+	marshalTraces = func(td ptrace.Traces) ([]byte, error) {
+		copies++
+		return origMarshal(td)
+	}
+	t.Cleanup(func() { marshalTraces = origMarshal })
+	var iterLength int
 	for traces, err := range iter {
+		iterLength++
 		require.NoError(t, err)
-		assert.Len(t, traces, 1)
+		require.Len(t, traces, 1)
 		assert.Equal(t, expected, traces[0])
 		break
 	}
 	assert.Equal(t, 1, iterLength)
+	assert.Equal(t, 1, copies, "stopping early must not copy the remaining traces")
+}
+
+func TestGetTraces_WriteBetweenResults(t *testing.T) {
+	ctx := context.Background()
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traceID1 := pcommon.TraceID{1}
+	traceID2 := pcommon.TraceID{2}
+	writeSpan := func(traceID pcommon.TraceID) {
+		td := ptrace.NewTraces()
+		td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceID)
+		require.NoError(t, store.WriteTraces(ctx, td))
+	}
+	writeSpan(traceID1)
+	writeSpan(traceID2)
+
+	tenant := store.getTenant(tenancy.GetTenant(ctx))
+	var spanCounts []int
+	var traceIDs []pcommon.TraceID
+	for traces, err := range store.GetTraces(ctx,
+		tracestore.GetTraceParams{TraceID: pcommon.TraceID{3}},
+		tracestore.GetTraceParams{TraceID: traceID1},
+		tracestore.GetTraceParams{TraceID: pcommon.TraceID{4}},
+		tracestore.GetTraceParams{TraceID: traceID2},
+		tracestore.GetTraceParams{TraceID: traceID1},
+	) {
+		require.NoError(t, err)
+		require.Len(t, traces, 1)
+		spanCounts = append(spanCounts, traces[0].SpanCount())
+		traceIDs = append(traceIDs, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+		require.True(t, tenant.mu.TryLock(), "the tenant lock must be released before yielding")
+		tenant.mu.Unlock()
+		if len(spanCounts) == 1 {
+			writeSpan(traceID2)
+		}
+	}
+	assert.Equal(t, []pcommon.TraceID{traceID1, traceID2, traceID1}, traceIDs)
+	assert.Equal(t, []int{1, 2, 1}, spanCounts, "later traces must be copied only when requested")
 }
 
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {
