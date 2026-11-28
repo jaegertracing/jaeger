@@ -181,12 +181,16 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceAndIds, err := m.findTraceAndIds(query)
+		traceAndIds, err := m.findTraceAndIds(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 		for i := range traceAndIds {
+			if err := ctx.Err(); err != nil {
+				yield(nil, err)
+				return
+			}
 			trace, err := cloneTrace(traceAndIds[i].trace)
 			if err != nil {
 				yield(nil, err)
@@ -199,11 +203,10 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 	}
 }
 
-// FindTraceIDs without Pagination returns the most recently written matching
-// traces up to SearchDepth, as FindTraces does. With Pagination it sorts the
-// matching traces by traceKey, returns the page that follows the query's
-// token, at most PageSize traces, and carries the next page's token if more
-// traces match.
+// FindTraceIDs without Pagination returns up to SearchDepth traces ordered
+// by their latest matching span's start time, as FindTraces does. With
+// Pagination it uses the same order and returns up to PageSize traces after
+// the query's token, with the next page's token if more traces match.
 func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
@@ -214,7 +217,7 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 		var traceAndIds []traceAndId
 		if query.Pagination == nil {
 			var err error
-			if traceAndIds, err = m.findTraceAndIds(query); err != nil {
+			if traceAndIds, err = m.findTraceAndIds(ctx, query); err != nil {
 				fail(err)
 				return
 			}
