@@ -175,6 +175,23 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
+			caption:  "the name of the instrumentation scope",
+			filter:   p.Scope().Name.Eq("worker-scope"),
+			expected: []string{"worker"},
+		},
+		{
+			caption:  "the trace ID of one of the span's links",
+			filter:   p.Link().TraceID.Eq("00000000000000000000000000000f01"),
+			expected: []string{"worker"},
+		},
+		{
+			// cart_post records its event one second into the span and search records its
+			// event three milliseconds in, so the bound tells the two apart.
+			caption:  "the time of an event since the start of its span",
+			filter:   p.Event().TimeSinceStart.Gt(500 * time.Millisecond),
+			expected: []string{"cart_post"},
+		},
+		{
 			// `some` quantifies a predicate over the events of one span (RFC 0005 §5.5), so a
 			// backend that flattens events into the span's own fields cannot evaluate it.
 			caption:  "a predicate quantified over the span's events",
@@ -438,19 +455,28 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	// instead, and this case asserts the declared outcome. `worker` carries a trace state with
 	// another value, so a backend that matched the field's presence rather than its value would
 	// answer with both traces and fail.
+	//
+	// The bound of the ordered comparison lies between the two values. The other spans carry no
+	// trace state, which a comparison does not match (RFC 0005 §5.3), although a backend that
+	// stores an absent value as an empty string sorts it below the bound.
 	t.Run("the trace state", func(t *testing.T) {
 		s.skipIfNeeded(t)
-		query := filterQuery(t, p.And(scope, p.Span().TraceState.Eq("congo=t61rcWkgMzE")), start, end)
-		if s.Capabilities.TraceStateRefused() {
-			_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
-				s.TraceReader.FindTraces(context.Background(), *query),
-			))
-			requireRefusal(t, err)
-			require.ErrorContains(t, err, "traceState")
-			return
+		for _, filter := range []*expression.Call{
+			p.Span().TraceState.Eq("congo=t61rcWkgMzE"),
+			p.Span().TraceState.Lt("congo=u"),
+		} {
+			query := filterQuery(t, p.And(scope, filter), start, end)
+			if s.Capabilities.TraceStateRefused() {
+				_, err := jiter.CollectWithErrors(jptrace.AggregateTraces(
+					s.TraceReader.FindTraces(context.Background(), *query),
+				))
+				requireRefusal(t, err)
+				require.ErrorContains(t, err, "traceState")
+				continue
+			}
+			expected := filterCorpusTraces(t, corpus, []string{"search"})
+			CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
 		}
-		expected := filterCorpusTraces(t, corpus, []string{"search"})
-		CompareTraceSlices(t, expected, s.findTracesByQuery(t, query, expected))
 	})
 
 	// An ordered comparison on an attribute needs the value stored as a number, which depends on

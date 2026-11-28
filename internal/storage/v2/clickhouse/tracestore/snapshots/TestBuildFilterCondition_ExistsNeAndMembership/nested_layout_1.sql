@@ -115,10 +115,10 @@ s.service_name != ''
 )
 -- ne on a field that every span has
 -- binds [Error]
-s.status_code != ?
+NOT (s.status_code = ?)
 -- ne on a field that a span can lack
 -- binds [cart]
-(s.service_name != '' AND s.service_name != ?)
+(s.service_name != '' AND NOT (s.service_name = ?))
 -- in on a span attribute with an untyped list, for an attribute that the metadata reports as an int and as a string
 -- binds [http.status_code 200 http.status_code 200 http.status_code 5xx]
 (
@@ -168,7 +168,7 @@ s.duration IN (?, ?)
 )
 -- not_in on a field that every span has
 -- binds [GET /cart]
-s.name NOT IN (?)
+NOT (s.name IN (?))
 -- not_in on a field that a span can lack
 -- binds [cart checkout]
-(s.service_name != '' AND s.service_name NOT IN (?, ?))
+(s.service_name != '' AND NOT (s.service_name IN (?, ?)))
