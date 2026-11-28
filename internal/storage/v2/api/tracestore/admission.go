@@ -66,6 +66,11 @@ func (c FilterCapabilities) EnsureSupported(filter *expression.Call) error {
 		case *expression.AttributeRef:
 			level = term.Level
 		case *expression.FieldRef:
+			// A built-in field may be served at a level the Reader does not declare as a
+			// whole, when the schema stores that field without the level's attributes.
+			if c.SupportsField(term.Level, term.Name) {
+				continue
+			}
 			level = term.Level
 		case *expression.NestedRef:
 			level = term.Level

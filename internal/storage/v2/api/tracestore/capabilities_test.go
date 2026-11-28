@@ -21,6 +21,18 @@ func TestFilterCapabilities_IsEmpty(t *testing.T) {
 	assert.True(t, (&FilterCapabilities{Levels: []expression.Level{}, Operators: []expression.Operator{}}).IsEmpty())
 	assert.False(t, (&FilterCapabilities{Operators: []expression.Operator{expression.OpEq}}).IsEmpty())
 	assert.False(t, (&FilterCapabilities{Levels: []expression.Level{expression.LevelSpan}}).IsEmpty())
+	assert.False(t, (&FilterCapabilities{Fields: []Field{{Level: expression.LevelScope, Name: expression.ScopeFieldName}}}).IsEmpty())
+}
+
+// TestFilterCapabilities_SupportsField pins that a field listing admits exactly that field at
+// that level, so a schema that stores one field of a level without the level's attributes can
+// say so without widening anything else.
+func TestFilterCapabilities_SupportsField(t *testing.T) {
+	caps := FilterCapabilities{Fields: []Field{{Level: expression.LevelScope, Name: expression.ScopeFieldName}}}
+	assert.True(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldName))
+	assert.False(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldVersion))
+	assert.False(t, caps.SupportsField(expression.LevelSpan, expression.ScopeFieldName))
+	assert.False(t, FilterCapabilities{}.SupportsField(expression.LevelScope, expression.ScopeFieldName))
 }
 
 func TestFilterCapabilities_SupportsLevel(t *testing.T) {

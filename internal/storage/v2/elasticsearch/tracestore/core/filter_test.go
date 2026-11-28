@@ -53,6 +53,12 @@ func TestFilterCapabilities(t *testing.T) {
 		expression.LevelResource,
 		expression.LevelEvent,
 	}, caps.Levels)
+	// The scope level is served by its two folded fields only: declaring the level itself
+	// would also admit the scope's attributes, which this schema does not index.
+	assert.Equal(t, []tracestore.Field{
+		{Level: expression.LevelScope, Name: expression.ScopeFieldName},
+		{Level: expression.LevelScope, Name: expression.ScopeFieldVersion},
+	}, caps.Fields)
 	for _, op := range []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot,
 		expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
@@ -63,7 +69,11 @@ func TestFilterCapabilities(t *testing.T) {
 	}
 	assert.False(t, caps.SupportsOperator(expression.OpSome),
 		"correlated matching over a span's events is not implemented")
-	assert.False(t, caps.SupportsLevel(expression.LevelScope))
+	assert.False(t, caps.SupportsLevel(expression.LevelScope),
+		"the scope's attributes are not indexed; its name and version are declared as fields")
+	assert.True(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldName))
+	assert.True(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldVersion))
+	assert.False(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldSchemaURL))
 	assert.False(t, caps.SupportsLevel(expression.LevelLink))
 }
 
@@ -193,6 +203,54 @@ func TestBuildFilterQuery(t *testing.T) {
 		{
 			name:   "exists on the span identifier",
 			filter: p.Span().SpanID.Exists(),
+		},
+		{
+			name:   "scope.name reads the span tag the write path folds the scope into",
+			filter: p.Scope().Name.Eq("io.opentelemetry.contrib.cart"),
+		},
+		{
+			name:   "scope.version reads the tag beside it",
+			filter: p.Scope().Version.Eq("1.2.0"),
+		},
+		{
+			name:   "a regex on the scope name",
+			filter: p.Scope().Name.Matches(`io\.opentelemetry.*`),
+		},
+		{
+			name:   "gt on the scope name compares lexicographically",
+			filter: p.Scope().Name.Gt("io.opentelemetry"),
+		},
+		{
+			name:   "gte on the scope version compares lexicographically",
+			filter: p.Scope().Version.Gte("1.0.0"),
+		},
+		{
+			name:   "lt on the scope name compares lexicographically",
+			filter: p.Scope().Name.Lt("io.opentelemetry.z"),
+		},
+		{
+			name:   "lte on the scope version compares lexicographically",
+			filter: p.Scope().Version.Lte("2.0.0"),
+		},
+		{
+			name:   "exists on the scope name",
+			filter: p.Scope().Name.Exists(),
+		},
+		{
+			name:   "exists on the scope version",
+			filter: p.Scope().Version.Exists(),
+		},
+		{
+			name:   "ne on the scope name guards on the tag holding it",
+			filter: p.Scope().Name.Ne("io.opentelemetry.contrib.cart"),
+		},
+		{
+			name:   "in on the scope name is a disjunction of term queries",
+			filter: p.Scope().Name.In("io.opentelemetry.contrib.cart", "io.opentelemetry.contrib.order"),
+		},
+		{
+			name:   "not_in on the scope name requires the tag to be present",
+			filter: p.Scope().Name.NotIn("io.opentelemetry.contrib.cart", "io.opentelemetry.contrib.order"),
 		},
 		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
@@ -537,13 +595,19 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			name:    "the scope level is folded into the span's own tags",
 			filter:  p.Scope().Attr("otel.scope.name").Eq("lib"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "scope" level`,
+			wantMsg: `does not index the attributes of the "scope" level`,
 		},
 		{
 			name:    "link attributes are not indexed at all",
 			filter:  p.Link().Attr("k").Eq("v"),
 			wantErr: tracestore.ErrFilterUnsupported,
-			wantMsg: `does not index the "link" level`,
+			wantMsg: `does not index the attributes of the "link" level`,
+		},
+		{
+			name:    "an unsupported built-in field of the scope level",
+			filter:  p.Scope().SchemaURL.Eq("http://example.com"),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `built-in field "schemaURL" of the "scope" level`,
 		},
 		{
 			name:    "a built-in field this schema has no field for",
@@ -921,7 +985,21 @@ func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
 			query, err := r.reader.buildFilterQuery(filter)
 			assert.Nil(t, query)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-			assert.Contains(t, err.Error(), `does not index the "link" level`)
+			assert.Contains(t, err.Error(), `does not index the attributes of the "link" level`)
 		})
 	}
+}
+
+// TestBuildScopeFieldComparisonRefusal pins the error branch of the scope field builder: every
+// operator the public routing sends it has an answer, so the refusal exists for an operator that
+// reaches the builder without one, and it must say the field is held as a keyword rather than a
+// number.
+func TestBuildScopeFieldComparisonRefusal(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		ref := reference{name: expression.ScopeFieldName, level: expression.LevelScope}
+		query, err := r.reader.buildScopeFieldComparison(expression.OpNe, ref, scopeNameAsAttribute, "lib")
+		assert.Nil(t, query)
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		assert.Contains(t, err.Error(), `as a keyword rather than a number`)
+	})
 }
