@@ -25,9 +25,11 @@ var errActionTest = errors.New("action error")
 
 type dummyAction struct {
 	TestFn func() error
+	gotCtx context.Context
 }
 
-func (a *dummyAction) Do() error {
+func (a *dummyAction) Do(ctx context.Context) error {
+	a.gotCtx = ctx
 	return a.TestFn()
 }
 
@@ -84,7 +86,7 @@ func TestExecuteAction(t *testing.T) {
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
 			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
-			err := ExecuteAction(ActionExecuteOptions{
+			err := ExecuteAction(t.Context(), ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
@@ -117,7 +119,7 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		"https://localhost:9300",
 	}
 
-	err := ExecuteAction(ActionExecuteOptions{
+	err := ExecuteAction(t.Context(), ActionExecuteOptions{
 		Args:   args,
 		Viper:  v,
 		Logger: logger,
@@ -217,7 +219,7 @@ func TestNewESClient_VersionDetectionError(t *testing.T) {
 func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))
-	err := ExecuteAction(ActionExecuteOptions{
+	err := ExecuteAction(t.Context(), ActionExecuteOptions{
 		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
 		Viper:  v,
 		Logger: zap.NewNop(),
@@ -226,4 +228,52 @@ func TestExecuteAction_ClientError(t *testing.T) {
 		return nil
 	})
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+}
+
+type ctxKey struct{}
+
+func newVersionServer(t *testing.T) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"version":{"number":"8.0.0"}}`))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestExecuteAction_PassesCallerContext(t *testing.T) {
+	server := newVersionServer(t)
+	v, command := config.Viperize(AddFlags)
+	require.NoError(t, command.ParseFlags(nil))
+
+	ctx := context.WithValue(t.Context(), ctxKey{}, "caller")
+	action := &dummyAction{TestFn: func() error { return nil }}
+	err := ExecuteAction(ctx, ActionExecuteOptions{
+		Args:   []string{server.URL},
+		Viper:  v,
+		Logger: zap.NewNop(),
+	}, func(*esclient.Client, Config) Action {
+		return action
+	})
+	require.NoError(t, err)
+	require.NotNil(t, action.gotCtx)
+	assert.Equal(t, "caller", action.gotCtx.Value(ctxKey{}))
+}
+
+func TestExecuteAction_CancelledContext(t *testing.T) {
+	server := newVersionServer(t)
+	v, command := config.Viperize(AddFlags)
+	require.NoError(t, command.ParseFlags(nil))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := ExecuteAction(ctx, ActionExecuteOptions{
+		Args:   []string{server.URL},
+		Viper:  v,
+		Logger: zap.NewNop(),
+	}, func(*esclient.Client, Config) Action {
+		t.Fatal("action must not be created when the context is already cancelled")
+		return nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
 }
