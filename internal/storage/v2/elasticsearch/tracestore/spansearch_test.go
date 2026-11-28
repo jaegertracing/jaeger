@@ -111,7 +111,7 @@ func TestTraceReader_FindSpans_Errors(t *testing.T) {
 			q.Pagination.PageToken = token
 		}, want: tracestore.ErrPaginationInvalid, wants: "different query"},
 		{name: "CoreError", query: func(*tracestore.SpanQueryParams) {}, core: errors.New("search failed"), wants: "search failed"},
-		{name: "MalformedSpan", query: func(*tracestore.SpanQueryParams) {}, wants: "encoding/hex"},
+		{name: "MalformedSpan", query: func(*tracestore.SpanQueryParams) {}, wants: "trace ID from DB has unexpected length"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			coreReader := &mocks.Reader{}
@@ -130,7 +130,7 @@ func TestTraceReader_FindSpans_Errors(t *testing.T) {
 			if tc.wants != "" {
 				require.ErrorContains(t, err, tc.wants)
 			}
-			if tc.core == nil && tc.wants != "encoding/hex" {
+			if tc.core == nil && tc.wants != "trace ID from DB has unexpected length" {
 				coreReader.AssertNotCalled(t, "FindSpans")
 			}
 		})
