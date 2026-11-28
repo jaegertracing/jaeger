@@ -73,9 +73,17 @@ func (h *readSkillHandler) handle(
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", cut)
 	}
 
+	// The front matter is metadata for discovering a skill, so only the body is served.
+	// A skill whose front matter does not parse, for example an allowed-tools list in a
+	// custom skill, is served whole, as it was before front matter was stripped.
+	body := content
+	if skill, err := types.ParseSkill(content); err == nil {
+		body = skill.Content
+	}
+
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: content}},
-	}, types.ReadSkillOutput{Instructions: content}, nil
+		Content: []mcp.Content{&mcp.TextContent{Text: body}},
+	}, types.ReadSkillOutput{Instructions: body}, nil
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the
