@@ -10,5 +10,6 @@ type ReadSkillInput struct {
 
 // ReadSkillOutput defines the output of the read_skill MCP tool.
 type ReadSkillOutput struct {
-	Instructions string `json:"instructions"`
+	Path      string `json:"path"`
+	Truncated bool   `json:"truncated"`
 }
