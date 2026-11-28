@@ -145,7 +145,7 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 			} else if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
 				status = metricStatusError
 			}
-			attrs := buildMetricAttributes(method, toolName, status)
+			attrs := buildMetricAttributes(method, metricToolName(toolName), status)
 
 			callCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 			durationHistogram.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
@@ -226,6 +226,19 @@ func buildMetricAttributes(method, toolName, status string) []attribute.KeyValue
 	}
 	attrs = append(attrs, attribute.String("status", status))
 	return attrs
+}
+
+// metricToolNameOther is the label value for a tool the server does not have,
+// like "_OTHER" for unknown HTTP methods in the OTel semantic conventions.
+const metricToolNameOther = "_OTHER"
+
+// metricToolName returns toolName if it is a registered tool. The name comes from
+// the client, so any other value is replaced to keep the label set bounded.
+func metricToolName(toolName string) string {
+	if toolName == "" || slices.Contains(registeredToolNames, toolName) {
+		return toolName
+	}
+	return metricToolNameOther
 }
 
 func toolNameFromRequest(method string, req mcp.Request) string {
