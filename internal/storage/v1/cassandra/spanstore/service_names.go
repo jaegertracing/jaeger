@@ -58,31 +58,26 @@ func NewServiceNamesStorage(
 
 // Write saves a single service name
 func (s *ServiceNamesStorage) Write(serviceName string) error {
-	var err error
 	query := s.session.Query(s.InsertStmt)
 	if inCache := checkWriteCache(serviceName, s.serviceNames, s.writeCacheTTL); !inCache {
 		q := query.Bind(serviceName)
-		err2 := s.metrics.Exec(q, s.logger)
-		if err2 != nil {
-			s.serviceNames.Delete(serviceName)
-			err = err2
+		if err := s.metrics.Exec(q, s.logger); err != nil {
+			return err
+		}
+		if s.writeCacheTTL != 0 {
+			s.serviceNames.Put(serviceName, serviceName)
 		}
 	}
-	return err
+	return nil
 }
 
-// checks if the key is in cache; returns true if it is, otherwise puts it there and returns false
+// checkWriteCache checks if the key is in cache. A cache miss is recorded after
+// the write succeeds, so concurrent writes do not suppress each other.
 func checkWriteCache(key string, c cache.Cache, writeCacheTTL time.Duration) bool {
 	if writeCacheTTL == 0 {
 		return false
 	}
-	// even though there is a race condition between Get and Put, it's not a problem for storage,
-	// it simply means we might write the same service name twice.
-	inCache := c.Get(key)
-	if inCache == nil {
-		c.Put(key, key)
-	}
-	return inCache != nil
+	return c.Get(key) != nil
 }
 
 // GetServices returns all services traced by Jaeger

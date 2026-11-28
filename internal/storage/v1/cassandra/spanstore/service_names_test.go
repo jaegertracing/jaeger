@@ -7,6 +7,7 @@ package spanstore
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,6 +122,60 @@ func TestServiceNamesStorageWriteRetriesAfterError(t *testing.T) {
 		assert.Equal(t, map[string]int64{
 			"attempts|table=service_names": 2, "inserts|table=service_names": 1, "errors|table=service_names": 1,
 		}, counts)
+	})
+}
+
+func TestServiceNamesStorageWriteConcurrentFailureDoesNotSuppressInsert(t *testing.T) {
+	withServiceNamesStorage(time.Minute, func(s *serviceNameStorageTest) {
+		query := &mocks.Query{}
+		boundQuery := &mocks.Query{}
+		firstExecStarted := make(chan struct{})
+		secondExecStarted := make(chan struct{})
+		allowFirstExecToFail := make(chan struct{})
+		var releaseFirstExec sync.Once
+		query.On("Bind", []any{"service-a"}).Return(boundQuery)
+		boundQuery.On("Exec").Run(func(mock.Arguments) {
+			close(firstExecStarted)
+			<-allowFirstExecToFail
+		}).Return(errors.New("exec error")).Once()
+		boundQuery.On("Exec").Run(func(mock.Arguments) {
+			close(secondExecStarted)
+		}).Return(nil).Once()
+		boundQuery.On("String").Return("select from service_names")
+		s.session.On("Query", mock.AnythingOfType("string")).Return(query)
+
+		release := func() {
+			releaseFirstExec.Do(func() { close(allowFirstExecToFail) })
+		}
+		t.Cleanup(release)
+
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- s.storage.Write("service-a")
+		}()
+		<-firstExecStarted
+
+		secondDone := make(chan error, 1)
+		go func() {
+			secondDone <- s.storage.Write("service-a")
+		}()
+		select {
+		case err := <-secondDone:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("second write did not finish")
+		}
+
+		select {
+		case <-secondExecStarted:
+		default:
+			t.Error("second write skipped its insert while the first insert was in flight")
+		}
+
+		release()
+		require.EqualError(t, <-firstDone, "failed to Exec query 'select from service_names': exec error")
+		assert.True(t, checkWriteCache("service-a", s.storage.serviceNames, s.writeCacheTTL),
+			"the failed write must not evict the successful concurrent write from cache")
 	})
 }
 
