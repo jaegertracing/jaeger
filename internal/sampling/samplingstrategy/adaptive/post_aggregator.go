@@ -90,6 +90,9 @@ type PostAggregator struct {
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
 	lastCheckedTime               time.Time
+	wasLeader                     bool
+	probabilitiesLoaded           bool
+	persistedProbabilities        model.ServiceOperationProbabilities
 }
 
 // newPostAggregator creates a new sampling postAggregator that generates sampling rates for service operations.
@@ -135,10 +138,56 @@ func (p *PostAggregator) Start() {
 	// NB: the first tick will be slightly delayed by the initializeThroughput call.
 	p.lastCheckedTime = time.Now().Add(p.Delay * -1)
 	p.initializeThroughput(p.lastCheckedTime)
+	p.wasLeader = p.isLeader()
+	_, _ = p.refreshProbabilities(true)
 }
 
 func (p *PostAggregator) isLeader() bool {
 	return p.electionParticipant.IsLeader()
+}
+
+// refreshProbabilities loads persisted sampling probabilities from storage.
+// When forceSync is false (continuing leader), it compares against persistedProbabilities
+// rather than in-memory p.probabilities so a failed InsertProbabilitiesAndQPS cannot roll
+// back newer in-memory calculation progress to an older persisted snapshot.
+func (p *PostAggregator) refreshProbabilities(forceSync bool) (bool, error) {
+	probabilities, err := p.storage.GetLatestProbabilities()
+	if err != nil {
+		if p.logger != nil {
+			p.logger.Warn("failed to initialize probabilities", zap.Error(err))
+		}
+		return false, err
+	}
+	if probabilities == nil {
+		probabilities = make(model.ServiceOperationProbabilities)
+	}
+	p.mu.Lock()
+	diverged := !p.probabilitiesLoaded || !probabilitiesEqual(p.persistedProbabilities, probabilities)
+	if forceSync || diverged {
+		p.probabilities = probabilities
+		p.persistedProbabilities = probabilities
+		p.probabilitiesLoaded = true
+	}
+	p.mu.Unlock()
+	return diverged, nil
+}
+
+func probabilitiesEqual(a, b model.ServiceOperationProbabilities) bool {
+	totalA := 0
+	for svc, opsA := range a {
+		totalA += len(opsA)
+		opsB := b[svc]
+		for op, probA := range opsA {
+			if probB, ok := opsB[op]; !ok || probA != probB {
+				return false
+			}
+		}
+	}
+	totalB := 0
+	for _, opsB := range b {
+		totalB += len(opsB)
+	}
+	return totalA == totalB
 }
 
 // addJitter adds a random amount of time. Without jitter, if the host holding the leader
@@ -168,35 +217,59 @@ func (p *PostAggregator) runCalculation() {
 		endTime:    endTime,
 	})
 	p.lastCheckedTime = endTime
-	// Load the latest throughput so that if this host ever becomes leader, it
-	// has the throughput ready in memory. However, only run the actual calculations
-	// if this host becomes leader.
 	// TODO fill the throughput buffer only when we're leader
-	if p.isLeader() {
-		startTime := time.Now()
-		probabilities, qps := p.calculateProbabilitiesAndQPS()
-		p.mu.Lock()
-		p.probabilities = probabilities
-		p.qps = qps
-		p.mu.Unlock()
-		// NB: This has the potential of running into a race condition if the CalculationInterval
-		// is set to an extremely low value. The worst case scenario is that probabilities is calculated
-		// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
-		// This will result in one or more batches of probabilities not being saved which is completely
-		// fine. This race condition should not ever occur anyway since the calculation interval will
-		// be way longer than the time to run the calculations.
+	if !p.isLeader() {
+		p.wasLeader = false
+		_, _ = p.refreshProbabilities(true)
+		return
+	}
 
-		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-		p.saveProbabilitiesAndQPS()
+	promoted := !p.wasLeader
+	// Refresh persisted probabilities after confirming leadership so promoted nodes do not
+	// calculate from a pre-promotion snapshot, and defer calculation/publication on read failure.
+	// Reset serviceCache on promotion or external persisted divergence; identical-rate
+	// sub-interval failback remains undetectable without leadership-term tracking.
+	diverged, err := p.refreshProbabilities(promoted)
+	if err != nil {
+		return
+	}
+	if promoted || diverged {
+		p.serviceCache = nil
+	}
+	p.wasLeader = true
+
+	calcStart := time.Now()
+	probabilities, qps := p.calculateProbabilitiesAndQPS()
+	p.mu.Lock()
+	p.probabilities = probabilities
+	p.qps = qps
+	p.mu.Unlock()
+	// NB: This has the potential of running into a race condition if the CalculationInterval
+	// is set to an extremely low value. The worst case scenario is that probabilities is calculated
+	// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
+	// This will result in one or more batches of probabilities not being saved which is completely
+	// fine. This race condition should not ever occur anyway since the calculation interval will
+	// be way longer than the time to run the calculations.
+
+	p.calculateProbabilitiesLatency.Record(time.Since(calcStart))
+	if err := p.saveProbabilitiesAndQPS(probabilities, qps); err == nil {
+		p.mu.Lock()
+		p.persistedProbabilities = probabilities
+		p.mu.Unlock()
 	}
 }
 
-func (p *PostAggregator) saveProbabilitiesAndQPS() {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if err := p.storage.InsertProbabilitiesAndQPS(p.hostname, p.probabilities, p.qps); err != nil {
-		p.logger.Warn("could not save probabilities", zap.Error(err))
+func (p *PostAggregator) saveProbabilitiesAndQPS(
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+) error {
+	if err := p.storage.InsertProbabilitiesAndQPS(p.hostname, probabilities, qps); err != nil {
+		if p.logger != nil {
+			p.logger.Warn("could not save probabilities", zap.Error(err))
+		}
+		return err
 	}
+	return nil
 }
 
 func (p *PostAggregator) prependThroughputBucket(bucket *throughputBucket) {

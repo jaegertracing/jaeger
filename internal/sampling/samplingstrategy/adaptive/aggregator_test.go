@@ -33,6 +33,7 @@ func TestAggregator(t *testing.T) {
 		// calculation loop saves probabilities back once this host is leader. Both
 		// read through the store, so both need stubbing or the mock panics.
 		mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return(nil, nil)
+		mockStorage.On("GetLatestProbabilities").Return(nil, nil)
 		mockStorage.On("InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockEP := &epmocks.ElectionParticipant{}
 		mockEP.On("Start").Return(nil)

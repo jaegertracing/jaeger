@@ -335,7 +335,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs(), nil)
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, nil)
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
