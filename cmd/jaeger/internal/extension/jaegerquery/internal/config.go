@@ -65,7 +65,8 @@ type QueryOptions struct {
 	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
-	MaxTraceSize int `mapstructure:"max_trace_size" valid:"optional"`
+	MaxTraceSize    int           `mapstructure:"max_trace_size" valid:"optional"`
+	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl" valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
 	// HTTP holds the HTTP configuration that the query service uses to serve requests.

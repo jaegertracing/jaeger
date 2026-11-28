@@ -79,6 +79,9 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(func([]ptrace.Traces, error) bool) {})).
 		Maybe()
+	if ff.name == "single-get-services-store" {
+		reader.On("GetServices", mock.Anything).Return([]string{"svc"}, nil).Once()
+	}
 	return reader, nil
 }
 
@@ -575,6 +578,34 @@ func TestQueryService(t *testing.T) {
 
 	tm := server.TenancyManager()
 	require.NotNil(t, tm, "TenancyManager should not be nil")
+}
+
+func TestServerCachesServiceNamesWhenServiceCacheTTLIsSet(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+	srv := newServer(&Config{
+		QueryOptions: app.QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+			},
+			ServiceCacheTTL: time.Hour,
+		},
+		Storage: Storage{TracesPrimary: "single-get-services-store"},
+	}, component.TelemetrySettings{
+		Logger:         zaptest.NewLogger(t),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+	})
+	require.NoError(t, srv.Start(t.Context(), host))
+	t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
+
+	for range 2 {
+		services, err := srv.QueryService().GetServices(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, []string{"svc"}, services)
+	}
 }
 
 func TestBuildAIHealthChecker(t *testing.T) {
