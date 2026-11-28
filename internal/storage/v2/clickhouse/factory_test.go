@@ -58,21 +58,20 @@ func TestFactory(t *testing.T) {
 			srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				Database: "default",
-				Auth: Authentication{
-					Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
-						Username: "user",
-						Password: "password",
-					}),
-				},
-				CreateSchema: tt.createSchema,
-				TableEngine:  localTableEngine,
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.Database = "default"
+			cfg.Auth = Authentication{
+				Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+					Username: "user",
+					Password: "password",
+				}),
+			}
+			cfg.CreateSchema = tt.createSchema
+			cfg.TableEngine = localTableEngine
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
@@ -239,15 +238,14 @@ func TestNewFactory_Errors(t *testing.T) {
 			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
-				TableEngine:  localTableEngine,
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.DialTimeout = 1 * time.Second
+			cfg.CreateSchema = true
+			cfg.TableEngine = localTableEngine
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
@@ -311,15 +309,14 @@ func TestPurge(t *testing.T) {
 			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
-			cfg := Configuration{
-				Protocol: "http",
-				Addresses: []string{
-					srv.Listener.Addr().String(),
-				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
-				TableEngine:  localTableEngine,
+			cfg := DefaultConfiguration()
+			cfg.Protocol = "http"
+			cfg.Addresses = []string{
+				srv.Listener.Addr().String(),
 			}
+			cfg.DialTimeout = 1 * time.Second
+			cfg.CreateSchema = true
+			cfg.TableEngine = localTableEngine
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
@@ -365,15 +362,14 @@ func TestGetProtocol(t *testing.T) {
 }
 
 func TestNewFactory_TLSLoadError(t *testing.T) {
-	cfg := Configuration{
-		Protocol:  "native",
-		Addresses: []string{"localhost:9440"},
-		TLS: configoptional.Some(configtls.ClientConfig{
-			Config: configtls.Config{
-				CAFile: "/nonexistent/ca.pem",
-			},
-		}),
-	}
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "native"
+	cfg.Addresses = []string{"localhost:9440"}
+	cfg.TLS = configoptional.Some(configtls.ClientConfig{
+		Config: configtls.Config{
+			CAFile: "/nonexistent/ca.pem",
+		},
+	})
 	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "failed to load TLS configuration")
 	require.Nil(t, f)
@@ -382,13 +378,12 @@ func TestNewFactory_TLSLoadError(t *testing.T) {
 func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
-	cfg := Configuration{
-		Protocol:  "native",
-		Addresses: []string{srv.Listener.Addr().String()},
-		TLS: configoptional.Some(configtls.ClientConfig{
-			InsecureSkipVerify: true,
-		}),
-	}
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "native"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.TLS = configoptional.Some(configtls.ClientConfig{
+		InsecureSkipVerify: true,
+	})
 	// TLS config loads successfully; connection fails because the test server is plain (no TLS).
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.Error(t, err)
@@ -407,7 +402,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	}{
 		{
 			name: "first loadTemplate call fails",
-			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.TableEngine = localTableEngine
+				return cfg
+			}(),
 			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
@@ -415,7 +416,13 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 		},
 		{
 			name: "second loadTemplate call fails",
-			cfg:  Configuration{CreateSchema: true, TableEngine: localTableEngine},
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.TableEngine = localTableEngine
+				return cfg
+			}(),
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -433,14 +440,17 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 			// Distributed table, a different template than the second call renders
 			// without one.
 			name: "distributed table loadTemplate call fails",
-			cfg: Configuration{
-				CreateSchema: true,
-				Database:     "jaeger",
-				TableEngine: TableEngine{
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.CreateSchema = true
+				cfg.Database = "jaeger"
+				cfg.TableEngine = TableEngine{
 					Replicated: configoptional.Some(ReplicatedEngine{}),
 					Cluster:    configoptional.Some(ClusterConfig{Name: "my_cluster"}),
-				},
-			},
+				}
+				return cfg
+			}(),
 			mockFn: func() func(name, tmplBody string, data any) (string, error) {
 				calls := 0
 				return func(name, tmplBody string, data any) (string, error) {
@@ -598,19 +608,19 @@ func TestNewFactory_SpansTableMissing(t *testing.T) {
 	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	defer srv.Close()
 
-	_, err := NewFactory(context.Background(), Configuration{
-		Protocol:  "http",
-		Addresses: []string{srv.Listener.Addr().String()},
-		Database:  "default",
-		HoistedAttributes: []HoistedAttribute{
-			{
-				Key:    "k",
-				Level:  "span",
-				Type:   "string",
-				Column: "k_column",
-			},
+	cfg := DefaultConfiguration()
+	cfg.Protocol = "http"
+	cfg.Addresses = []string{srv.Listener.Addr().String()}
+	cfg.Database = "default"
+	cfg.HoistedAttributes = []HoistedAttribute{
+		{
+			Key:    "k",
+			Level:  "span",
+			Type:   "string",
+			Column: "k_column",
 		},
-	}, telemetry.NoopSettings())
+	}
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "the spans table does not exist")
 }
 
@@ -693,9 +703,10 @@ func TestNewFactory_HoistedColumns(t *testing.T) {
 }
 
 func TestNewFactory_InvalidHoistedAttribute(t *testing.T) {
-	_, err := NewFactory(context.Background(), Configuration{
-		HoistedAttributes: []HoistedAttribute{{Key: "k"}},
-	}, telemetry.NoopSettings())
+	cfg := DefaultConfiguration()
+	cfg.Addresses = []string{"localhost:9000"}
+	cfg.HoistedAttributes = []HoistedAttribute{{Key: "k"}}
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "hoisted_attributes[0]")
 }
 
@@ -736,19 +747,22 @@ func TestCreateTraceReader_HoistedColumns(t *testing.T) {
 }
 
 func TestNewFactory_InvalidAttributeLayout(t *testing.T) {
-	_, err := NewFactory(context.Background(), Configuration{AttributeLayout: "json"}, telemetry.NoopSettings())
+	cfg := DefaultConfiguration()
+	cfg.Addresses = []string{"localhost:9000"}
+	cfg.AttributeLayout = "json"
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "attribute_layout must be nested or map")
 }
 
 // TestNewFactory_InvalidCluster checks that NewFactory rejects an invalid cluster block
 // before attempting to connect, the same way it rejects an invalid attribute layout.
 func TestNewFactory_InvalidCluster(t *testing.T) {
-	cfg := Configuration{
-		CreateSchema: true,
-		TableEngine: TableEngine{
-			MergeTree: configoptional.Some(MergeTreeEngine{}),
-			Cluster:   configoptional.Some(ClusterConfig{Name: "it's"}),
-		},
+	cfg := DefaultConfiguration()
+	cfg.Addresses = []string{"localhost:9000"}
+	cfg.CreateSchema = true
+	cfg.TableEngine = TableEngine{
+		MergeTree: configoptional.Some(MergeTreeEngine{}),
+		Cluster:   configoptional.Some(ClusterConfig{Name: "it's"}),
 	}
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "`table_engine.cluster.name` must not contain a single quote or a backslash")
@@ -974,5 +988,78 @@ func TestSchemaTemplateFunctions_UnknownValue(t *testing.T) {
 	} {
 		_, err := loadTemplate("test", template, params)
 		require.ErrorContains(t, err, wantErr)
+	}
+}
+
+func TestNewFactory_InvalidConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         Configuration
+		expectedErr string
+	}{
+		{
+			name:        "missing addresses",
+			cfg:         DefaultConfiguration(),
+			expectedErr: "Addresses: non zero value required",
+		},
+		{
+			name: "zero default search depth",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.DefaultSearchDepth = 0
+				return cfg
+			}(),
+			expectedErr: "default_search_depth must be a positive number",
+		},
+		{
+			name: "zero max search depth",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.MaxSearchDepth = 0
+				return cfg
+			}(),
+			expectedErr: "max_search_depth must be a positive number",
+		},
+		{
+			name: "default search depth exceeds max search depth",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.DefaultSearchDepth = 2000
+				cfg.MaxSearchDepth = 1000
+				return cfg
+			}(),
+			expectedErr: "default_search_depth cannot exceed max_search_depth",
+		},
+		{
+			name: "negative ttl",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.TTL = -1 * time.Second
+				return cfg
+			}(),
+			expectedErr: "ttl must be a non-negative duration",
+		},
+		{
+			name: "negative dial timeout",
+			cfg: func() Configuration {
+				cfg := DefaultConfiguration()
+				cfg.Addresses = []string{"localhost:9000"}
+				cfg.DialTimeout = -1 * time.Second
+				return cfg
+			}(),
+			expectedErr: "dial_timeout must be a non-negative duration",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
+			require.ErrorContains(t, err, "invalid clickhouse configuration")
+			require.ErrorContains(t, err, tt.expectedErr)
+			require.Nil(t, f)
+		})
 	}
 }
