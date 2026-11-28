@@ -113,6 +113,9 @@ jobs:
     - name: Verify Grafana dashboard JSON is in sync with Go generator
       run: make lint-monitoring
 
+    - name: Verify Jaeger v2 config docs are up to date
+      run: make lint-config-docs
+
   lint-shell-scripts:
     runs-on: ubuntu-latest
 
