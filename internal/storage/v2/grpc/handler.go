@@ -63,11 +63,14 @@ func (h *Handler) GetTraces(
 ) error {
 	traceIDs := make([]tracestore.GetTraceParams, len(req.Query))
 	for i, query := range req.Query {
-		var sizedTraceID [16]byte
-		copy(sizedTraceID[:], query.TraceId)
+		// Right-align incoming bytes into the low half of the 16-byte trace ID.
+		traceID, err := traceIDFromBytes(query.TraceId)
+		if err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 
 		traceIDs[i] = tracestore.GetTraceParams{
-			TraceID: pcommon.TraceID(sizedTraceID),
+			TraceID: traceID,
 			Start:   query.StartTime,
 			End:     query.EndTime,
 		}

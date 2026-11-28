@@ -190,11 +190,14 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
 		for i, foundTraceID := range resp.TraceIds {
-			var sizedTraceID [16]byte
-			copy(sizedTraceID[:], foundTraceID.TraceId)
+			traceID, err := traceIDFromBytes(foundTraceID.TraceId)
+			if err != nil {
+				yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
+				return
+			}
 
 			foundTraceIDs[i] = tracestore.FoundTraceID{
-				TraceID: pcommon.TraceID(sizedTraceID),
+				TraceID: traceID,
 				Start:   foundTraceID.Start,
 				End:     foundTraceID.End,
 			}
@@ -285,8 +288,13 @@ func (tr *TraceReader) FindTraceSummaries(
 				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("received error from grpc stream: %w", readerError(err)))
 				return
 			}
+			batch, err := convertSummaryBatch(resp.GetSummaries())
+			if err != nil {
+				yield(tracestore.PageChunk[[]tracestore.TraceSummary]{}, fmt.Errorf("failed to execute FindTraceSummaries: %w", err))
+				return
+			}
 			chunk := tracestore.PageChunk[[]tracestore.TraceSummary]{
-				Results:       convertSummaryBatch(resp.GetSummaries()),
+				Results:       batch,
 				NextPageToken: tracestore.PageToken(resp.GetNextPageToken()),
 			}
 			if !yield(chunk, nil) {
@@ -296,11 +304,26 @@ func (tr *TraceReader) FindTraceSummaries(
 	}
 }
 
-func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSummary {
+// traceIDFromBytes converts a byte slice into a 16-byte pcommon.TraceID.
+// For inputs up to 16 bytes (such as 8-byte/64-bit IDs), the bytes are placed
+// in the low (right) half so they land in TraceID[16-len(src):].
+// Inputs longer than 16 bytes produce an error.
+func traceIDFromBytes(src []byte) (pcommon.TraceID, error) {
+	if len(src) > 16 {
+		return pcommon.TraceID{}, fmt.Errorf("invalid trace ID length: %d bytes (maximum is 16)", len(src))
+	}
+	var sized [16]byte
+	copy(sized[16-len(src):], src)
+	return pcommon.TraceID(sized), nil
+}
+
+func convertSummaryBatch(protos []*storage.TraceSummary) ([]tracestore.TraceSummary, error) {
 	batch := make([]tracestore.TraceSummary, len(protos))
 	for i, ps := range protos {
-		var traceID [16]byte
-		copy(traceID[:], ps.GetTraceId())
+		traceID, err := traceIDFromBytes(ps.GetTraceId())
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode trace summary: %w", err)
+		}
 		svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
 		for j, ss := range ps.GetServices() {
 			svcs[j] = tracestore.ServiceSummary{
@@ -310,7 +333,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 			}
 		}
 		batch[i] = tracestore.TraceSummary{
-			TraceID:           pcommon.TraceID(traceID),
+			TraceID:           traceID,
 			RootServiceName:   ps.GetRootServiceName(),
 			RootOperationName: ps.GetRootOperationName(),
 			MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
@@ -321,7 +344,7 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 			Services:          svcs,
 		}
 	}
-	return batch
+	return batch, nil
 }
 
 // toProtoQueryParameters encodes a query for the remote server. Encoding the filter can fail, for
