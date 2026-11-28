@@ -133,4 +133,34 @@ func TestEnsureSupported(t *testing.T) {
 		}})
 		require.ErrorContains(t, err, `it does not index the "event" level`)
 	})
+
+	// A level can be served by field rather than as a whole, which is how a schema that
+	// stores the instrumentation scope's name and version but not its attributes answers
+	// scope.name and scope.version while still refusing scope.attr(...).
+	fieldCaps := FilterCapabilities{
+		Fields:    []Field{{Level: expression.LevelScope, Name: expression.ScopeFieldName}},
+		Operators: []expression.Operator{expression.OpEq},
+	}
+
+	t.Run("a built-in field served at an undeclared level", func(t *testing.T) {
+		require.NoError(t, fieldCaps.EnsureSupported(p.Scope().Name.Eq(p.String("library"))))
+	})
+
+	t.Run("an attribute at a level declared by field only is still refused", func(t *testing.T) {
+		err := fieldCaps.EnsureSupported(p.Scope().Attr("k").Eq(p.String("v")))
+		require.ErrorContains(t, err, `it does not index the "scope" level`)
+	})
+
+	t.Run("a built-in field not listed is refused", func(t *testing.T) {
+		err := fieldCaps.EnsureSupported(p.Scope().Version.Eq(p.String("1.0")))
+		require.ErrorContains(t, err, `it does not index the "scope" level`)
+	})
+
+	t.Run("a collection reference at a level declared by field only is refused", func(t *testing.T) {
+		err := fieldCaps.EnsureSupported(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.NestedRef{Level: expression.LevelScope},
+			&expression.AnyValue{Value: "x"},
+		}})
+		require.ErrorContains(t, err, `it does not index the "scope" level`)
+	})
 }

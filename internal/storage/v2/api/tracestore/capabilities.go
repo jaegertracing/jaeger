@@ -71,6 +71,17 @@ type FilterCapabilities struct {
 	// Levels are the levels a reference may name. Empty means the Reader can serve only
 	// unqualified references.
 	Levels []expression.Level
+	// Fields are the built-in fields a Reader serves at a level it does not declare as a
+	// whole. A level lands here rather than in Levels when the schema stores one of its
+	// fields but not its attributes: Elasticsearch folds the instrumentation scope's name
+	// and version into the span's own tags without indexing the scope's attributes, so it
+	// serves scope.name and scope.version and refuses scope.attr(...). Only a field
+	// reference is admitted through Fields; an attribute or nested reference still needs
+	// the level itself, so declaring a field never widens what the level admits. Fields
+	// is in-process only: the storage-protocol capability message stays at level
+	// granularity (RFC 0005 §7 rejects naming every field on the wire), so a remote
+	// plugin cannot declare a level by its fields.
+	Fields []Field
 	// Operators are the operators the Reader evaluates. The boolean combinators are listed
 	// here like any other operator: a flat inverted index declares OpAnd and omits OpOr and
 	// OpNot, which is what confines it to the conjunctive subset. Nesting is not declared
@@ -78,11 +89,18 @@ type FilterCapabilities struct {
 	Operators []expression.Operator
 }
 
+// Field is one built-in field of a filter reference level, such as scope.name. The AST's
+// FieldRef carries the same pair; this value type keeps the declaration free of AST nodes.
+type Field struct {
+	Level expression.Level
+	Name  string
+}
+
 // IsEmpty reports whether the Reader declared no part of a structured filter, and so evaluates
 // none of it. A nil FilterCapabilities and an empty one both answer true, so a caller never has
 // to tell "declared nothing" from "did not declare", and a Reader cannot half-opt-in.
 func (c *FilterCapabilities) IsEmpty() bool {
-	return c == nil || (len(c.Levels) == 0 && len(c.Operators) == 0)
+	return c == nil || (len(c.Levels) == 0 && len(c.Fields) == 0 && len(c.Operators) == 0)
 }
 
 // SupportsLevel reports whether a reference at the given level may reach the Reader.
@@ -92,6 +110,12 @@ func (c FilterCapabilities) SupportsLevel(level expression.Level) bool {
 		return true
 	}
 	return slices.Contains(c.Levels, level)
+}
+
+// SupportsField reports whether the Reader serves one built-in field at a level it has
+// not declared as a whole. A field at a declared level needs no separate listing.
+func (c FilterCapabilities) SupportsField(level expression.Level, name string) bool {
+	return slices.Contains(c.Fields, Field{Level: level, Name: name})
 }
 
 // SupportsOperator reports whether the Reader evaluates the given operator.

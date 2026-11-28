@@ -115,18 +115,23 @@ type attributeLocation struct {
 type valueMatch func(field string) esquery.Query
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates.
-// It omits the link level, which the schema does not index separately,
-// and the `some` quantifier, whose correlated matching over a span's events is not
-// implemented yet. Which built-in fields are served is not declarable - a field name is
-// indistinguishable from an attribute key - so buildFilterQuery refuses the ones this
-// schema has no field for.
+// It omits the scope and link levels, which the schema does not index separately, and the
+// `some` quantifier, whose correlated matching over a span's events is not implemented yet.
+// The scope level is declared by its two served fields instead: the write path folds the
+// scope's name and version into the span's own tags (getTagsFromInstrumentationLibrary in
+// to_dbmodel.go), so scope.name and scope.version are readable while the scope's attributes
+// stay refused. The remaining built-in fields are refused by buildFilterQuery, which knows
+// which column each served field lives in.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
 			expression.LevelSpan,
 			expression.LevelResource,
-			expression.LevelScope,
 			expression.LevelEvent,
+		},
+		Fields: []tracestore.Field{
+			{Level: expression.LevelScope, Name: expression.ScopeFieldName},
+			{Level: expression.LevelScope, Name: expression.ScopeFieldVersion},
 		},
 		Operators: []expression.Operator{
 			expression.OpAnd,

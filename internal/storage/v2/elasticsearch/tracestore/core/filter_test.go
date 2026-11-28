@@ -51,9 +51,14 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.Equal(t, []expression.Level{
 		expression.LevelSpan,
 		expression.LevelResource,
-		expression.LevelScope,
 		expression.LevelEvent,
 	}, caps.Levels)
+	// The scope level is served by its two folded fields only: declaring the level itself
+	// would also admit the scope's attributes, which this schema does not index.
+	assert.Equal(t, []tracestore.Field{
+		{Level: expression.LevelScope, Name: expression.ScopeFieldName},
+		{Level: expression.LevelScope, Name: expression.ScopeFieldVersion},
+	}, caps.Fields)
 	for _, op := range []expression.Operator{
 		expression.OpAnd, expression.OpOr, expression.OpNot,
 		expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt,
@@ -64,7 +69,11 @@ func TestFilterCapabilities(t *testing.T) {
 	}
 	assert.False(t, caps.SupportsOperator(expression.OpSome),
 		"correlated matching over a span's events is not implemented")
-	assert.True(t, caps.SupportsLevel(expression.LevelScope))
+	assert.False(t, caps.SupportsLevel(expression.LevelScope),
+		"the scope's attributes are not indexed; its name and version are declared as fields")
+	assert.True(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldName))
+	assert.True(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldVersion))
+	assert.False(t, caps.SupportsField(expression.LevelScope, expression.ScopeFieldSchemaURL))
 	assert.False(t, caps.SupportsLevel(expression.LevelLink))
 }
 
