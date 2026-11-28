@@ -173,6 +173,11 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces uint64) esquery.
 	return esquery.NewTermsAggregation(traceIDField).
 		Size(numOfTraces).
 		Order("max_start", esquery.Descending). // most recent traces first
+		// The query is already filtered down to the matched trace IDs, so the
+		// aggregation only ever sees those traces' spans. Building a term map
+		// instead of global ordinals keeps the aggregation off the global
+		// ordinals cache, which the write indices invalidate on every refresh.
+		ExecutionHint(esquery.ExecutionHintMap).
 		SubAggregation("min_start", esquery.NewMinAggregation(startTimeField)).
 		SubAggregation("max_start", esquery.NewMaxAggregation(startTimeField)).
 		// max_end is derived by script: ES persists no end-time field (end = start + duration).

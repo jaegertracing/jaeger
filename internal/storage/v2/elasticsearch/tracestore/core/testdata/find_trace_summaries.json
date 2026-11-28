@@ -291,6 +291,7 @@
           }
         },
         "terms": {
+          "execution_hint": "map",
           "field": "traceID",
           "order": [
             {
