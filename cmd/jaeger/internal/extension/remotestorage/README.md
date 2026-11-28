@@ -21,6 +21,10 @@ extensions:
   remote_storage:
     endpoint: localhost:17271
     storage: memory-storage
+    # multi_tenancy:
+    #   enabled: true
+    #   header: x-tenant
+    #   tenants: [acme, globex]
 ```
 
 ## Trust boundary
@@ -32,3 +36,9 @@ The tenant header is not authentication. `multi_tenancy` identifies the tenant f
 Deployments must protect the port with mTLS and network policy, so only the Jaeger processes that use the backend can open it. Set `tls` on this extension. `client_ca_file` makes the server require and verify a client certificate.
 
 grpc-go's receive limit applies to every request before decode. It is 4 MiB by default, and it is configurable on this server with `max_recv_msg_size_mib` (unset means the grpc-go default). It is the only bound applied before decode: the server's codecs (pdata for OTLP, gogo for Jaeger types) do not limit nesting depth while they decode, and the query expression depth limit is checked only after decode. The receive limit bounds payload size. It is not a substitute for mTLS or network policy.
+
+## Multi-tenancy
+
+Optional `multi_tenancy` on this extension enables guarding gRPC interceptors so each remote-storage RPC must carry a valid tenant header. Callers that use the gRPC storage backend should enable the matching client-side `multi_tenancy` block so the tenant is forwarded from context.
+
+Details: [Multi-tenancy in Jaeger v2](../../../docs/multi-tenancy.md).
