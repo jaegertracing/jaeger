@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -35,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 type errorFactory struct {
@@ -103,6 +106,154 @@ func TestStorageExtensionType(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
 	_, err := findExtension(host)
 	require.NoError(t, err)
+}
+
+func TestStorageTenancyOptions(t *testing.T) {
+	t.Run("matching lists are order independent", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a", "b"}}, "memory"))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b", "a"}}, "memory"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "memory"))
+	})
+
+	t.Run("different lists fail after initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}, "memory"))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"b"}}, "memory"), "conflicting multi_tenancy tenant lists")
+	})
+
+	t.Run("enabled list conflicts with unrestricted tenancy on shared memory", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"a"}}, "memory"))
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"), "conflicting multi_tenancy tenant lists for storage \"memory\"")
+	})
+
+	t.Run("empty list fails before initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"))
+		_, err := GetTraceStoreFactory("memory", host)
+		require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
+	})
+
+	t.Run("empty list fails after initialization", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		_, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.ErrorContains(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "memory"), "multi-tenancy is enabled with an empty tenant list")
+	})
+
+	t.Run("list set after initialization is enforced", func(t *testing.T) {
+		ext := startStorageExtension(t, "memory", "").(*storageExt)
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		factory, err := GetTraceStoreFactory("memory", host)
+		require.NoError(t, err)
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"allowed"}}, "memory"))
+
+		writer, err := factory.CreateTraceWriter()
+		require.NoError(t, err)
+		traces := ptrace.NewTraces()
+		traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		require.ErrorContains(t,
+			writer.WriteTraces(tenancy.WithTenant(t.Context(), "outside"), traces),
+			"tenant is not in the configured tenant list")
+		require.NoError(t, writer.WriteTraces(tenancy.WithTenant(t.Context(), "allowed"), traces))
+	})
+
+	t.Run("unknown storage extension", func(t *testing.T) {
+		require.ErrorContains(t, ConfigureTenancy(componenttest.NewNopHost(), tenancy.Options{}), "cannot find extension")
+	})
+}
+
+func TestStorageTenancyOptionsAreScopedToConfiguredBackends(t *testing.T) {
+	newHost := func(t *testing.T, backends map[string]storageconfig.TraceBackend) component.Host {
+		ext := makeStorageExtension(t, storageconfig.Config{TraceBackends: backends})
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ext.Start(t.Context(), host))
+		t.Cleanup(func() {
+			require.NoError(t, ext.Shutdown(t.Context()))
+		})
+		return host
+	}
+
+	elasticsearch := storageconfig.TraceBackend{
+		Elasticsearch: &escfg.Configuration{Servers: []string{"http://localhost:9200"}},
+	}
+	memoryBackend := storageconfig.TraceBackend{
+		Memory: &memory.Configuration{MaxTraces: 10000},
+	}
+
+	t.Run("separate Elasticsearch and memory backends", func(t *testing.T) {
+		for _, remoteFirst := range []bool{false, true} {
+			t.Run(fmt.Sprintf("remote starts first=%t", remoteFirst), func(t *testing.T) {
+				host := newHost(t, map[string]storageconfig.TraceBackend{
+					"query":  elasticsearch,
+					"remote": memoryBackend,
+				})
+				configureQuery := func() {
+					require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
+				}
+				configureRemote := func() {
+					require.NoError(t, ConfigureTenancy(host, tenancy.Options{}, "remote"))
+					_, err := GetTraceStoreFactory("remote", host)
+					require.NoError(t, err)
+				}
+
+				if remoteFirst {
+					configureRemote()
+					configureQuery()
+				} else {
+					configureQuery()
+					configureRemote()
+				}
+			})
+		}
+	})
+
+	t.Run("different lists on Elasticsearch backends", func(t *testing.T) {
+		host := newHost(t, map[string]storageconfig.TraceBackend{
+			"query":  elasticsearch,
+			"remote": elasticsearch,
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true}, "query"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "remote"))
+	})
+
+	t.Run("failure on a later name leaves earlier names unchanged", func(t *testing.T) {
+		ext := makeStorageExtension(t, storageconfig.Config{TraceBackends: map[string]storageconfig.TraceBackend{
+			"first":  memoryBackend,
+			"second": memoryBackend,
+		}})
+		host := storagetest.NewStorageHost().WithExtension(ID, ext)
+		require.NoError(t, ext.Start(t.Context(), host))
+		t.Cleanup(func() {
+			require.NoError(t, ext.Shutdown(t.Context()))
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "second"))
+
+		err := ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-b"}}, "first", "second")
+		require.ErrorContains(t, err, "conflicting multi_tenancy tenant lists for storage \"second\"")
+		storage := ext.(*storageExt)
+		require.NotContains(t, storage.tenancyOptions, "first")
+		require.Equal(t, []string{"team-a"}, storage.tenancyOptions["second"].Tenants)
+	})
+
+	t.Run("different lists on distinct memory backends", func(t *testing.T) {
+		host := newHost(t, map[string]storageconfig.TraceBackend{
+			"query":  memoryBackend,
+			"remote": memoryBackend,
+		})
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-a"}}, "query"))
+		require.NoError(t, ConfigureTenancy(host, tenancy.Options{Enabled: true, Tenants: []string{"team-b"}}, "remote"))
+	})
 }
 
 func TestStorageExtensionRejectsMultipleInstances(t *testing.T) {

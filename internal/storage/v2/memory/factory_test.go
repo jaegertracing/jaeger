@@ -11,10 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(Configuration{MaxTraces: 10}, telemetry.NoopSettings())
+	f, err := NewFactory(Configuration{MaxTraces: 10}, telemetry.NoopSettings(), tenancy.Options{})
 	require.NoError(t, err)
 	_, err = f.CreateTraceWriter()
 	require.NoError(t, err)
@@ -30,7 +31,24 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewFactoryErr(t *testing.T) {
-	f, err := NewFactory(Configuration{}, telemetry.NoopSettings())
+	f, err := NewFactory(Configuration{}, telemetry.NoopSettings(), tenancy.Options{})
 	require.ErrorContains(t, err, "max traces must be greater than zero")
 	assert.Nil(t, f)
+}
+
+func TestNewFactoryRejectsUnrestrictedTenancy(t *testing.T) {
+	f, err := NewFactory(Configuration{MaxTraces: 10}, telemetry.NoopSettings(), tenancy.Options{Enabled: true})
+	require.ErrorContains(t, err, "multi-tenancy is enabled with an empty tenant list")
+	require.Nil(t, f)
+}
+
+func TestFactoryApplyTenancyAfterConstruction(t *testing.T) {
+	f, err := NewFactory(Configuration{MaxTraces: 10}, telemetry.NoopSettings(), tenancy.Options{})
+	require.NoError(t, err)
+	f.ApplyTenancy(tenancy.Options{Enabled: true, Tenants: []string{"allowed"}})
+
+	_, err = f.store.GetServices(tenancy.WithTenant(context.Background(), "outside"))
+	require.ErrorIs(t, err, errUnknownTenant)
+	_, err = f.store.GetServices(tenancy.WithTenant(context.Background(), "allowed"))
+	require.NoError(t, err)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
@@ -27,8 +28,8 @@ type Factory struct {
 	metricsFactory metrics.Factory
 }
 
-func NewFactory(cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	store, err := NewStore(cfg)
+func NewFactory(cfg Configuration, telset telemetry.Settings, tenancyOpts tenancy.Options) (*Factory, error) {
+	store, err := NewStore(cfg, tenancyOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +37,13 @@ func NewFactory(cfg Configuration, telset telemetry.Settings) (*Factory, error) 
 		store:          store,
 		metricsFactory: telset.Metrics,
 	}, nil
+}
+
+// ApplyTenancy hands the store a tenant list that became known after the
+// factory was built. Rings of tenants outside the new list are dropped. opts
+// must already have passed ValidateTenancy.
+func (f *Factory) ApplyTenancy(opts tenancy.Options) {
+	f.store.applyTenancy(opts)
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {

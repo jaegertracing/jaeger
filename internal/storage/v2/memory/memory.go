@@ -24,7 +24,10 @@ import (
 
 const errorAttribute = "error"
 
-var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+var (
+	errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
+	errUnknownTenant      = errors.New("tenant is not in the configured tenant list")
+)
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -37,32 +40,106 @@ type Store struct {
 	// In the future this can be extended to contain per-tenant configuration.
 	cfg       Configuration
 	perTenant map[string]*Tenant
+	// allowedTenants holds the configured tenant list when multi-tenancy is
+	// enabled, and is nil otherwise. A tenant outside it never gets a ring, so
+	// memory stays bounded even when no tenancy interceptor runs in front of
+	// the store. The empty tenant is always accepted: writes that reach the
+	// store without a tenant, such as those from the collector pipeline, share
+	// one ring.
+	allowedTenants map[string]struct{}
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg Configuration) (*Store, error) {
+func NewStore(cfg Configuration, tenancyOpts tenancy.Options) (*Store, error) {
 	if cfg.MaxTraces == 0 {
 		return nil, errInvalidMaxTraces
 	}
+	if err := ValidateTenancy(tenancyOpts); err != nil {
+		return nil, err
+	}
 	return &Store{
-		cfg:       cfg,
-		perTenant: make(map[string]*Tenant),
+		cfg:            cfg,
+		perTenant:      make(map[string]*Tenant),
+		allowedTenants: allowList(tenancyOpts),
 	}, nil
 }
 
-// getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
-func (st *Store) getTenant(tenantID string) *Tenant {
+// ValidateTenancy rejects an unrestricted tenant list for the memory store.
+func ValidateTenancy(opts tenancy.Options) error {
+	if opts.Enabled && len(opts.Tenants) == 0 {
+		return errors.New("multi-tenancy is enabled with an empty tenant list; the memory store allocates a trace ring per tenant and would grow without a bound; set multi_tenancy.tenants")
+	}
+	return nil
+}
+
+func allowList(opts tenancy.Options) map[string]struct{} {
+	if !opts.Enabled {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(opts.Tenants))
+	for _, tenant := range opts.Tenants {
+		allowed[tenant] = struct{}{}
+	}
+	return allowed
+}
+
+// applyTenancy replaces the tenant list of a store that is already built and
+// drops the rings of tenants outside the new list. opts must already have
+// passed ValidateTenancy.
+func (st *Store) applyTenancy(opts tenancy.Options) {
+	allowed := allowList(opts)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.allowedTenants = allowed
+	for tenantID := range st.perTenant {
+		if !st.isAllowedLocked(tenantID) {
+			delete(st.perTenant, tenantID)
+		}
+	}
+}
+
+// isAllowedLocked reports whether tenantID may have a ring. st.mu must be held.
+func (st *Store) isAllowedLocked(tenantID string) bool {
+	if st.allowedTenants == nil || tenantID == "" {
+		return true
+	}
+	_, ok := st.allowedTenants[tenantID]
+	return ok
+}
+
+// tenantFor returns the storage of the tenant in ctx, refusing a tenant that
+// is not in the configured tenant list before any ring is allocated for it.
+// perTenant only ever holds allowed tenants (rings are created under the check
+// and applyTenancy prunes the rest), so an existing ring needs no check.
+func (st *Store) tenantFor(ctx context.Context) (*Tenant, error) {
+	tenantID := tenancy.GetTenant(ctx)
 	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
 	st.mu.RUnlock()
+	if ok {
+		return tenant, nil
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.isAllowedLocked(tenantID) {
+		return nil, fmt.Errorf("%w: %q", errUnknownTenant, tenantID)
+	}
+	return st.getOrCreateLocked(tenantID), nil
+}
+
+// getTenant returns the per-tenant storage, creating it if needed, without
+// checking the tenant list. Only tests call it; the store goes through tenantFor.
+func (st *Store) getTenant(tenantID string) *Tenant {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.getOrCreateLocked(tenantID)
+}
+
+func (st *Store) getOrCreateLocked(tenantID string) *Tenant {
+	tenant, ok := st.perTenant[tenantID]
 	if !ok {
-		st.mu.Lock()
-		defer st.mu.Unlock()
-		tenant, ok = st.perTenant[tenantID]
-		if !ok {
-			tenant = newTenant(&st.cfg)
-			st.perTenant[tenantID] = tenant
-		}
+		tenant = newTenant(&st.cfg)
+		st.perTenant[tenantID] = tenant
 	}
 	return tenant
 }
@@ -71,14 +148,20 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 // The traces will not be saved as they are coming, rather they would be reshuffled.
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return err
+	}
 	m.storeTraces(resourceSpansByTraceId)
 	return nil
 }
 
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var retMe []tracestore.Operation
@@ -94,7 +177,10 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var retMe []string
@@ -139,8 +225,12 @@ func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities
 // query.Pagination.PageSize when that is positive. The chunk carries the next
 // page's token if more spans match (RFC 0014).
 func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams) iter.Seq2[tracestore.PageChunk[ptrace.Traces], error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func(tracestore.PageChunk[ptrace.Traces], error) bool) {
+		if tenantErr != nil {
+			yield(tracestore.PageChunk[ptrace.Traces]{}, tenantErr)
+			return
+		}
 		// The query service settles the order before calling a reader, but a reader reached
 		// directly must still refuse terms it cannot execute, and the settled order is the one
 		// the fingerprint and the sort must agree on.
@@ -179,8 +269,12 @@ func (st *Store) FindSpans(ctx context.Context, query tracestore.SpanQueryParams
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if tenantErr != nil {
+			yield(nil, tenantErr)
+			return
+		}
 		traceAndIds, err := m.findTraceAndIds(query)
 		if err != nil {
 			yield(nil, err)
@@ -205,8 +299,12 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 // token, at most PageSize traces, and carries the next page's token if more
 // traces match.
 func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.PageChunk[[]tracestore.FoundTraceID], error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func(tracestore.PageChunk[[]tracestore.FoundTraceID], error) bool) {
+		if tenantErr != nil {
+			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, tenantErr)
+			return
+		}
 		var chunk tracestore.PageChunk[[]tracestore.FoundTraceID]
 		fail := func(err error) {
 			yield(tracestore.PageChunk[[]tracestore.FoundTraceID]{}, err)
@@ -250,8 +348,12 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 }
 
 func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, tenantErr := st.tenantFor(ctx)
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if tenantErr != nil {
+			yield(nil, tenantErr)
+			return
+		}
 		traces := m.getTraces(traceIDs...)
 		for i := range traces {
 			trace, err := cloneTrace(traces[i])
@@ -305,7 +407,10 @@ var (
 )
 
 func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.tenantFor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return m.getDependencies(query)
 }
 

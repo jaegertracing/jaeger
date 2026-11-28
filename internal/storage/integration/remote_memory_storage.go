@@ -49,6 +49,7 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 			MaxTraces: 10000,
 		},
 		telset,
+		tenancy.Options{},
 	)
 	require.NoError(t, err)
 

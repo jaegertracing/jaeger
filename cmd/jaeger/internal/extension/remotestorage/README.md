@@ -29,6 +29,8 @@ This port is a trusted interface. It is the same gRPC server as [`jaeger-remote-
 
 The tenant header is not authentication. `multi_tenancy` identifies the tenant for the call (header default `x-tenant`). It does not authenticate the caller. A client that can reach the port and present a tenant name the server accepts is served.
 
+When `storage` names a memory backend, enabling `multi_tenancy` requires a non-empty tenant allow-list. The memory backend allocates one trace ring for each tenant and therefore cannot safely accept an unbounded tenant set.
+
 Deployments must protect the port with mTLS and network policy, so only the Jaeger processes that use the backend can open it. Set `tls` on this extension. `client_ca_file` makes the server require and verify a client certificate.
 
 grpc-go's receive limit applies to every request before decode. It is 4 MiB by default, and it is configurable on this server with `max_recv_msg_size_mib` (unset means the grpc-go default). It is the only bound applied before decode: the server's codecs (pdata for OTLP, gogo for Jaeger types) do not limit nesting depth while they decode, and the query expression depth limit is checked only after decode. The receive limit bounds payload size. It is not a substitute for mTLS or network policy.

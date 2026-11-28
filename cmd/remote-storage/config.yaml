@@ -29,6 +29,7 @@ storage:
         max_traces: 100000
 
 # Multi-tenancy configuration (optional)
+# When enabled with memory storage, a non-empty tenant list is required.
 multi_tenancy:
   enabled: false
   # header: x-tenant
