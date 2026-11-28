@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp/syntax"
 	"slices"
 	"strings"
 	"time"
@@ -27,12 +28,13 @@ var (
 
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
 // natively: the boolean combinators; eq, ne, exists, in and not_in over every level's attributes
-// and over every built-in field that the spans table stores; and the four ordered comparisons
-// on those fields, except span.kind and span.status. The declaration is coarser than the
+// and over every built-in field that the spans table stores; the four ordered comparisons
+// on those fields, except span.kind and span.status; and regex over string attributes and
+// over the fields that hold text. The declaration is coarser than the
 // lowering, as the elasticsearch backend's is: an ordered comparison on an attribute, on
 // span.kind or on span.status, and a predicate on resource.schemaURL or scope.schemaURL, which
-// have no column, are refused in the lowering, not here. regex, some and
-// the text-search operators are follow-up work; a filter naming any of them is refused rather
+// have no column, are refused in the lowering, not here. The some
+// operator and the text-search operators are follow-up work; a filter naming any of them is refused rather
 // than approximated.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
@@ -53,6 +55,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 			expression.OpLt,
 			expression.OpGte,
 			expression.OpLte,
+			expression.OpRegex,
 			expression.OpExists,
 			expression.OpIn,
 			expression.OpNotIn,
@@ -62,13 +65,15 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 
 // sqlComparisonOperators maps each comparison operator this lowering evaluates to its SQL
 // spelling. Only a built-in field takes the four ordered ones. The ne operator has no entry,
-// because its condition negates an equality.
+// because its condition negates an equality. REGEXP is the operator form of the match
+// function, which searches the value for a pattern in RE2 syntax.
 var sqlComparisonOperators = map[expression.Operator]string{
-	expression.OpEq:  "=",
-	expression.OpGt:  ">",
-	expression.OpLt:  "<",
-	expression.OpGte: ">=",
-	expression.OpLte: "<=",
+	expression.OpEq:    "=",
+	expression.OpGt:    ">",
+	expression.OpLt:    "<",
+	expression.OpGte:   ">=",
+	expression.OpLte:   "<=",
+	expression.OpRegex: "REGEXP",
 }
 
 // builtinFieldColumn is one built-in field's SQL column and the type its constant is read as.
@@ -314,6 +319,8 @@ func (q *sqlBuilder) buildFilterCondition(
 		return args, nil
 	case expression.OpEq, expression.OpNe, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
 		return q.buildComparisonCondition(indent, args, metadata, predicate)
+	case expression.OpRegex:
+		return q.buildRegexCondition(indent, args, predicate)
 	case expression.OpExists:
 		return q.buildExistsCondition(indent, args, metadata, predicate)
 	case expression.OpIn, expression.OpNotIn:
@@ -484,6 +491,12 @@ func spanKindColumnValue(word string) string {
 	return word
 }
 
+// spanKindWordSQL returns the SQL that reads the kind column as an RFC 0005 span.kind word,
+// the inverse of the spanKindColumnValue function.
+func spanKindWordSQL(column string) string {
+	return "if(" + column + " = '', 'unspecified', " + column + ")"
+}
+
 // spanStatusColumnValue maps an RFC 0005 span.status word to the value the status_code column
 // stores: ptrace.StatusCode's own Stringer, capitalized, which is what the writer records
 // (dbmodel.spanToRow's StatusCode field). span.status holds one of a closed set of words
@@ -503,6 +516,12 @@ func spanStatusColumnValue(word string) (string, error) {
 	}
 }
 
+// spanStatusWordSQL returns the SQL that reads the status_code column as an RFC 0005
+// span.status word, the inverse of the spanStatusColumnValue function.
+func spanStatusWordSQL(column string) string {
+	return "lower(" + column + ")"
+}
+
 // attributeEqCandidates returns the conditions that an equality of the attribute with
 // valueExpr is lowered to, against metadata already looked up. An explicitly typed constant
 // (StringValue, IntValue, DoubleValue, BoolValue) matches only that stored type, the same
@@ -517,13 +536,13 @@ func attributeEqCandidates(
 ) ([]attributeCandidate, error) {
 	switch v := valueExpr.(type) {
 	case *expression.StringValue:
-		return typedAttributeEqCandidates(key, levels, pcommon.ValueTypeStr, v.Value), nil
+		return typedAttributeCandidates(key, levels, pcommon.ValueTypeStr, v.Value), nil
 	case *expression.IntValue:
-		return typedAttributeEqCandidates(key, levels, pcommon.ValueTypeInt, v.Value), nil
+		return typedAttributeCandidates(key, levels, pcommon.ValueTypeInt, v.Value), nil
 	case *expression.DoubleValue:
-		return typedAttributeEqCandidates(key, levels, pcommon.ValueTypeDouble, v.Value), nil
+		return typedAttributeCandidates(key, levels, pcommon.ValueTypeDouble, v.Value), nil
 	case *expression.BoolValue:
-		return typedAttributeEqCandidates(key, levels, pcommon.ValueTypeBool, v.Value), nil
+		return typedAttributeCandidates(key, levels, pcommon.ValueTypeBool, v.Value), nil
 	case *expression.AnyValue:
 		return untypedAttributeEqCandidates(metadata, key, levels, v.Value), nil
 	default:
@@ -545,15 +564,16 @@ func attributeLevelsToSearch(level expression.Level) ([]expression.Level, error)
 	}
 }
 
-// attributeCandidate is one (level, typed value) pair an attribute equality is lowered to: one
+// attributeCandidate is one (level, typed value) pair an attribute comparison is lowered to: one
 // condition on that level's column of that type.
 type attributeCandidate struct {
 	level expression.Level
 	tav   typedAttributeValue
 }
 
-// typedAttributeEqCandidates returns an equality of one declared type at every level in levels.
-func typedAttributeEqCandidates(
+// typedAttributeCandidates returns one candidate per level in levels, each holding the value
+// under one declared type.
+func typedAttributeCandidates(
 	key string,
 	levels []expression.Level,
 	valueType pcommon.ValueType,
@@ -574,8 +594,14 @@ func typedAttributeEqCandidates(
 }
 
 // appendAttributeCandidates ORs one condition per candidate, wrapped in parentheses so the
-// disjunction survives nesting. Without a candidate the condition is false.
-func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidates []attributeCandidate) []any {
+// disjunction survives nesting. Each condition compares the attribute with the value of its
+// candidate by op. Without a candidate the condition is false.
+func (q *sqlBuilder) appendAttributeCandidates(
+	indent int,
+	args []any,
+	op expression.Operator,
+	candidates []attributeCandidate,
+) []any {
 	q.appendNewlineAndIndent(indent)
 	q.WriteString("(")
 	if len(candidates) == 0 {
@@ -587,7 +613,7 @@ func (q *sqlBuilder) appendAttributeCandidates(indent int, args []any, candidate
 			q.appendNewlineAndIndent(indent + 1)
 			q.WriteString("OR")
 		}
-		args = q.attrBuilder.appendComparison(q, indent+1, args, c.level, expression.OpEq, c.tav)
+		args = q.attrBuilder.appendComparison(q, indent+1, args, c.level, op, c.tav)
 	}
 	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")
@@ -734,7 +760,7 @@ func (q *sqlBuilder) appendNegatedAttributeCandidates(
 	args = q.appendAttributeExists(indent+1, args, metadata, key, levels)
 	q.appendNewlineAndIndent(indent + 1)
 	q.WriteString("AND NOT")
-	args = q.appendAttributeCandidates(indent+1, args, candidates)
+	args = q.appendAttributeCandidates(indent+1, args, expression.OpEq, candidates)
 	q.appendNewlineAndIndent(indent)
 	q.WriteString(")")
 	return args
@@ -771,6 +797,75 @@ func (q *sqlBuilder) buildExistsCondition(
 	default:
 		return nil, fmt.Errorf("%w: %q tests a field or attribute", tracestore.ErrFilterInvalid, predicate.Op)
 	}
+}
+
+// buildRegexCondition lowers regex, which searches a text value for a pattern. An attribute
+// matches through its string values only, because a pattern matches text.
+func (q *sqlBuilder) buildRegexCondition(indent int, args []any, predicate *expression.Call) ([]any, error) {
+	if len(predicate.Args) != 2 {
+		return nil, errArity(predicate)
+	}
+	var pattern string
+	switch patternValue := predicate.Args[1].(type) {
+	case *expression.StringValue:
+		pattern = patternValue.Value
+	case *expression.AnyValue:
+		pattern = patternValue.Value
+	default:
+		return nil, fmt.Errorf("%w: %q takes a constant string as its pattern", tracestore.ErrFilterInvalid, predicate.Op)
+	}
+	// ClickHouse reports a pattern that does not parse as a server error, so the pattern is
+	// refused here as an invalid filter.
+	patternTree, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %q takes a pattern in RE2 syntax: %w", tracestore.ErrFilterInvalid, predicate.Op, err)
+	}
+	// ClickHouse lets a dot match a newline, which RE2 and RFC 0005 §5.3 do not, so a pattern
+	// with such a dot is sent with the s flag cleared, as (?-s). Any other pattern is sent as
+	// written, because ClickHouse reads a pattern that starts with ^ and literal text as a
+	// range of the primary key, and the flag in front of it makes the search scan the table.
+	// A pattern with both, such as ^checkout-.*, pays that cost.
+	if hasDotExcludingNewline(patternTree) {
+		pattern = "(?-s)" + pattern
+	}
+	switch ref := predicate.Args[0].(type) {
+	case *expression.FieldRef:
+		mapping, err := lookupBuiltinField(*ref)
+		if err != nil {
+			return nil, err
+		}
+		switch mapping.fieldType {
+		case expression.FieldTypeString:
+		case expression.FieldTypeSpanKind:
+			mapping.column = spanKindWordSQL(mapping.column)
+		case expression.FieldTypeSpanStatus:
+			mapping.column = spanStatusWordSQL(mapping.column)
+		default:
+			return nil, fmt.Errorf("%w: %q matches text, and the built-in field %q of the %q level holds a %s",
+				tracestore.ErrFilterInvalid, predicate.Op, ref.Name, ref.Level, mapping.fieldType)
+		}
+		mapping.appendCondition(q, indent, " "+sqlComparisonOperators[expression.OpRegex]+" ?")
+		return append(args, pattern), nil
+	case *expression.AttributeRef:
+		levels, err := attributeLevelsToSearch(ref.Level)
+		if err != nil {
+			return nil, err
+		}
+		candidates := typedAttributeCandidates(ref.Key, levels, pcommon.ValueTypeStr, pattern)
+		return q.appendAttributeCandidates(indent, args, expression.OpRegex, candidates), nil
+	default:
+		return nil, fmt.Errorf("%w: %q matches a field or an attribute against a pattern",
+			tracestore.ErrFilterInvalid, predicate.Op)
+	}
+}
+
+// hasDotExcludingNewline reports whether the pattern holds a dot that RE2 does not let match
+// a newline.
+func hasDotExcludingNewline(patternTree *syntax.Regexp) bool {
+	if patternTree.Op == syntax.OpAnyCharNotNL {
+		return true
+	}
+	return slices.ContainsFunc(patternTree.Sub, hasDotExcludingNewline)
 }
 
 // buildMembershipCondition lowers the in and not_in operators. On an attribute, the in
@@ -833,7 +928,7 @@ func (q *sqlBuilder) buildAttributeMembership(
 	if isNegated {
 		return q.appendNegatedAttributeCandidates(indent, args, metadata, ref.Key, levels, candidates), nil
 	}
-	return q.appendAttributeCandidates(indent, args, candidates), nil
+	return q.appendAttributeCandidates(indent, args, expression.OpEq, candidates), nil
 }
 
 // buildFieldMembership lowers in and not_in on a built-in field onto its column, with each

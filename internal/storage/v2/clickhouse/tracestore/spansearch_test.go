@@ -263,7 +263,7 @@ func TestFindSpans_Refusals(t *testing.T) {
 			name: "unsupported filter",
 			query: func() tracestore.SpanQueryParams {
 				q := spanSearchQuery(1, "")
-				q.Filter = call(expression.OpRegex, fieldRef(expression.LevelSpan, expression.SpanFieldName), str("a.*"))
+				q.Filter = unsupportedPredicate()
 				return q
 			}(),
 			wantErr: tracestore.ErrFilterUnsupported,
