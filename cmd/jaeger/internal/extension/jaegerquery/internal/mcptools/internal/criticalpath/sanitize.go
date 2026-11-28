@@ -11,26 +11,60 @@ import (
 // An overflowing child span is one whose time range falls outside its parent span's time range.
 // The function adjusts the start time and duration of overflowing child spans
 // to ensure they fit within the time range of their parent span.
+//
+// The real observable bug this fixes is a clamping-order hazard: with spans
+// A[0..100] -> B[50..150] -> C[120..140], if C is visited before B in a single
+// random-order map pass, C passes its own bounds check (120 is inside B's
+// original range) and survives. B is then truncated to [50..100], leaving C
+// outside its parent. The BFS below eliminates that hazard by guaranteeing that
+// every parent is fully resolved before any of its children are evaluated.
+//
+// Spans in a parent cycle with no root are skipped because they have no path
+// to a root span.
 func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.SpanID]CPSpan {
-	// Get all span IDs
-	spanIDs := make([]pcommon.SpanID, 0, len(spanMap))
-	for spanID := range spanMap {
-		spanIDs = append(spanIDs, spanID)
+	// Seed the BFS queue with every root span (a span whose parent is absent
+	// from the map, including true roots with an empty ParentSpanID).
+	queue := make([]pcommon.SpanID, 0, len(spanMap))
+	for spanID, span := range spanMap {
+		_, parentInMap := spanMap[span.ParentSpanID]
+		if span.ParentSpanID.IsEmpty() || !parentInMap {
+			queue = append(queue, spanID)
+		}
 	}
 
-	for _, spanID := range spanIDs {
+	for len(queue) > 0 {
+		// Dequeue the next span to process.
+		spanID := queue[0]
+		queue = queue[1:]
+
 		span, ok := spanMap[spanID]
-		if !ok || span.ParentSpanID.IsEmpty() {
+		if !ok {
+			// Already deleted by a prior cascade step.
 			continue
 		}
 
-		// parentSpan will be undefined when its parent was dropped previously
-		parentSpan, parentExists := spanMap[span.ParentSpanID]
-		if !parentExists {
-			// Drop the child spans of dropped parent span
-			delete(spanMap, span.SpanID)
+		// Spans whose parent has been deleted (dropped orphans) are removed here.
+		// True roots have an empty ParentSpanID and are always kept.
+		if !span.ParentSpanID.IsEmpty() {
+			if _, parentExists := spanMap[span.ParentSpanID]; !parentExists {
+				// Drop this orphan and cascade deletion to all its descendants.
+				delete(spanMap, spanID)
+				queue = append(queue, span.ChildSpanIDs...)
+				continue
+			}
+		}
+
+		// Enqueue this span's children so they are processed after the parent.
+		queue = append(queue, span.ChildSpanIDs...)
+
+		// Root spans have no parent to overflow; nothing to check.
+		if span.ParentSpanID.IsEmpty() {
 			continue
 		}
+
+		// At this point the parent is guaranteed to be in spanMap and already
+		// resolved (clamped or kept) because BFS processes parents first.
+		parentSpan := spanMap[span.ParentSpanID]
 
 		childEndTime := span.StartTime + span.Duration
 		parentEndTime := parentSpan.StartTime + parentSpan.Duration
@@ -41,16 +75,9 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 				//      |----parent----|
 				//                        |----child--|
 				delete(spanMap, span.SpanID)
-
-				// Remove the childSpanId from its parent span
-				filteredChildren := make([]pcommon.SpanID, 0, len(parentSpan.ChildSpanIDs))
-				for _, childID := range parentSpan.ChildSpanIDs {
-					if childID != span.SpanID {
-						filteredChildren = append(filteredChildren, childID)
-					}
-				}
-				parentSpan.ChildSpanIDs = filteredChildren
-				spanMap[parentSpan.SpanID] = parentSpan
+				// Children of the dropped span are already enqueued; they will
+				// be caught by the orphan-detection branch above.
+				spanMap[parentSpan.SpanID] = removeChild(parentSpan, span.SpanID)
 				continue
 			}
 			if childEndTime > parentEndTime {
@@ -73,16 +100,9 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 			//                      |----parent----|
 			//       |----child--|
 			delete(spanMap, span.SpanID)
-
-			// Remove the childSpanId from its parent span
-			filteredChildren := make([]pcommon.SpanID, 0, len(parentSpan.ChildSpanIDs))
-			for _, childID := range parentSpan.ChildSpanIDs {
-				if childID != span.SpanID {
-					filteredChildren = append(filteredChildren, childID)
-				}
-			}
-			parentSpan.ChildSpanIDs = filteredChildren
-			spanMap[parentSpan.SpanID] = parentSpan
+			// Children of the dropped span are already enqueued; they will
+			// be caught by the orphan-detection branch above.
+			spanMap[parentSpan.SpanID] = removeChild(parentSpan, span.SpanID)
 		case childEndTime <= parentEndTime:
 			// child start before parent, truncate is needed
 			//      |----parent----|
@@ -101,4 +121,16 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 	}
 
 	return spanMap
+}
+
+// removeChild returns a copy of parent with childID removed from ChildSpanIDs.
+func removeChild(parent CPSpan, childID pcommon.SpanID) CPSpan {
+	filtered := make([]pcommon.SpanID, 0, len(parent.ChildSpanIDs))
+	for _, id := range parent.ChildSpanIDs {
+		if id != childID {
+			filtered = append(filtered, id)
+		}
+	}
+	parent.ChildSpanIDs = filtered
+	return parent
 }

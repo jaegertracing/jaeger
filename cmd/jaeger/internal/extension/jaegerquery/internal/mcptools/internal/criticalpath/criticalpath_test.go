@@ -350,3 +350,95 @@ func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
 	result := findLastFinishingChildSpan(spanMap, parentSpan, nil)
 	assert.Nil(t, result)
 }
+
+// TestComputeCriticalPath_GrandchildCascadeViaPublicAPI is a regression test
+// for the clamping-order bug exercised through the public
+// ComputeCriticalPathFromTraces entry point.
+//
+// Scenario (timestamps in microseconds, stored as nanoseconds in ptrace):
+//
+//	A [0..100]  root
+//	  └─ B [50..150]  overflows A, clamped to [50..100]
+//	       └─ C [120..140]  within B's original range but outside B's clamped range
+//
+// With the old single-pass code, map iteration order determined whether B was
+// clamped before C was checked. If C was visited first, B still had its
+// original end (150), so C's start (120) fell inside [50..150] and C passed.
+// B was then clamped to [50..100], leaving C (start 120) stale and outside its
+// parent. The BFS guarantees B is resolved before C is evaluated, so C is
+// always dropped because 120 >= 100 (B's clamped end).
+//
+// Expected outcome: B survives, clamped to [50..100]. C is dropped.
+// C must not appear in the critical path output.
+//
+// The test is repeated 100 times because Go randomises map iteration; a single
+// failure proves the bug.
+func TestComputeCriticalPath_GrandchildCascadeViaPublicAPI(t *testing.T) {
+	spA := pcommon.SpanID([8]byte{0xA})
+	spB := pcommon.SpanID([8]byte{0xB})
+	spC := pcommon.SpanID([8]byte{0xC})
+
+	buildTrace := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		ss := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+
+		a := ss.Spans().AppendEmpty()
+		a.SetSpanID(spA)
+		a.SetTraceID([16]byte{1})
+		a.SetStartTimestamp(pcommon.Timestamp(0 * 1000))
+		a.SetEndTimestamp(pcommon.Timestamp(100 * 1000)) // A: [0..100]
+
+		b := ss.Spans().AppendEmpty()
+		b.SetSpanID(spB)
+		b.SetParentSpanID(spA)
+		b.SetTraceID([16]byte{1})
+		b.SetStartTimestamp(pcommon.Timestamp(50 * 1000)) // B: [50..150], overlaps A
+		b.SetEndTimestamp(pcommon.Timestamp(150 * 1000))  // clamped to [50..100]
+
+		c := ss.Spans().AppendEmpty()
+		c.SetSpanID(spC)
+		c.SetParentSpanID(spB)
+		c.SetTraceID([16]byte{1})
+		c.SetStartTimestamp(pcommon.Timestamp(120 * 1000)) // C: [120..140]
+		c.SetEndTimestamp(pcommon.Timestamp(140 * 1000))   // inside B's original range, outside B's clamped range
+
+		return traces
+	}
+
+	const iterations = 100
+	for i := range iterations {
+		sections, err := ComputeCriticalPathFromTraces(buildTrace())
+		require.NoError(t, err, "iteration %d", i)
+
+		// B survives (clamped); C is dropped because its start (120) is
+		// outside B's clamped range [50..100]. C must not appear in the output.
+		for _, sec := range sections {
+			assert.NotEqual(t, spC.String(), sec.SpanID,
+				"iteration %d: C is outside B's clamped range and must not appear in critical path", i)
+		}
+
+		// A must appear in the critical path.
+		found := false
+		for _, sec := range sections {
+			if sec.SpanID == spA.String() {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "iteration %d: root A must appear in critical path", i)
+
+		// B must appear in the critical path (it survived, clamped to [50..100]).
+		foundB := false
+		for _, sec := range sections {
+			if sec.SpanID == spB.String() {
+				foundB = true
+				// B was clamped to [50..100]; no section for B may fall outside that range.
+				assert.GreaterOrEqual(t, sec.SectionStart, uint64(50),
+					"iteration %d: B section start must be >= 50", i)
+				assert.LessOrEqual(t, sec.SectionEnd, uint64(100),
+					"iteration %d: B section end must be <= 100 (B's clamped end)", i)
+			}
+		}
+		assert.True(t, foundB, "iteration %d: clamped B must appear in critical path", i)
+	}
+}
