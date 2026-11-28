@@ -79,6 +79,28 @@ func TestParseSkill(t *testing.T) {
 			wantName:    "a",
 		},
 		{
+			name:        "CRLF line endings are recognized and the body keeps its own",
+			raw:         "---\r\nname: a\r\n---\r\n# Body\r\n\r\nText.\r\n",
+			wantContent: "# Body\r\n\r\nText.\r\n",
+			wantName:    "a",
+		},
+		{
+			name:        "a longer dash line is not a closing delimiter",
+			raw:         "---\nname: a\n----\n# Body",
+			wantContent: "---\nname: a\n----\n# Body",
+		},
+		{
+			name:        "closing delimiter at the end of the file without a newline",
+			raw:         "---\nname: a\n---",
+			wantContent: "",
+			wantName:    "a",
+		},
+		{
+			name:        "unterminated block without a trailing newline is returned whole",
+			raw:         "---\nname: a",
+			wantContent: "---\nname: a",
+		},
+		{
 			name:        "delimiter not at start is returned whole",
 			raw:         "# Body\n---\nname: a\n---\n",
 			wantContent: "# Body\n---\nname: a\n---\n",
@@ -99,4 +121,16 @@ func TestParseSkill_MalformedYAML(t *testing.T) {
 	_, err := ParseSkill("---\nname: [unclosed\n---\n# Body")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid front matter")
+}
+
+// A line that only starts with the delimiter belongs to the front matter block, so the
+// block is parsed up to the next whole delimiter line.
+func TestParseSkill_DelimiterPrefixStaysInBlock(t *testing.T) {
+	_, err := ParseSkill("---\nname: a\n---not-a-delimiter\n---\n# Body")
+	require.ErrorContains(t, err, "invalid front matter")
+
+	skill, err := ParseSkill("---\nname: a\n# ---not-a-delimiter\n---\n# Body")
+	require.NoError(t, err)
+	assert.Equal(t, "a", skill.FrontMatter.Name)
+	assert.Equal(t, "# Body", skill.Content)
 }

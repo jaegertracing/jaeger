@@ -244,3 +244,16 @@ func TestReadSkillHandler_UnparsableFrontMatterIsServedWhole(t *testing.T) {
 		})
 	}
 }
+
+func TestReadSkillHandler_StripsCRLFFrontMatter(t *testing.T) {
+	h := &readSkillHandler{
+		builtins: fstest.MapFS{
+			"skill-e/SKILL.md": &fstest.MapFile{Data: []byte("---\r\nname: skill-e\r\nlicense: Apache-2.0\r\n---\r\n\r\n# Skill E\r\n")},
+		},
+		maxFileSize: 1024,
+	}
+
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-e/SKILL.md"})
+	require.NoError(t, err)
+	assert.Equal(t, "# Skill E\r\n", output.Instructions)
+}

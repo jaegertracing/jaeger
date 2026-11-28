@@ -40,24 +40,43 @@ type Skill struct {
 }
 
 // ParseSkill splits a skill file into its front matter attributes and its body.
-// A file with no leading block, or with one that is never closed, is returned
+// A delimiter is a whole line holding only "---", with either line ending. A file
+// with no leading delimiter line, or with a block that is never closed, is returned
 // whole as Content. Malformed YAML inside a closed block is an error.
 func ParseSkill(raw string) (Skill, error) {
-	if !strings.HasPrefix(raw, frontMatterDelimiter+"\n") {
+	open := delimiterLineEnd(raw)
+	if open < 0 {
 		return Skill{Content: raw}, nil
 	}
-	rest := raw[len(frontMatterDelimiter)+1:]
-	end := strings.Index(rest, "\n"+frontMatterDelimiter)
-	if end < 0 {
-		return Skill{Content: raw}, nil
+	for pos := open; pos < len(raw); {
+		if end := delimiterLineEnd(raw[pos:]); end >= 0 {
+			var fm SkillFrontMatter
+			if err := yaml.Unmarshal([]byte(raw[open:pos]), &fm); err != nil {
+				return Skill{}, fmt.Errorf("invalid front matter: %w", err)
+			}
+			return Skill{
+				FrontMatter: fm,
+				Content:     strings.TrimLeft(raw[pos+end:], "\r\n"),
+			}, nil
+		}
+		next := strings.IndexByte(raw[pos:], '\n')
+		if next < 0 {
+			break
+		}
+		pos += next + 1
 	}
+	return Skill{Content: raw}, nil
+}
 
-	var fm SkillFrontMatter
-	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return Skill{}, fmt.Errorf("invalid front matter: %w", err)
+// delimiterLineEnd returns the offset just past the first line of s when that
+// line is a front matter delimiter, and -1 otherwise.
+func delimiterLineEnd(s string) int {
+	line, _, hasNewline := strings.Cut(s, "\n")
+	if strings.TrimSuffix(line, "\r") != frontMatterDelimiter {
+		return -1
 	}
-	return Skill{
-		FrontMatter: fm,
-		Content:     strings.TrimLeft(rest[end+len(frontMatterDelimiter)+1:], "\n"),
-	}, nil
+	if hasNewline {
+		return len(line) + 1
+	}
+	return len(line)
 }
