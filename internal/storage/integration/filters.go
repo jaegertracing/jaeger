@@ -199,6 +199,25 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
+			// cart_post records a retry two milliseconds into the span and an exception one
+			// second in. Each condition holds for one of the two events, so a backend that
+			// tested the conditions on different events would answer with cart_post.
+			caption: "two conditions quantified over the span's events that no single event meets",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Eq("exception"),
+				p.Event().TimeSinceStart.Lt(500*time.Millisecond),
+			)),
+			expected: nil,
+		},
+		{
+			caption: "two conditions quantified over the span's events that one event meets",
+			filter: p.Some(p.Event(), p.And(
+				p.Event().Name.Eq("retry"),
+				p.Event().TimeSinceStart.Lt(500*time.Millisecond),
+			)),
+			expected: []string{"cart_post"},
+		},
+		{
 			caption:  "an exact duration",
 			filter:   p.Span().Duration.Eq(40 * time.Millisecond),
 			expected: []string{"checkout"},

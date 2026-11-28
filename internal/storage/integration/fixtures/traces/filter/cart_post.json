@@ -43,6 +43,10 @@
               ],
               "events": [
                 {
+                  "timeUnixNano": "1485449191641875000",
+                  "name": "retry"
+                },
+                {
                   "timeUnixNano": "1485449192639875000",
                   "name": "exception",
                   "attributes": [

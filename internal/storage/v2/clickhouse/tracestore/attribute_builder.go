@@ -96,7 +96,8 @@ func newAttributeBuilder(layout AttributeLayout, columns []HoistedColumn) attrib
 // attribute, and the same key at another level or type, is searched in the typed groups by
 // the condition of the layout. The condition is a whole one for every level, because an
 // event or a link attribute has one value per event or link and can be compared only
-// inside a lambda.
+// inside a lambda. For the level that a some operator has bound, the condition reads the
+// event or the link of the enclosing lambda.
 func (b attributeBuilder) appendComparison(
 	q *sqlBuilder,
 	indent int,
@@ -137,7 +138,7 @@ func (b attributeBuilder) appendExists(
 	forms []storedKeyForm,
 ) []any {
 	q.appendNewlineAndIndent(indent)
-	arrayColumn := AttributeGroup{Level: level}.arrayColumn()
+	arrayColumn := q.arrayColumnToSearch(level)
 	if arrayColumn == "" {
 		q.WriteString("(")
 	} else {
