@@ -89,6 +89,7 @@ A bound is an RFC 3339 instant, `'2026-10-23T12:00:00Z'`, or `now()` with a dura
 | `x LIKE 'GET %'`, `x LIKE '%.json'` | `regex` | `%` and `_` match any characters, a newline included; a backslash escapes the character after it, so `\%` is the percent sign; the pattern is anchored at both ends |
 | `x ILIKE 'get %'` | `regex` | as `LIKE`, with `(?i)` |
 | `x LIKE 'text'` | `eq` | a pattern without a wildcard is an equality |
+| `x NOT LIKE 'GET %'`, `x NOT ILIKE 'get %'` | `and(exists, not(regex))`; `ne` without a wildcard | on an attribute, or on a column that can have no value (see the column tables), holds only where `x` has a value, as `NOT IN` does; on a column every span has, `not` of the `LIKE`. `NOT (x LIKE ...)` is a boolean `not` and still matches a span where `x` has no value |
 | `x IS NOT NULL`, `x IS NULL` | `exists`, `not(exists)` | on an attribute, or on a column that can have no value (see the column tables), so `parent_span_id IS NULL` selects root spans; a column every span has is refused |
 | `between(x, a, b)`, `x BETWEEN a AND b` | `and(gte, lte)` | inclusive at both ends; the function form has no `AND` of its own, so it reads better beside other conjuncts. `x NOT BETWEEN a AND b` is the complement, `or(lt, gt)`, so a value the range cannot compare, such as an absent attribute, does not match; a prefix `NOT between(...)` is a boolean `not` |
 | `phrase(x, 'word word')`, `fulltext(x, 'word word')` | `phrase`, `fulltext` | on attributes; the words of every quoted argument are split on whitespace |
