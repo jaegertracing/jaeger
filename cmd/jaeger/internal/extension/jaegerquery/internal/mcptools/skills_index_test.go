@@ -4,13 +4,17 @@
 package mcptools
 
 import (
+	"context"
 	"io/fs"
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v3"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
 )
 
 // The root index and each skill's frontmatter both carry that skill's
@@ -18,12 +22,6 @@ import (
 // readers see them: an agent matches the index line before deciding whether
 // to open a skill, while clients following the agentskills.io specification
 // or the Open Knowledge Format read the frontmatter block.
-
-type skillFrontmatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-}
-
 func TestBuiltinSkillIndexMatchesFrontmatter(t *testing.T) {
 	index, err := skillsEmbedFS.ReadFile("skills/SKILL.md")
 	require.NoError(t, err, "the built-in skills always embed a root index")
@@ -53,26 +51,43 @@ func TestBuiltinSkillIndexMatchesFrontmatter(t *testing.T) {
 		raw, err := skillsEmbedFS.ReadFile("skills/" + link)
 		require.NoError(t, err, "read %s", link)
 
-		var fm skillFrontmatter
-		require.NoError(t, yaml.Unmarshal(skillFrontmatterOf(t, raw), &fm),
-			"parse frontmatter of %s", link)
+		skill, err := types.ParseSkill(string(raw))
+		require.NoError(t, err, "parse frontmatter of %s", link)
+		require.NotEmpty(t, skill.FrontMatter.Name,
+			"skill file %s does not open with YAML frontmatter", link)
 
-		assert.Equal(t, want, normalizeSpace(fm.Description),
+		assert.Equal(t, want, normalizeSpace(skill.FrontMatter.Description),
 			"frontmatter description of %s does not match its index line in skills/SKILL.md", link)
 	}
 }
 
-// skillFrontmatterOf returns the YAML frontmatter block of a skill file, or
-// fails the test if the file does not open with one.
-func skillFrontmatterOf(t *testing.T, content []byte) []byte {
-	t.Helper()
-	text := string(content)
-	require.True(t, strings.HasPrefix(text, "---\n"),
-		"skill file does not open with YAML frontmatter")
-	rest := text[len("---\n"):]
-	end := strings.Index(rest, "\n---")
-	require.GreaterOrEqual(t, end, 0, "skill file frontmatter is not terminated")
-	return []byte(rest[:end])
+// read_skill serves the body of a skill, not the attributes its front matter
+// declares, so none of the built-in skills may reach an agent with them.
+func TestReadSkillServesBuiltinsWithoutFrontmatter(t *testing.T) {
+	skills, err := fs.Sub(skillsEmbedFS, "skills")
+	require.NoError(t, err)
+	read := handlers.NewReadSkillHandler(skills, nil, DefaultServerParams().MaxReadFileSize)
+
+	served := 0
+	err = fs.WalkDir(skills, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != entryPointSkill {
+			return err
+		}
+		served++
+		raw, err := fs.ReadFile(skills, path)
+		require.NoError(t, err)
+		want, err := types.ParseSkill(string(raw))
+		require.NoError(t, err, path)
+		require.NotEqual(t, want.Content, string(raw), "%s has no front matter to strip", path)
+
+		_, out, err := read(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: path})
+		require.NoError(t, err, path)
+		assert.Equal(t, want.Content, out.Instructions, path)
+		assert.False(t, strings.HasPrefix(out.Instructions, "---"), path)
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Positive(t, served)
 }
 
 // parseSkillsIndex returns the description of each entry in the root catalog,

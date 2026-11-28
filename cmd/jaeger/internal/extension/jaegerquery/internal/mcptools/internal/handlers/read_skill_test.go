@@ -192,3 +192,55 @@ func TestReadSkillHandler_TruncationBacksOffToRuneBoundary(t *testing.T) {
 	assert.Equal(t, "caf", out.Instructions[:idx])
 	assert.Contains(t, out.Instructions, "truncated after 3 bytes")
 }
+
+func TestReadSkillHandler_StripsFrontMatter(t *testing.T) {
+	const withFrontMatter = `---
+name: skill-c
+description: does a thing
+license: Apache-2.0
+allowed-tools: get_services
+---
+
+# Skill C
+
+Procedure goes here.`
+
+	h := &readSkillHandler{
+		builtins: fstest.MapFS{
+			"skill-c/SKILL.md": &fstest.MapFile{Data: []byte(withFrontMatter)},
+		},
+		maxFileSize: 1024,
+	}
+
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-c/SKILL.md"})
+	require.NoError(t, err)
+	assert.Equal(t, "# Skill C\n\nProcedure goes here.", output.Instructions)
+	assert.NotContains(t, output.Instructions, "license")
+	assert.NotContains(t, output.Instructions, "allowed-tools")
+}
+
+// A custom skill whose front matter does not fit the declared attributes must stay readable.
+func TestReadSkillHandler_UnparsableFrontMatterIsServedWhole(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "malformed YAML", raw: "---\nname: [unclosed\n---\n# Skill D"},
+		{name: "allowed-tools as a list", raw: "---\nname: skill-d\nallowed-tools: [Read, Grep]\n---\n# Skill D"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &readSkillHandler{
+				builtins: fstest.MapFS{
+					"skill-d/SKILL.md": &fstest.MapFile{Data: []byte(tt.raw)},
+				},
+				maxFileSize: 1024,
+			}
+
+			_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-d/SKILL.md"})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.raw, output.Instructions)
+		})
+	}
+}
