@@ -25,11 +25,13 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -41,7 +43,8 @@ func setupHTTPGatewayNoServer(
 	basePath string,
 ) *testGateway {
 	gw := &testGateway{
-		reader: &tracestoremocks.Reader{},
+		reader:     &tracestoremocks.Reader{},
+		depsReader: &dependencystoremocks.Reader{},
 	}
 	// The mock reader models a backend without native trace summaries: FindTraceSummaries
 	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
@@ -55,7 +58,7 @@ func setupHTTPGatewayNoServer(
 		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	q := querysvc.NewQueryService(
 		gw.reader,
-		&dependencystoremocks.Reader{},
+		gw.depsReader,
 		querysvc.QueryServiceOptions{},
 	)
 
@@ -441,6 +444,148 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
+			assert.Contains(t, w.Body.String(), tc.expectedError)
+		})
+	}
+}
+
+func TestHTTPGatewayGetDependencies(t *testing.T) {
+	startTime := time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(24 * time.Hour)
+	testCases := []struct {
+		name         string
+		deps         []model.DependencyLink
+		expectedJSON string
+		expected     *api_v3.DependenciesResponse
+	}{
+		{
+			name: "with data",
+			deps: []model.DependencyLink{
+				{Parent: "frontend", Child: "backend", CallCount: 100, Source: "traces"},
+			},
+			expectedJSON: `{"dependencies":[{"parent":"frontend","child":"backend","callCount":"100"}]}`,
+			expected: &api_v3.DependenciesResponse{
+				Dependencies: []*api_v3.Dependency{{Parent: "frontend", Child: "backend", CallCount: 100}},
+			},
+		},
+		{
+			name:         "empty",
+			deps:         []model.DependencyLink{},
+			expectedJSON: `{"dependencies":[]}`,
+			expected:     &api_v3.DependenciesResponse{Dependencies: []*api_v3.Dependency{}},
+		},
+		{
+			name:         "nil from storage",
+			deps:         nil,
+			expectedJSON: `{"dependencies":[]}`,
+			expected:     &api_v3.DependenciesResponse{Dependencies: []*api_v3.Dependency{}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.depsReader.
+				On("GetDependencies", matchContext, depstore.QueryParameters{StartTime: startTime, EndTime: endTime}).
+				Return(tc.deps, nil).Once()
+
+			r, err := http.NewRequest(http.MethodGet,
+				"/api/v3/dependencies?startTime=2026-10-26T00:00:00Z&endTime=2026-10-27T00:00:00Z", http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			require.Equal(t, http.StatusOK, w.Code)
+			assert.JSONEq(t, tc.expectedJSON, w.Body.String())
+
+			var response api_v3.DependenciesResponse
+			require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+			assert.Equal(t, tc.expected, &response)
+		})
+	}
+}
+
+func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
+	const (
+		validStart = "2026-10-26T00:00:00Z"
+		validEnd   = "2026-10-27T00:00:00Z"
+	)
+	testCases := []struct {
+		name           string
+		requestUrl     string
+		readerErr      error
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:           "no parameters",
+			requestUrl:     "/api/v3/dependencies",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter startTime is required",
+		},
+		{
+			name:           "missing endTime",
+			requestUrl:     "/api/v3/dependencies?startTime=" + validStart,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter endTime is required",
+		},
+		{
+			name:           "empty startTime",
+			requestUrl:     "/api/v3/dependencies?startTime=&endTime=" + validEnd,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter startTime is required",
+		},
+		{
+			name:           "deprecated snake_case names are not accepted",
+			requestUrl:     "/api/v3/dependencies?start_time=" + validStart + "&end_time=" + validEnd,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter startTime is required",
+		},
+		{
+			name:           "malformed startTime",
+			requestUrl:     "/api/v3/dependencies?startTime=abc&endTime=" + validEnd,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "malformed parameter startTime",
+		},
+		{
+			name:           "malformed endTime",
+			requestUrl:     "/api/v3/dependencies?startTime=" + validStart + "&endTime=xyz",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "malformed parameter endTime",
+		},
+		{
+			name:           "endTime equal to startTime",
+			requestUrl:     "/api/v3/dependencies?startTime=" + validStart + "&endTime=" + validStart,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter endTime must be after startTime",
+		},
+		{
+			name:           "endTime before startTime",
+			requestUrl:     "/api/v3/dependencies?startTime=" + validEnd + "&endTime=" + validStart,
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "parameter endTime must be after startTime",
+		},
+		{
+			name:           "storage error",
+			requestUrl:     "/api/v3/dependencies?startTime=" + validStart + "&endTime=" + validEnd,
+			readerErr:      assert.AnError,
+			expectedStatus: http.StatusInternalServerError,
+			expectedError:  assert.AnError.Error(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			if tc.readerErr != nil {
+				gw.depsReader.On("GetDependencies", matchContext, mock.Anything).
+					Return(nil, tc.readerErr).Once()
+			}
+
+			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, tc.expectedStatus, w.Code)
 			assert.Contains(t, w.Body.String(), tc.expectedError)
 		})
 	}
