@@ -338,6 +338,26 @@ type Authentication struct {
 	configauth.Config   `mapstructure:",squash"`
 }
 
+// ValidateSingleMethod returns an error if more than one of basic, bearer_token
+// and api_key is configured. All three set the Authorization header, so
+// configuring more than one sends several of them, which ES/OS reject.
+func (a *Authentication) ValidateSingleMethod() error {
+	var authCount int
+	if a.BasicAuthentication.HasValue() {
+		authCount++
+	}
+	if a.BearerTokenAuth.HasValue() {
+		authCount++
+	}
+	if a.APIKeyAuth.HasValue() {
+		authCount++
+	}
+	if authCount > 1 {
+		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
+	}
+	return nil
+}
+
 type BasicAuthentication struct {
 	// Username contains the username required to connect to Elasticsearch.
 	Username string `mapstructure:"username"`
@@ -415,19 +435,8 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf("unsupported version %d: set 0 to auto-detect, or use 7/8/9 (Elasticsearch) or 101/102/103 (OpenSearch 1/2/3)", c.Version)
 	}
 
-	// Ensure at most one auth method is configured (they all set the Authorization header).
-	var authCount int
-	if c.Authentication.BasicAuthentication.HasValue() {
-		authCount++
-	}
-	if c.Authentication.BearerTokenAuth.HasValue() {
-		authCount++
-	}
-	if c.Authentication.APIKeyAuth.HasValue() {
-		authCount++
-	}
-	if authCount > 1 {
-		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
+	if err := c.Authentication.ValidateSingleMethod(); err != nil {
+		return err
 	}
 
 	// Reject options orphaned when the olivere client stack was retired (#8982):

@@ -10,12 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -88,4 +90,41 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			assert.Equal(t, test.wantAuth, gotAuth)
 		})
 	}
+}
+
+func TestNewESClient_RejectsMultipleAuthMethods(t *testing.T) {
+	tests := map[string][]string{
+		"basic and bearer":   {"--es.username=u", "--es.password=p", "--es.token-file=/token"},
+		"bearer and api key": {"--es.token-file=/token", "--es.api-key-file=/apikey"},
+		"all three":          {"--es.username=u", "--es.password=p", "--es.token-file=/token", "--es.api-key-file=/apikey"},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("no request should be sent for an invalid config")
+			}))
+			defer server.Close()
+
+			cfg := &Config{}
+			v, command := config.Viperize(cfg.AddFlags)
+			require.NoError(t, command.ParseFlags(args))
+			require.NoError(t, cfg.InitFromViper(v))
+
+			_, err := NewESClient(context.Background(), server.URL, cfg, zap.NewNop())
+			require.ErrorContains(t, err, "only one of --es.username/--es.password, --es.token-file or --es.api-key-file may be set")
+		})
+	}
+}
+
+func TestNewESClient_AcceptsUnspecifiedAddress(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"version":{"number":"8.0.0"},"tagline":"You Know, for Search"}`))
+	}))
+	defer server.Close()
+
+	// The ES/OS integration tests run the CLI against http://0.0.0.0:9200.
+	endpoint := strings.Replace(server.URL, "127.0.0.1", "0.0.0.0", 1)
+	require.Contains(t, endpoint, "0.0.0.0")
+	_, err := NewESClient(context.Background(), endpoint, &Config{}, zap.NewNop())
+	require.NoError(t, err)
 }

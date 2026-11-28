@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -16,8 +17,8 @@ import (
 
 // NewESClient builds an Elasticsearch/OpenSearch admin client from the CLI
 // config, threading auth (basic/bearer/API key) and TLS through the shared
-// transport stack. Auth methods are assumed mutually exclusive; InitFromViper
-// rejects ambiguous combinations.
+// transport stack. Only the shared auth rule is checked: the full Validate also
+// checks the server URL and would reject endpoints such as http://0.0.0.0:9200.
 func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
 	esCfg := &escfg.Configuration{
 		Servers:      []string{endpoint},
@@ -41,6 +42,9 @@ func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 		esCfg.Authentication.APIKeyAuth = configoptional.Some(escfg.TokenAuthentication{
 			FilePath: cfg.APIKeyFilePath,
 		})
+	}
+	if err := esCfg.Authentication.ValidateSingleMethod(); err != nil {
+		return nil, fmt.Errorf("only one of --es.username/--es.password, --es.token-file or --es.api-key-file may be set: %w", err)
 	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

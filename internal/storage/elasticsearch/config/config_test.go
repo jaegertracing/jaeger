@@ -433,6 +433,35 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestAuthenticationValidateSingleMethod(t *testing.T) {
+	basic := configoptional.Some(BasicAuthentication{Username: "user", Password: "pass"})
+	token := configoptional.Some(TokenAuthentication{FilePath: "/tmp/token"})
+	tests := []struct {
+		name    string
+		auth    Authentication
+		wantErr bool
+	}{
+		{name: "none", auth: Authentication{}},
+		{name: "basic only", auth: Authentication{BasicAuthentication: basic}},
+		{name: "bearer_token only", auth: Authentication{BearerTokenAuth: token}},
+		{name: "api_key only", auth: Authentication{APIKeyAuth: token}},
+		{name: "basic and bearer_token", auth: Authentication{BasicAuthentication: basic, BearerTokenAuth: token}, wantErr: true},
+		{name: "basic and api_key", auth: Authentication{BasicAuthentication: basic, APIKeyAuth: token}, wantErr: true},
+		{name: "bearer_token and api_key", auth: Authentication{BearerTokenAuth: token, APIKeyAuth: token}, wantErr: true},
+		{name: "all three", auth: Authentication{BasicAuthentication: basic, BearerTokenAuth: token, APIKeyAuth: token}, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.auth.ValidateSingleMethod()
+			if test.wantErr {
+				require.ErrorContains(t, err, "at most one authentication method")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestEffectiveWriteMode(t *testing.T) {
 	assert.Equal(t, WriteModeAsync, (&Configuration{}).EffectiveWriteMode(), "unset defaults to async")
 	assert.Equal(t, WriteModeAsync, (&Configuration{WriteMode: WriteModeAsync}).EffectiveWriteMode())

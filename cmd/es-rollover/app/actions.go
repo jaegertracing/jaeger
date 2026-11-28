@@ -43,6 +43,12 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
+	// esclient.NewClient does not validate its input. Only the auth rule applies
+	// here: the full Validate also checks the server URL and would reject
+	// endpoints such as http://0.0.0.0:9200.
+	if err := esCfg.Authentication.ValidateSingleMethod(); err != nil {
+		return nil, fmt.Errorf("only one of --es.username/--es.password, --es.token-file or --es.api-key-file may be set: %w", err)
+	}
 	// NewClient resolves the backend version at construction.
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
