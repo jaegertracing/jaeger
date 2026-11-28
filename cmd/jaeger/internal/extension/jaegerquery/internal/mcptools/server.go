@@ -82,6 +82,21 @@ func newServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, param
 	return server
 }
 
+// registeredToolNames lists every tool registerTools adds. The metrics middleware
+// uses it so that a tool name invented by a client does not become a label value.
+var registeredToolNames = []string{
+	"get_services",
+	"get_span_names",
+	"find_traces",
+	"get_span_details",
+	findSpansToolName,
+	"get_trace_errors",
+	"get_trace_topology",
+	"get_critical_path",
+	"get_service_dependencies",
+	"read_skill",
+}
+
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
 // wiring each handler to the supplied QueryService. params supplies the per-tool
 // limits (search results, span details, read-file size).

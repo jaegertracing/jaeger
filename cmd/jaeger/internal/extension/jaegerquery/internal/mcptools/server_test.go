@@ -14,11 +14,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // TestNewServerDegradesWithoutMetrics covers the branch where the metrics
@@ -64,7 +66,9 @@ func TestRegisterTools(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, listed.Tools)
 
+	names := make([]string, 0, len(listed.Tools))
 	for _, tool := range listed.Tools {
+		names = append(names, tool.Name)
 		assert.Regexp(t, toolNamePattern, tool.Name)
 		assert.NotEmpty(t, tool.Description, tool.Name)
 		assert.NotNil(t, tool.InputSchema, tool.Name)
@@ -73,6 +77,46 @@ func TestRegisterTools(t *testing.T) {
 		require.NotNil(t, tool.Annotations.OpenWorldHint, tool.Name)
 		assert.False(t, *tool.Annotations.OpenWorldHint, tool.Name)
 	}
+	assert.ElementsMatch(t, registeredToolNames, names)
+}
+
+// TestMetricsUnknownToolName calls tools the server does not have, through the
+// real middleware chain, and checks that their names do not become label values.
+func TestMetricsUnknownToolName(t *testing.T) {
+	capture := newMetricsCapture(t)
+	telset := telemetry.NoopSettings()
+	telset.MeterProvider = capture.provider
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	server := newServer(telset, svc, DefaultServerParams())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	defer serverSession.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	defer clientSession.Close()
+
+	for _, name := range []string{"nope_1", "nope_2"} {
+		_, callErr := clientSession.CallTool(ctx, &mcp.CallToolParams{Name: name})
+		require.ErrorContains(t, callErr, "unknown tool")
+	}
+
+	toolKey := otelsemconv.GenAIToolName("").Key
+	var toolNames []string
+	calls := findMetricDataPoint[metricdata.Sum[int64]](t, capture.collect(t), "jaeger.mcp.tool.calls")
+	for _, dp := range calls.DataPoints {
+		if v, ok := dp.Attributes.Value(toolKey); ok {
+			toolNames = append(toolNames, v.AsString())
+			assert.Equal(t, int64(2), dp.Value)
+		}
+	}
+	assert.Equal(t, []string{metricToolNameOther}, toolNames)
 }
 
 // TestBuiltinSkillsCatalog checks that every skill the root catalog links to is in the
