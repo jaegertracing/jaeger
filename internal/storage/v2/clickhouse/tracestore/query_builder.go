@@ -206,10 +206,10 @@ func (r *Reader) buildFindTraceIDsQuery(
 }
 
 // appendFilter lowers a structured filter as one more AND clause of a WHERE that already has a
-// predicate. The untyped attribute metadata for the whole tree is looked up once here, and the
+// predicate. The attribute metadata for the whole tree is looked up once here, and the
 // lowering reads it from that map.
 func (r *Reader) appendFilter(ctx context.Context, q *sqlBuilder, args []any, filter *expression.Call) ([]any, error) {
-	metadata, err := r.lookupUntypedMetadata(ctx, filter)
+	metadata, err := r.lookupFilterAttributeMetadata(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

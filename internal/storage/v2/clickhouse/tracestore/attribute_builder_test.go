@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -29,6 +30,21 @@ var testHoistedColumns = []HoistedColumn{
 		Level: expression.LevelResource,
 		Key:   "shard",
 		Type:  pcommon.ValueTypeInt,
+	},
+}
+
+// testLayouts lists every attribute layout, for a test that snapshots one file per layout.
+var testLayouts = []struct {
+	name   string
+	layout AttributeLayout
+}{
+	{
+		name:   "nested layout",
+		layout: NestedLayout{},
+	},
+	{
+		name:   "map layout",
+		layout: MapLayout{},
 	},
 }
 
@@ -71,8 +87,8 @@ func newNestedSQLBuilder() sqlBuilder {
 
 // TestAttributeBuilder_AppendComparison snapshots, in one file per layout, the condition for
 // every level and comparison below. The span attribute "model" of type string and the
-// resource attribute "shard" of type int are hoisted. Each condition is followed by the
-// values that it binds.
+// resource attribute "shard" of type int are hoisted. Each condition follows the values that
+// it binds.
 func TestAttributeBuilder_AppendComparison(t *testing.T) {
 	levels := []expression.Level{
 		expression.LevelSpan,
@@ -134,34 +150,49 @@ func TestAttributeBuilder_AppendComparison(t *testing.T) {
 			},
 		},
 	}
-	layouts := []struct {
-		name   string
-		layout AttributeLayout
-	}{
-		{
-			name:   "nested layout",
-			layout: NestedLayout{},
-		},
-		{
-			name:   "map layout",
-			layout: MapLayout{},
-		},
-	}
-	for _, tt := range layouts {
+	for _, tt := range testLayouts {
 		t.Run(tt.name, func(t *testing.T) {
 			builder := newAttributeBuilder(tt.layout, testHoistedColumns)
-			var q sqlBuilder
+			var snapshot strings.Builder
 			for _, level := range levels {
 				for _, c := range comparisons {
-					fmt.Fprintf(&q, "\n-- %s attribute %q of type %s", level, c.tav.key, c.tav.valueType)
+					fmt.Fprintf(&snapshot, "\n-- %s attribute %q of type %s", level, c.tav.key, c.tav.valueType)
 					if c.hoistedColumn != "" && c.hoistedLevel == level {
-						fmt.Fprintf(&q, ", hoisted into the column %q", c.hoistedColumn)
+						fmt.Fprintf(&snapshot, ", hoisted into the column %q", c.hoistedColumn)
 					}
+					var q sqlBuilder
 					args := builder.appendComparison(&q, 0, nil, level, c.op, c.tav)
-					fmt.Fprintf(&q, " -- binds %v", args)
+					fmt.Fprintf(&snapshot, "\n-- binds %v%s", args, q.String())
 				}
 			}
-			clickhousetest.VerifyQuerySnapshot(t, q.String())
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+// TestAttributeBuilder_AppendExists snapshots, in one file per layout, the condition that an
+// attribute is stored at a level in one form, for each level and each form. Each condition
+// follows the values that it binds.
+func TestAttributeBuilder_AppendExists(t *testing.T) {
+	levels := []expression.Level{
+		expression.LevelSpan,
+		expression.LevelResource,
+		expression.LevelScope,
+		expression.LevelEvent,
+		expression.LevelLink,
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := newAttributeBuilder(tt.layout, testHoistedColumns)
+			var snapshot strings.Builder
+			for _, level := range levels {
+				for _, form := range storedKeyForms {
+					var q sqlBuilder
+					args := builder.appendExists(&q, 0, nil, level, "model", []storedKeyForm{form})
+					fmt.Fprintf(&snapshot, "\n-- %s attribute %q of type %s\n-- binds %v%s", level, "model", form.valueType, args, q.String())
+				}
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
 		})
 	}
 }

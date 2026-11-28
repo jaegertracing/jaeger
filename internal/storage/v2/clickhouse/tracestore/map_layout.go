@@ -68,6 +68,11 @@ func (MapLayout) appendComparison(q *sqlBuilder, args []any, level expression.Le
 	return append(args, tav.key, tav.key, tav.value)
 }
 
+func (MapLayout) appendHasKey(q *sqlBuilder, args []any, group AttributeGroup, key string) []any {
+	q.WriteString("mapContains(" + group.operandSQL() + ", ?)")
+	return append(args, key)
+}
+
 func (MapLayout) bindAttributes(values []any, attributes dbmodel.Attributes) []any {
 	return append(values,
 		orderedMap[bool]{keys: attributes.BoolKeys, values: attributes.BoolValues},
