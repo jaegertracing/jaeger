@@ -1,9 +1,9 @@
 # RFC 0020: Badger Span Kind Index
 
-- **Status:** Draft
+- **Status:** Implemented in [#9972](https://github.com/jaegertracing/jaeger/pull/9972)
 - **Author:** Atip Kajitamkul
 - **Created:** 2026-04-18
-- **Last Updated:** 2026-10-28
+- **Last Updated:** 2026-10-30
 - **Related:** [#1922 Query service to support spanKind when retrieve operations](https://github.com/jaegertracing/jaeger/issues/1922) [#6376](https://github.com/jaegertracing/jaeger/pull/6376) [ADR-005 (Badger storage's record layouts)](../adr/005-badger-storage-record-layouts.md)
 
 ---
@@ -153,13 +153,26 @@ The following figures use runs 2–3. The first run with `ValueCopy` was treated
 | Operation prefill, average per generated service | ~499 ms | ~525 ms | +~26 ms (~5%) |
 | Total prefill per pass | ~4.88 s | ~4.97 s | +~90 ms (~2%) |
 
-The test did not measure copying and allocation costs separately. The factory also created two readers with prefill enabled, so the totals above describe one prefill pass rather than the full startup.
+The test did not measure copying and allocation costs separately. At the time of the measurement, the factory created two readers with prefill enabled, so the totals described one prefill pass rather than the full startup. The current factory retains one prefilled reader.
 
 These percentages apply to this dataset and these runs. They do not show that the overhead would stay at 5% on larger databases. `preloadOperations` seeks to a service prefix and scans every matching record. As the dataset grows, the cost can change with the amount of cached data, disk access, and garbage collection.
 
 The test used a dummy byte rather than the proposed kind-set encoding, and the number of distinct kinds in the generated data was not checked. Further measurements should cover decoding the set, cache memory use with realistic operation names and kinds, and the additional transaction reads and retries when writing spans.
 
 The results were [shared in the design discussion on 2026-04-30](https://github.com/jaegertracing/jaeger/pull/8402#discussion_r3169432632).
+
+### Implementation microbenchmarks
+
+`BenchmarkOperationIndex` measures the versioned encoding, cache reconstruction, and transactional merges on an Apple M4 with Go 1.27.0 and on-disk Badger with its default asynchronous writes. Three runs with `-benchtime=500ms -count=3` produced:
+
+| Measurement | Time | Allocated bytes |
+| --- | --- | --- |
+| Sequential writes to an existing three-kind entry | 9.02–9.53 µs/write | ~5.92 KB/write |
+| Concurrent writes contending on that entry, including retries | 12.81–13.65 µs/write | ~22.7–22.8 KB/write |
+| Full prefill and readiness scan over 6,000 spans | 5.74–5.76 ms/pass | ~2.80 MB/pass |
+| Cache construction for 3,000 operation/kind pairs | 0.257–0.273 ms/build | 388,376 bytes/build |
+
+The prefill dataset contains 20 services, 100 HTTP-style operation names per service, and three kinds per operation. Cache construction reuses preallocated names and constant kind strings; its allocation count excludes those strings and is not a retained-heap measurement. These are warm, small-dataset absolute measurements, not a comparison against the old writer or a substitute for the earlier 5 GB dataset. The concurrent case includes retry overhead but does not count retries separately. Larger-database and durable-write measurements remain necessary before claiming production performance characteristics.
 
 ---
 
@@ -223,15 +236,21 @@ The implementation PR must update [ADR-005 (Badger storage’s record layouts)](
 
 ## 9. Implementation plan
 
-1. **Implement the value format and collision handling.** Keep the existing `0x82` key and add the encoding described in [Section 4.1](#41-record-layout-and-encoding). Implement the merge rules in [Section 4.2](#42-collision-handling), including legacy values, shared expiry, and retries on `ErrConflict`. Test changes to the configured TTL and writes that commit in a different order from when they started. After restarting between the earlier and later expiry times, verify that the service and the operation/kind pairs whose spans remain unexpired are still returned. Also test that concurrent writes to the same `0x82` key preserve all distinct kinds.
+The value codec, transactional merges, cache, prefill, gate, and per-database startup checks are implemented in [#9972](https://github.com/jaegertracing/jaeger/pull/9972). Regression tests cover collisions, concurrent writes, shorter and longer TTLs across disk reopen, non-expiring entries, legacy expiry, backup restore, malformed values, and failed writes. Both direct Badger integration and the Jaeger server end-to-end corpus pass with span-kind checks enabled. ADR-005 describes the resulting layouts and limitations.
 
-2. **Update the cache, prefill, and `GetOperations`.** Store operations by name and kind within each service. Update the cache with every kind and the expiry from a committed entry, and rebuild the same information during prefill. Apply the filter and ordering described in [Section 5](#5-cache-and-operation-queries). Test absent, empty, and unknown kinds, non-string tags, embedded control bytes, multiple kinds of the same operation, restarts, and decoding errors.
+A cross-revision storage test using separate binaries built from the pre-fix revision `e5274265` and the changed source verifies new-write/old-read compatibility, service/operation trace searches, an old writer overwriting an entry, and fallback after re-upgrade. The server-level `TestBadgerStorageRollback` also passes against the official Jaeger v2.22.0 release: it checks new writes, a new-version restart, disabling the gate, rollback with an old writer overwriting a shared entry, and re-upgrade. Trace hydration, service/operation searches, kind filtering, and fallback are checked through the query API in each phase. The release archive's SHA-256 was verified against GitHub's published asset digest. Larger-dataset performance validation and review remain outstanding; delivering PR references can be recorded when the implementation is submitted.
 
-3. **Add the gate and database readiness checks.** Implement the behavior in [Section 7](#7-rollout-and-rollback), with separate readiness states for primary and archive databases. Test both gate states, including cases where only one database is ready. Verify upgrades with existing data, expiry of legacy entries, backup restores, and rollback using actual old and new binaries.
+Native Windows Server 2022 AMD64 validation with Go 1.27.0 also passes the spanstore unit suite with the race detector, 50 repeated concurrent-write regressions, and shared trace-storage assertions including operation discovery. The broader Windows commands are not fully green: factory tests `TestInitializationErrors` and `TestForCodecov`, and sampling integration `TestBadgerStorage/GetThroughput`, fail identically on unchanged revision `e5274265`. No assertion was weakened to bypass them. Full-server release rollback was verified on macOS, not Windows.
 
-4. **Enable the integration tests for span kind.** Run the Badger operation tests with the gate enabled and a ready database. Once that configuration passes, remove Badger’s `getOperationsMissingSpanKind: true` entry from `capabilities.Badger()` in `internal/storage/integration/capabilities/capabilities.go`. Keep separate tests for the existing behavior when the gate is disabled or the database is not ready.
+- ✅ **Implement the value format and collision handling.** The existing `0x82` key retains the encoding described in [Section 4.1](#41-record-layout-and-encoding), including legacy values, shared expiry, and retries on `ErrConflict`. Regression tests cover configured-TTL changes, commit order, restart behavior, and concurrent writes to the same `0x82` key.
 
-5. **Measure the implementation and update the documentation.** Measure prefill time, cache memory use, and write performance using the final encoding and realistic operation names and kinds. Include the cost of reading and merging existing values and retrying conflicting transactions. Update ADR-005 as described in [Section 8](#8-consequences).
+- ✅ **Update the cache, prefill, and `GetOperations`.** Operations are stored by name and kind within each service. Cache updates and prefill preserve every kind and expiry from committed entries. Tests cover absent, empty, unknown, non-string, and control-byte kinds, multiple kinds, restarts, and decoding errors.
+
+- ✅ **Add the gate and database readiness checks.** The alpha gate and per-database readiness state implement the behavior in [Section 7](#7-rollout-and-rollback). Tests cover both gate states, legacy expiry, backup restore, and separate old/new binary rollback.
+
+- ✅ **Enable the integration tests for span kind.** Badger integration tests run with the gate enabled and a ready database; `getOperationsMissingSpanKind` was removed from `capabilities.Badger()`. Gate-disabled and not-ready fallbacks have separate unit coverage.
+
+- ✅ **Measure the implementation and update the documentation.** `BenchmarkOperationIndex` measures value encoding, cache reconstruction, and transactional merges. ADR-005 records the `0x82` value format, collision handling, expiry rules, and cache changes.
 
 ---
 

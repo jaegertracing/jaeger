@@ -82,10 +82,7 @@ func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReade
 		cache: c,
 	}
 	if prefillCache {
-		services := reader.preloadServices()
-		for _, service := range services {
-			reader.preloadOperations(service)
-		}
+		c.prefill.Do(func() { reader.prefillOperationIndex() })
 	}
 	return reader
 }
@@ -248,7 +245,7 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.queryOperations(query, operationIndexGate.IsEnabled() && r.cache.readiness.Ready)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
@@ -619,9 +616,9 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 }
 
 // preloadServices fills the cache with services after extracting from badger
-func (r *TraceReader) preloadServices() []string {
+func (r *TraceReader) preloadServices() ([]string, error) {
 	services := map[string]struct{}{}
-	r.store.View(func(txn *badger.Txn) error {
+	err := r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
@@ -630,6 +627,9 @@ func (r *TraceReader) preloadServices() []string {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			if len(it.Item().Key()) < 1+sizeOfTraceID+8 {
+				return errors.New("invalid service index key")
+			}
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
@@ -638,12 +638,12 @@ func (r *TraceReader) preloadServices() []string {
 		}
 		return nil
 	})
-	return maps.Keys(services)
+	return maps.Keys(services), err
 }
 
 // preloadOperations extract all operations for a specified service
-func (r *TraceReader) preloadOperations(service string) {
-	r.store.View(func(txn *badger.Txn) error {
+func (r *TraceReader) preloadOperations(service string) error {
+	return r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
@@ -654,10 +654,23 @@ func (r *TraceReader) preloadOperations(service string) {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			if len(it.Item().Key()) < len(serviceKey)+sizeOfTraceID+8 {
+				return errors.New("invalid operation index key")
+			}
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			r.cache.AddOperation(service, operationName, keyTTL)
+			value, err := it.Item().ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			kinds, err := decodeOperationKinds(value)
+			if err != nil || kinds.legacy {
+				r.cache.AddOperation(service, operationName, keyTTL)
+			}
+			if err == nil {
+				r.cache.updateOperations(service, operationName, kinds.kinds, keyTTL, keyTTL)
+			}
 		}
 		return nil
 	})
