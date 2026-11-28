@@ -19,6 +19,14 @@ import (
 // escaping and its column name is a ClickHouse keyword, which a real server has to accept.
 var ClickHouseHoistedAttributes = []ch.HoistedAttribute{
 	{
+		// The text-search cases of the filter suite search this attribute in its column, and
+		// the attribute "summary" of the same span in the typed groups.
+		Key:    "note",
+		Level:  "span",
+		Type:   "string",
+		Column: "span_note",
+	},
+	{
 		Key:    "sameplacetag1",
 		Level:  "span",
 		Type:   "string",

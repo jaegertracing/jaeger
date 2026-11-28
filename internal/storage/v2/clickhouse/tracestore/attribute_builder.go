@@ -119,7 +119,13 @@ func (b attributeBuilder) appendComparison(
 		// The column holds the first value of a key that a span carries more than once, so a
 		// search for a later value does not match, unlike the condition of the nested layout.
 		column := "s.`" + name + "`"
-		q.WriteString("(" + column + " IS NOT NULL AND " + column + " " + sqlComparisonOperators[op] + " ?)")
+		valueSQL := column
+		if op == expression.OpPhrase {
+			// ClickHouse 26.3 refuses to split a nullable value into an array of words, even
+			// behind the IS NOT NULL test.
+			valueSQL = "assumeNotNull(" + column + ")"
+		}
+		q.WriteString("(" + column + " IS NOT NULL AND " + attributeComparisonSQL(op, valueSQL) + ")")
 		return append(args, tav.value)
 	}
 	return b.layout.appendComparison(q, args, level, op, tav)

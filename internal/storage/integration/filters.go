@@ -394,6 +394,21 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: nil,
 		},
 		{
+			caption:  "a phrase in a second attribute of the span",
+			filter:   p.Span().Attr("summary").Phrase("DISPUTE", "opened"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext in a second attribute of the span",
+			filter:   p.Span().Attr("summary").Fulltext("STANDARD", "invoice"),
+			expected: []string{"text-search"},
+		},
+		{
+			caption:  "fulltext does not match words that are in another attribute",
+			filter:   p.Span().Attr("summary").Fulltext("refund"),
+			expected: nil,
+		},
+		{
 			caption:  "fulltext matches all words in any order",
 			filter:   p.Span().Attr("note").Fulltext("premium", "refund"),
 			expected: []string{"text-search"},
