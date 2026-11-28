@@ -95,16 +95,16 @@ func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
 	if !s.MinStartTime.IsZero() {
 		startTime = s.MinStartTime.Format(time.RFC3339)
 	}
-	var durationUs int64
+	var duration time.Duration
 	if !s.MinStartTime.IsZero() && !s.MaxEndTime.IsZero() {
-		durationUs = s.MaxEndTime.Sub(s.MinStartTime).Microseconds()
+		duration = s.MaxEndTime.Sub(s.MinStartTime)
 	}
 	return types.TraceSummary{
 		TraceID:      s.TraceID.String(),
 		RootService:  s.RootServiceName,
 		RootSpanName: s.RootOperationName,
 		StartTime:    startTime,
-		DurationUs:   durationUs,
+		Duration:     duration.String(),
 		SpanCount:    s.SpanCount,
 		ServiceCount: len(s.Services),
 		Services:     svcNames,

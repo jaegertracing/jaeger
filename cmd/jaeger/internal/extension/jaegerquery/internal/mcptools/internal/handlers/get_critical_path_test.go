@@ -88,8 +88,8 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "00000000000000000000000000000001", output.TraceID)
-	assert.Positive(t, output.TotalDurationUs)
-	assert.Positive(t, output.CriticalPathDurationUs)
+	assert.Equal(t, "100ms", output.TotalDuration)
+	assert.Equal(t, "100ms", output.CriticalPathDuration)
 	assert.NotEmpty(t, output.Segments)
 
 	// Verify path contains span information
@@ -320,7 +320,7 @@ func TestGetCriticalPathHandler_Handle_DuplicateSpanIDs(t *testing.T) {
 		"000000000000000a",
 		"0000000000000001",
 	}, spanIDs)
-	assert.Equal(t, uint64(100), output.CriticalPathDurationUs)
+	assert.Equal(t, "100µs", output.CriticalPathDuration)
 }
 
 func TestGetCriticalPathHandler_Handle_DuplicateSpanIDsReportFirstSpan(t *testing.T) {
