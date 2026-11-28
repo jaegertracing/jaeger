@@ -39,6 +39,9 @@ type chatEndpoint struct {
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
 	turns *turnRegistry
+	// sessions tracks active ACP sessions per AG-UI threadId, enabling session reuse
+	// across multi-turn conversations.
+	sessions *sessionRegistry
 	// mcpBaseURL is the scheme+authority announced for the turn-scoped MCP
 	// endpoint. NewHandler sets it only when that endpoint is actually mounted and
 	// a reachable address is known, so empty means announce nothing.
@@ -108,9 +111,17 @@ func turnServerHeaders(ctx context.Context, grant turnGrant) []acp.HttpHeader {
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
 func newChatEndpoint(logger *zap.Logger, turns *turnRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+	return newChatEndpointWithSessions(logger, turns, newSessionRegistry(0), sidecarWSURL, sidecarHeaders, basePath, maxRequestBodySize)
+}
+
+func newChatEndpointWithSessions(logger *zap.Logger, turns *turnRegistry, sessions *sessionRegistry, sidecarWSURL string, sidecarHeaders configopaque.MapList, basePath string, maxRequestBodySize int64) *chatEndpoint {
+	if sessions == nil {
+		sessions = newSessionRegistry(0)
+	}
 	return &chatEndpoint{
 		Logger:             logger,
 		turns:              turns,
+		sessions:           sessions,
 		sidecarWSURL:       sidecarWSURL,
 		sidecarHeaders:     sidecarHeaders,
 		basePath:           normalizeBasePath(basePath),
@@ -144,14 +155,11 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	latestUserIdx := latestUserMessageIndex(req.Messages)
+
 	if err := validateUIToolNames(req.Tools); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-
-	promptBlocks := []acp.ContentBlock{acp.TextBlock(prompt)}
-	for _, ctxText := range contextTextEntries(req.Context) {
-		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
 	// Preserve the original AG-UI tool declarations for the turn-scoped MCP
@@ -212,23 +220,66 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	newSessionReq := acp.NewSessionRequest{
-		// "/" is a placeholder: the gateway advertises no fs capability in
-		// Initialize, so Cwd is never resolved against a real filesystem.
-		// ACP requires the field to be non-empty, hence this constant.
-		Cwd: "/",
-		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
-		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
-	}
-	sess, err := acpConn.NewSession(acpCtx, newSessionReq)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
-		return
-	}
-	span.SetAttributes(otelsemconv.GenAIConversationID(string(sess.SessionId)))
+	var (
+		sessionID acp.SessionId
+		isResumed bool
+	)
 
-	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
+	canResume := init.AgentCapabilities.SessionCapabilities.Resume != nil
+	canClose := init.AgentCapabilities.SessionCapabilities.Close != nil
+
+	if existingSessionID, ok := h.sessions.get(req.ThreadID); ok && canResume {
+		resumeReq := acp.ResumeSessionRequest{
+			Cwd:        "/",
+			SessionId:  existingSessionID,
+			McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
+		}
+		if _, err := acpConn.ResumeSession(acpCtx, resumeReq); err == nil {
+			sessionID = existingSessionID
+			isResumed = true
+		} else {
+			h.Logger.Debug("session/resume failed, falling back to session/new with replay",
+				zap.String("thread_id", req.ThreadID),
+				zap.String("session_id", string(existingSessionID)),
+				zap.Error(err),
+			)
+			h.sessions.delete(req.ThreadID)
+		}
+	}
+
+	if !isResumed {
+		newSessionReq := acp.NewSessionRequest{
+			// "/" is a placeholder: the gateway advertises no fs capability in
+			// Initialize, so Cwd is never resolved against a real filesystem.
+			// ACP requires the field to be non-empty, hence this constant.
+			Cwd: "/",
+			// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
+			// transports it advertised support for in Initialize.
+			McpServers: h.announceMCP(ctx, init.AgentCapabilities, grant),
+		}
+		sess, err := acpConn.NewSession(acpCtx, newSessionReq)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
+			return
+		}
+		sessionID = sess.SessionId
+
+		if req.ThreadID != "" && canResume {
+			h.sessions.set(req.ThreadID, sessionID)
+		} else if canClose {
+			defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sessionID, h.Logger)
+		}
+	}
+	span.SetAttributes(otelsemconv.GenAIConversationID(string(sessionID)))
+
+	var promptBlocks []acp.ContentBlock
+	if !isResumed && latestUserIdx > 0 {
+		promptBlocks = append(promptBlocks, historyPromptBlocks(req.Messages, latestUserIdx)...)
+	}
+	promptBlocks = append(promptBlocks, acp.TextBlock(prompt))
+	for _, ctxText := range contextTextEntries(req.Context) {
+		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
+	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks
 	// start firing SSE frames from here on, and headers must be committed
@@ -250,11 +301,14 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// agentic-loop spans under this request's span, joining what would
 	// otherwise be two disconnected traces into one.
 	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
-		SessionId: sess.SessionId,
+		SessionId: sessionID,
 		Prompt:    promptBlocks,
 		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
+		if req.ThreadID != "" {
+			h.sessions.delete(req.ThreadID)
+		}
 		// The agent, not Jaeger, refused or failed the turn. Saying so names the
 		// layer, because the agent's own error text rarely does.
 		run.failRun(fmt.Sprintf("The agent failed the turn (ACP session/prompt): %v", err))
