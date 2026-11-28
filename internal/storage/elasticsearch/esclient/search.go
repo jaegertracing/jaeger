@@ -28,10 +28,13 @@ type SearchRequest struct {
 }
 
 // SortOrder sorts hits by a field. It renders to {field: {"order": order}} where
-// order is query.Ascending or query.Descending.
+// order is query.Ascending or query.Descending. UnmappedType, when set, is added as
+// "unmapped_type" so that indices without a mapping for the field (for example a new,
+// still empty index) do not fail the search.
 type SortOrder struct {
-	Field string
-	Order query.SortDirection
+	Field        string
+	Order        query.SortDirection
+	UnmappedType string
 }
 
 func (r SearchRequest) body() ([]byte, error) {
@@ -57,7 +60,11 @@ func (r SearchRequest) body() ([]byte, error) {
 	if len(r.Sort) > 0 {
 		sort := make([]any, len(r.Sort))
 		for i, s := range r.Sort {
-			sort[i] = map[string]any{s.Field: map[string]any{"order": s.Order}}
+			opts := map[string]any{"order": s.Order}
+			if s.UnmappedType != "" {
+				opts["unmapped_type"] = s.UnmappedType
+			}
+			sort[i] = map[string]any{s.Field: opts}
 		}
 		m["sort"] = sort
 	}
