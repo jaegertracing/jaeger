@@ -20,20 +20,20 @@ type GetSpanNamesInput struct {
 
 // GetSpanNamesOutput defines the output of the get_span_names MCP tool.
 type GetSpanNamesOutput struct {
-	SpanNames []SpanNameInfo `json:"span_names" jsonschema:"List of span names for the service"`
+	SpanNames []SpanNameInfo `json:"span_names"`
 
 	// TotalCount is the number of span names that matched before the limit was applied.
-	TotalCount int `json:"total_count" jsonschema:"Total number of matching span names before the limit was applied"`
+	TotalCount int `json:"total_count"`
 
 	// Truncated is true when the limit dropped some matching span names from the result.
-	Truncated bool `json:"truncated" jsonschema:"True if results were truncated by the limit; raise limit or refine pattern to see more"`
+	Truncated bool `json:"truncated"`
 }
 
 // SpanNameInfo contains information about a span name.
 type SpanNameInfo struct {
 	// Name is the span name.
-	Name string `json:"name" jsonschema:"Span name"`
+	Name string `json:"name"`
 
 	// SpanKind is the span kind (e.g., SERVER, CLIENT).
-	SpanKind string `json:"span_kind" jsonschema:"Span kind"`
+	SpanKind string `json:"span_kind"`
 }
