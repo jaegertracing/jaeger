@@ -21,7 +21,8 @@ type PeriodicRotation struct {
 var _ Rotation = (*PeriodicRotation)(nil)
 
 // NewPeriodicRotation creates a PeriodicRotation.
-// rolloverFrequency is the index rotation period (e.g., 24*time.Hour for daily, 1*time.Hour for hourly).
+// rolloverFrequency is the step used to find the indices of a time range (e.g., 24*time.Hour
+// for daily, 1*time.Hour for hourly). It must not be longer than the period of one index.
 func NewPeriodicRotation(indexPrefix, dateLayout string, rolloverFrequency time.Duration) *PeriodicRotation {
 	return &PeriodicRotation{
 		indexPrefix:       indexPrefix,

@@ -76,7 +76,7 @@ type IndexOptions struct {
 	Replicas *int64 `mapstructure:"replicas"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
-	// Valid configuration options are: [hour, day].
+	// Valid configuration options are: [hour, day, month, year].
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
 	//
@@ -364,11 +364,20 @@ func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
 }
 
 // RolloverFrequencyDuration returns the index rollover frequency as a positive duration.
+// Reads step back through time by this duration to find the indices of a time range,
+// so month and year use their shortest length: a step never jumps over a whole index,
+// and the extra steps that land in an index already listed are dropped.
 func RolloverFrequencyDuration(frequency string) time.Duration {
-	if frequency == "hour" {
+	switch frequency {
+	case "hour":
 		return time.Hour
+	case "month":
+		return 28 * 24 * time.Hour
+	case "year":
+		return 365 * 24 * time.Hour
+	default:
+		return 24 * time.Hour
 	}
-	return 24 * time.Hour
 }
 
 // TagKeysAsFields returns tags from the file and command line merged

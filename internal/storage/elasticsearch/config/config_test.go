@@ -154,6 +154,16 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 			indexFrequency: "",
 			expected:       -24 * time.Hour,
 		},
+		{
+			name:           "monthly jaeger-span",
+			indexFrequency: "month",
+			expected:       -28 * 24 * time.Hour,
+		},
+		{
+			name:           "yearly jaeger-span",
+			indexFrequency: "year",
+			expected:       -365 * 24 * time.Hour,
+		},
 	}
 
 	for _, test := range tests {
@@ -884,11 +894,43 @@ func TestValidateRotationConfig_PeriodicFrequency(t *testing.T) {
 			expectErr: `indices.spans: date_layout "2006-01-02-15-04" changes more often than rollover_frequency "hour"`,
 		},
 		{
+			name: "monthly layout with month frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01", RolloverFrequency: "month"}),
+			}},
+		},
+		{
+			name: "yearly layout with year frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006", RolloverFrequency: "year"}),
+			}},
+		},
+		{
+			name: "yearly layout with month frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006", RolloverFrequency: "month"}),
+			}},
+		},
+		{
+			name: "default layout with month frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{RolloverFrequency: "month"}),
+			}},
+			expectErr: `indices.spans: date_layout "2006-01-02" changes more often than rollover_frequency "month"`,
+		},
+		{
+			name: "monthly layout with year frequency",
+			opts: IndexOptions{Rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01", RolloverFrequency: "year"}),
+			}},
+			expectErr: `indices.spans: date_layout "2006-01" changes more often than rollover_frequency "year"`,
+		},
+		{
 			name: "unknown frequency",
 			opts: IndexOptions{Rotation: RotationConfig{
 				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02-15", RolloverFrequency: "hourly"}),
 			}},
-			expectErr: `indices.spans: rollover_frequency must be "day" or "hour", got "hourly"`,
+			expectErr: `indices.spans: rollover_frequency must be "hour", "day", "month" or "year", got "hourly"`,
 		},
 		{
 			name: "legacy hourly layout with default frequency",
@@ -898,11 +940,32 @@ func TestValidateRotationConfig_PeriodicFrequency(t *testing.T) {
 			expectErr: `indices.spans: date_layout "2006-01-02-15" changes more often than rollover_frequency "day"`,
 		},
 		{
+			name: "legacy monthly layout with month frequency",
+			opts: IndexOptions{
+				DateLayout:        configoptional.Some("2006.01"),
+				RolloverFrequency: configoptional.Some("month"),
+			},
+		},
+		{
+			name: "legacy month frequency with default layout",
+			opts: IndexOptions{
+				RolloverFrequency: configoptional.Some("month"),
+			},
+			expectErr: `indices.spans: date_layout "2006-01-02" changes more often than rollover_frequency "month"`,
+		},
+		{
 			name: "legacy unknown frequency",
 			opts: IndexOptions{
 				RolloverFrequency: configoptional.Some("hourly"),
 			},
-			expectErr: `indices.spans: rollover_frequency must be "day" or "hour", got "hourly"`,
+			expectErr: `indices.spans: rollover_frequency must be "hour", "day", "month" or "year", got "hourly"`,
+		},
+		{
+			name: "legacy weekly frequency",
+			opts: IndexOptions{
+				RolloverFrequency: configoptional.Some("week"),
+			},
+			expectErr: `indices.spans: rollover_frequency must be "hour", "day", "month" or "year", got "week"`,
 		},
 	}
 	for _, test := range tests {
