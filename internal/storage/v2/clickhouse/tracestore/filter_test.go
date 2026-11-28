@@ -319,12 +319,174 @@ func TestBuildFilterCondition_DurationRange(t *testing.T) {
 	assert.Equal(t, []any{int64(5 * time.Millisecond), int64(40 * time.Millisecond)}, args)
 }
 
-func TestBuildComparisonCondition_RefusesOrderingAnAttribute(t *testing.T) {
-	r := newTestReader()
-	q := newNestedSQLBuilder()
-	_, err := lowerFilter(t, r, &q, p.Span().Attr("retry.count").Gt(p.Int(10)))
-	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
-	assert.ErrorContains(t, err, "does not order attributes")
+// TestBuildFilterCondition_AttributeOrderedComparison snapshots, in one file per layout, the condition
+// that each filter below lowers to, after the values that it binds.
+func TestBuildFilterCondition_AttributeOrderedComparison(t *testing.T) {
+	filters := []struct {
+		label  string
+		filter *expression.Call
+	}{
+		{
+			label:  "an int constant orders the int values",
+			filter: p.Span().Attr("retry.count").Gt(p.Int(10)),
+		},
+		{
+			label:  "a double constant orders the double values",
+			filter: p.Span().Attr("load").Lte(p.Double(0.5)),
+		},
+		{
+			label:  "a string constant orders the string values as text",
+			filter: p.Span().Attr("zone").Lt(p.String("m")),
+		},
+		{
+			label:  "an untyped constant orders the values of the types that the metadata reports, an int and a string",
+			filter: p.Span().Attr("http.status_code").Gte(500),
+		},
+		{
+			label:  "an untyped constant with a fraction is still compared with the int values",
+			filter: p.Span().Attr("http.status_code").Gt(499.5),
+		},
+		{
+			label:  "an untyped constant that is not a number is compared with the string values only",
+			filter: p.Span().Attr("http.status_code").Lt("5xx"),
+		},
+		{
+			label:  "an untyped constant on a resource attribute that the metadata reports on the span only is false",
+			filter: p.Resource().Attr("http.status_code").Gte(500),
+		},
+		{
+			label:  "an untyped constant on an attribute that the metadata does not know is false",
+			filter: p.Span().Attr("retry.count").Gt(10),
+		},
+		{
+			label:  "an unqualified attribute searches the span and the resource",
+			filter: p.Attr("retry.count").Gt(p.Int(10)),
+		},
+		{
+			label:  "an attribute of the resource",
+			filter: p.Resource().Attr("shard").Lt(p.Int(8)),
+		},
+		{
+			label:  "an attribute of the scope",
+			filter: p.Scope().Attr("build").Gte(p.Int(3)),
+		},
+		{
+			label:  "an attribute of an event",
+			filter: p.Event().Attr("attempt").Gt(p.Int(1)),
+		},
+		{
+			label:  "an attribute of a link",
+			filter: p.Link().Attr("weight").Lte(p.Double(0.5)),
+		},
+	}
+	for _, tt := range testLayouts {
+		t.Run(tt.name, func(t *testing.T) {
+			var snapshot strings.Builder
+			for _, filterCase := range filters {
+				// The test driver returns its metadata rows once, so each filter has a reader.
+				reader := newFilterMetadataReader(tt.layout)
+				appendFilterSnapshot(t, &snapshot, reader, filterCase.label, filterCase.filter)
+			}
+			clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
+		})
+	}
+}
+
+// TestUntypedOrderedValue pins the Go type of the value that each stored type
+// is ordered against, which a snapshot of the bind values does not show.
+func TestUntypedOrderedValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       string
+		valueType pcommon.ValueType
+		value     any
+		wantOK    bool
+	}{
+		{
+			name:      "an integer beside int values is an int64",
+			raw:       "9007199254740993",
+			valueType: pcommon.ValueTypeInt,
+			value:     int64(9007199254740993),
+			wantOK:    true,
+		},
+		{
+			name:      "a fraction beside int values is a float64",
+			raw:       "499.5",
+			valueType: pcommon.ValueTypeInt,
+			value:     float64(499.5),
+			wantOK:    true,
+		},
+		{
+			name:      "an integer beside double values is a float64",
+			raw:       "500",
+			valueType: pcommon.ValueTypeDouble,
+			value:     float64(500),
+			wantOK:    true,
+		},
+		{
+			name:      "text beside string values stays text",
+			raw:       "500",
+			valueType: pcommon.ValueTypeStr,
+			value:     "500",
+			wantOK:    true,
+		},
+		{
+			name:      "text that is not a number beside int values",
+			raw:       "5xx",
+			valueType: pcommon.ValueTypeInt,
+		},
+		{
+			name:      "a bool has no order",
+			raw:       "true",
+			valueType: pcommon.ValueTypeBool,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tav, ok := untypedOrderedValue("k", tt.raw, tt.valueType)
+			require.Equal(t, tt.wantOK, ok)
+			if !ok {
+				return
+			}
+			assert.Equal(t, typedAttributeValue{
+				key:       "k",
+				value:     tt.value,
+				valueType: tt.valueType,
+			}, tav)
+		})
+	}
+}
+
+func TestBuildFilterCondition_AttributeOrderedComparison_Refusals(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter *expression.Call
+		err    error
+	}{
+		{
+			name:   "a boolean constant",
+			filter: call(expression.OpGt, attrRef(expression.LevelSpan, "k"), &expression.BoolValue{Value: true}),
+			err:    tracestore.ErrFilterInvalid,
+		},
+		{
+			name:   "a duration constant",
+			filter: call(expression.OpGt, attrRef(expression.LevelSpan, "k"), &expression.DurationValue{Value: time.Second}),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+		{
+			name:   "an attribute of an unknown level",
+			filter: call(expression.OpGt, attrRef("trace", "k"), str("v")),
+			err:    tracestore.ErrFilterUnsupported,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTestReader()
+			q := reader.newSQLBuilder()
+			_, err := lowerFilter(t, reader, q, tt.filter)
+			require.ErrorIs(t, err, tt.err)
+		})
+	}
 }
 
 func TestBuildComparisonCondition_RejectsReferenceOperand(t *testing.T) {
@@ -457,7 +619,7 @@ func TestBuildComparisonCondition_UnsupportedLevel(t *testing.T) {
 	require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 }
 
-func TestUntypedAttributeEqCandidates_ResolvesAgainstMetadata(t *testing.T) {
+func TestUntypedAttributeCandidates_ResolvesAgainstMetadata(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -670,7 +832,7 @@ func TestBuiltinFieldValue_WrongTypeForKindStatusAndDuration(t *testing.T) {
 	}
 }
 
-func TestUntypedAttributeEqCandidates_MultipleCandidateTypesAreOred(t *testing.T) {
+func TestUntypedAttributeCandidates_MultipleCandidateTypesAreOred(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -695,7 +857,7 @@ func TestUntypedAttributeEqCandidates_MultipleCandidateTypesAreOred(t *testing.T
 	assert.Len(t, args, 4) // two (key, value) pairs, one per matched type
 }
 
-func TestUntypedAttributeEqCandidates_ResolvedAtNestedLevel(t *testing.T) {
+func TestUntypedAttributeCandidates_ResolvedAtNestedLevel(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -716,7 +878,7 @@ func TestUntypedAttributeEqCandidates_ResolvedAtNestedLevel(t *testing.T) {
 	assert.Equal(t, []any{"retry.count", int64(3)}, args)
 }
 
-func TestUntypedAttributeEqCandidates_SkipsCandidateThatCannotParse(t *testing.T) {
+func TestUntypedAttributeCandidates_SkipsCandidateThatCannotParse(t *testing.T) {
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -749,6 +911,14 @@ func TestCollectMetadataKeys(t *testing.T) {
 	assert.Equal(t, 1, keys.Len())
 	_, ok := keys.Get("untyped")
 	assert.True(t, ok)
+}
+
+// TestBuildFilterCondition_AttributeOrderedComparison_HoistedColumn snapshots the condition of
+// an ordered comparison on the resource attribute "shard", which the table hoists into a column.
+func TestBuildFilterCondition_AttributeOrderedComparison_HoistedColumn(t *testing.T) {
+	var snapshot strings.Builder
+	appendFilterSnapshot(t, &snapshot, newHoistedColumnReader(), "an ordered comparison on a hoisted attribute", p.Resource().Attr("shard").Gt(p.Int(7)))
+	clickhousetest.VerifyQuerySnapshot(t, snapshot.String())
 }
 
 func TestCollectMetadataKeys_WrongArity(t *testing.T) {
@@ -888,9 +1058,9 @@ func TestAttributeEqCandidates_HoistedColumn(t *testing.T) {
 	})
 }
 
-// TestUntypedAttributeEqCandidates_HoistedColumn checks that a filter value whose type comes from
+// TestUntypedAttributeCandidates_HoistedColumn checks that a filter value whose type comes from
 // the attribute metadata is converted to the type of the hoisted column.
-func TestUntypedAttributeEqCandidates_HoistedColumn(t *testing.T) {
+func TestUntypedAttributeCandidates_HoistedColumn(t *testing.T) {
 	reader := newHoistedColumnReader()
 	q := reader.newSQLBuilder()
 

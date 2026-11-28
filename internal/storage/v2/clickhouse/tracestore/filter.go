@@ -9,6 +9,7 @@ import (
 	"math"
 	"regexp/syntax"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,13 +30,13 @@ var (
 // FilterCapabilities declares the part of the RFC 0005 filter model this reader evaluates
 // natively: the boolean combinators; eq, ne, exists, in and not_in over every level's attributes
 // and over every built-in field that the spans table stores; the four ordered comparisons
-// on those fields, except span.kind and span.status; and regex over string attributes and
-// over the fields that hold text. The declaration is coarser than the
-// lowering, as the elasticsearch backend's is: an ordered comparison on an attribute, on
-// span.kind or on span.status, and a predicate on resource.schemaURL or scope.schemaURL, which
-// have no column, are refused in the lowering, not here. The some
-// operator and the text-search operators are follow-up work; a filter naming any of them is refused rather
-// than approximated.
+// on the attributes and on those fields, except span.kind and span.status; and regex over
+// string attributes and over the fields that hold text. The declaration is coarser than the
+// lowering, as the elasticsearch backend's is: an ordered comparison on span.kind or on
+// span.status, and a predicate on resource.schemaURL or scope.schemaURL, which have no
+// column, are refused in the lowering, not here. The some operator and the text-search
+// operators are follow-up work; a filter naming any of them is refused rather than
+// approximated.
 func FilterCapabilities() tracestore.FilterCapabilities {
 	return tracestore.FilterCapabilities{
 		Levels: []expression.Level{
@@ -64,8 +65,7 @@ func FilterCapabilities() tracestore.FilterCapabilities {
 }
 
 // sqlComparisonOperators maps each comparison operator this lowering evaluates to its SQL
-// spelling. Only a built-in field takes the four ordered ones. The ne operator has no entry,
-// because its condition negates an equality. REGEXP is the operator form of the match
+// spelling. The ne operator has no entry, because its condition negates an equality. REGEXP is the operator form of the match
 // function, which searches the value for a pattern in RE2 syntax.
 var sqlComparisonOperators = map[expression.Operator]string{
 	expression.OpEq:    "=",
@@ -389,8 +389,7 @@ func (q *sqlBuilder) buildComparisonCondition(
 		return q.buildFieldComparison(indent, args, predicate.Op, *ref, predicate.Args[1])
 	case *expression.AttributeRef:
 		if predicate.Op != expression.OpEq && predicate.Op != expression.OpNe {
-			return nil, fmt.Errorf("%w: it does not order attributes, so it cannot evaluate %q on %q",
-				tracestore.ErrFilterUnsupported, predicate.Op, ref.Key)
+			return q.buildAttributeOrderedComparison(indent, args, metadata, predicate.Op, *ref, predicate.Args[1])
 		}
 		constants := []expression.Expression{predicate.Args[1]}
 		return q.buildAttributeMembership(indent, args, metadata, *ref, constants, predicate.Op == expression.OpNe)
@@ -544,7 +543,7 @@ func attributeEqCandidates(
 	case *expression.BoolValue:
 		return typedAttributeCandidates(key, levels, pcommon.ValueTypeBool, v.Value), nil
 	case *expression.AnyValue:
-		return untypedAttributeEqCandidates(metadata, key, levels, v.Value), nil
+		return untypedAttributeCandidates(metadata, key, levels, v.Value, untypedEqualityValue), nil
 	default:
 		return nil, errTypedConstant(valueExpr)
 	}
@@ -562,6 +561,84 @@ func attributeLevelsToSearch(level expression.Level) ([]expression.Level, error)
 	default:
 		return nil, errUnsupportedLevel(level)
 	}
+}
+
+// buildAttributeOrderedComparison lowers gt, lt, gte and lte on an attribute. A typed
+// constant orders the values that are stored in its own type only (RFC 0005 §5.4), and a
+// string is ordered lexicographically. An untyped constant orders the values of the string,
+// int and double types that the metadata reports for the key, each against the constant read
+// as that type.
+func (q *sqlBuilder) buildAttributeOrderedComparison(
+	indent int,
+	args []any,
+	metadata attributeMetadata,
+	op expression.Operator,
+	ref expression.AttributeRef,
+	valueExpr expression.Expression,
+) ([]any, error) {
+	levels, err := attributeLevelsToSearch(ref.Level)
+	if err != nil {
+		return nil, err
+	}
+	var candidates []attributeCandidate
+	switch v := valueExpr.(type) {
+	case *expression.StringValue:
+		candidates = typedAttributeCandidates(ref.Key, levels, pcommon.ValueTypeStr, v.Value)
+	case *expression.IntValue:
+		candidates = typedAttributeCandidates(ref.Key, levels, pcommon.ValueTypeInt, v.Value)
+	case *expression.DoubleValue:
+		candidates = typedAttributeCandidates(ref.Key, levels, pcommon.ValueTypeDouble, v.Value)
+	case *expression.AnyValue:
+		candidates = untypedAttributeCandidates(metadata, ref.Key, levels, v.Value, untypedOrderedValue)
+	case *expression.BoolValue:
+		return nil, fmt.Errorf("%w: %q cannot order the attribute %q against a bool, which has no order",
+			tracestore.ErrFilterInvalid, op, ref.Key)
+	default:
+		return nil, errTypedConstant(valueExpr)
+	}
+	return q.appendAttributeCandidates(indent, args, op, candidates), nil
+}
+
+// untypedEqualityValue reads the text of an untyped constant as valueType, for an equality
+// with the values of that type. It reports false when the text is not a value of that type,
+// which no stored value then equals.
+func untypedEqualityValue(key string, raw string, valueType pcommon.ValueType) (typedAttributeValue, bool) {
+	tav, err := parseStringToTypedValue(key, pcommon.NewValueStr(raw), valueType)
+	return tav, err == nil
+}
+
+// untypedOrderedValue reads the text of an untyped constant to order the values of valueType
+// against. It differs from untypedEqualityValue in two ways. Only a string, an int and a
+// double have an order. Beside int values, text with a fraction is read as a float64,
+// because 11 is greater than 10.5 although no int equals it; text that is an integer stays
+// an int64, so that an int above 2^53 keeps its precision.
+func untypedOrderedValue(key string, raw string, valueType pcommon.ValueType) (typedAttributeValue, bool) {
+	tav := typedAttributeValue{
+		key:       key,
+		valueType: valueType,
+	}
+	switch valueType {
+	case pcommon.ValueTypeStr:
+		tav.value = raw
+		return tav, true
+	case pcommon.ValueTypeInt:
+		if number, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			tav.value = number
+			return tav, true
+		}
+		return untypedOrderedFloat(tav, raw)
+	case pcommon.ValueTypeDouble:
+		return untypedOrderedFloat(tav, raw)
+	default:
+		return tav, false
+	}
+}
+
+// untypedOrderedFloat fills tav with the text of an untyped constant read as a float64.
+func untypedOrderedFloat(tav typedAttributeValue, raw string) (typedAttributeValue, bool) {
+	number, err := strconv.ParseFloat(raw, 64)
+	tav.value = number
+	return tav, err == nil
 }
 
 // attributeCandidate is one (level, typed value) pair an attribute comparison is lowered to: one
@@ -638,7 +715,7 @@ func collectMetadataKeys(predicate *expression.Call, keys pcommon.Map) {
 		if ref, ok := predicate.Args[0].(*expression.AttributeRef); ok {
 			keys.PutStr(ref.Key, "")
 		}
-	case expression.OpEq, expression.OpIn:
+	case expression.OpEq, expression.OpIn, expression.OpGt, expression.OpLt, expression.OpGte, expression.OpLte:
 		if len(predicate.Args) != 2 {
 			return
 		}
@@ -663,24 +740,26 @@ func collectMetadataKeys(predicate *expression.Call, keys pcommon.Map) {
 	}
 }
 
-// untypedAttributeEqCandidates resolves an untyped constant against the metadata already looked
+// untypedAttributeCandidates resolves an untyped constant against the metadata already looked
 // up for its tree, restricted to levels rather than always searching every one metadata reports.
-// A key has no candidate when no type that the metadata reports for it at the levels reads the
-// constant, because no stored value can then equal it. That holds for a key that the metadata
-// does not know: the metadata views record every key on insert, so only a span inserted before
-// the views existed can store it, and such a span is not found.
-func untypedAttributeEqCandidates(
+// typedValue reads the text of the constant as one stored type, and a type that it reports
+// false for is left out. A key has no candidate when no type that the metadata reports for it
+// at the levels reads the constant, because no stored value can then satisfy the comparison.
+// That holds for a key that the metadata does not know: the metadata views record every key on
+// insert, so only a span inserted before the views existed can store it, and such a span is
+// not found.
+func untypedAttributeCandidates(
 	metadata attributeMetadata,
 	key string,
 	levels []expression.Level,
 	raw string,
+	typedValue func(key string, raw string, valueType pcommon.ValueType) (typedAttributeValue, bool),
 ) []attributeCandidate {
-	attrValue := pcommon.NewValueStr(raw)
 	var candidates []attributeCandidate
 	for _, level := range levels {
 		for _, t := range attributeTypesForLevel(metadata[key], level) {
-			tav, parseErr := parseStringToTypedValue(key, attrValue, t)
-			if parseErr != nil {
+			tav, ok := typedValue(key, raw, t)
+			if !ok {
 				continue
 			}
 			candidates = append(candidates, attributeCandidate{level, tav})
