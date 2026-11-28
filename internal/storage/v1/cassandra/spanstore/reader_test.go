@@ -150,7 +150,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				query := &mocks.Query{}
 				query.On("Consistency", cassandra.One).Return(query)
-				query.On("Iter").Return(iter)
+				query.On("IterContext", mock.Anything).Return(iter)
 
 				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
@@ -176,7 +176,7 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		query := &mocks.Query{}
 		query.On("Consistency", cassandra.One).Return(query)
-		query.On("Iter").Return(iter)
+		query.On("IterContext", mock.Anything).Return(iter)
 
 		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
@@ -185,6 +185,94 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 		assert.Nil(t, spans)
 		require.NoError(t, err)
 	})
+}
+
+func TestSpanReaderGetTraceCanceledBeforeRead(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		spans, err := r.reader.GetTrace(ctx, dbmodel.TraceID{})
+		require.ErrorIs(t, err, context.Canceled)
+		require.Nil(t, spans)
+		r.session.AssertNotCalled(t, "Query", querySpanByTraceID, mock.Anything)
+	})
+}
+
+func TestSpanReaderGetTraceCanceledDuringRead(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		iter := mocks.NewIterator(t)
+		iter.On("Scan", mock.Anything).Run(func(mock.Arguments) { cancel() }).Return(true).Once()
+		iter.On("Close").Return(nil).Once()
+		query := mocks.NewQuery(t)
+		query.On("IterContext", mock.MatchedBy(func(got context.Context) bool {
+			return got.Done() == ctx.Done()
+		})).Return(iter).Once()
+		r.session.On("Query", querySpanByTraceID, mock.Anything).Return(query).Once()
+
+		spans, err := r.reader.GetTrace(ctx, dbmodel.TraceID{})
+		require.ErrorIs(t, err, context.Canceled)
+		require.Nil(t, spans)
+		iter.AssertNumberOfCalls(t, "Scan", 1)
+	})
+}
+
+func TestSpanReaderFindTraceIDsCancellation(t *testing.T) {
+	for _, kind := range []string{"service", "operation", "tag", "duration"} {
+		for _, before := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/before=%v", kind, before), func(t *testing.T) {
+				withSpanReader(t, func(r *spanReaderTest) {
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					params := &tracestore.TraceQueryParams{
+						ServiceName: "service-a", SearchDepth: 10,
+						StartTimeMin: time.Now().Add(-3 * time.Hour), StartTimeMax: time.Now(),
+						Attributes: pcommon.NewMap(),
+					}
+					statement := queryByServiceName
+					switch kind {
+					case "service":
+						// Service-only search uses the default statement.
+					case "operation":
+						statement = queryByServiceAndOperationName
+						params.OperationName = "operation-a"
+					case "tag":
+						statement = queryByTag
+						params.Attributes.PutStr("first", "value")
+						params.Attributes.PutStr("second", "value")
+					case "duration":
+						statement = queryByDuration
+						params.DurationMin = time.Millisecond
+					default:
+						t.Fatalf("unknown search kind %q", kind)
+					}
+					query := mocks.NewQuery(t)
+					if kind != "duration" {
+						query.On("PageSize", 0).Return(query).Once()
+					}
+					r.session.On("Query", statement, mock.Anything).Return(query).Once()
+					if before {
+						cancel()
+					} else {
+						iter := mocks.NewIterator(t)
+						iter.On("Scan", mock.Anything).Run(func(mock.Arguments) { cancel() }).Return(true).Once()
+						iter.On("Close").Return(nil).Once()
+						query.On("IterContext", mock.MatchedBy(func(got context.Context) bool {
+							return got.Done() == ctx.Done()
+						})).Return(iter).Once()
+						query.On("String").Return(statement).Once()
+					}
+
+					ids, err := r.reader.FindTraceIDs(ctx, params)
+					require.ErrorIs(t, err, context.Canceled)
+					require.Nil(t, ids)
+					r.session.AssertExpectations(t)
+				})
+			})
+		}
+	}
 }
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
@@ -314,6 +402,16 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			},
 		},
 		{
+			caption:        "load trace canceled",
+			loadQueryError: context.Canceled,
+			expectedError:  "error reading traces from storage: context canceled",
+		},
+		{
+			caption:        "load trace deadline exceeded",
+			loadQueryError: context.DeadlineExceeded,
+			expectedError:  "error reading traces from storage: context deadline exceeded",
+		},
+		{
 			caption:       "break iter",
 			expectedCount: 1,
 			breakIter:     true,
@@ -355,7 +453,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					query.On("Bind", mock.Anything).Return(query)
 					query.On("Consistency", cassandra.One).Return(query)
 					query.On("PageSize", 0).Return(query)
-					query.On("Iter").Return(iter)
+					query.On("IterContext", mock.Anything).Return(iter)
 					query.On("String").Return("queryString")
 
 					return query
@@ -376,7 +474,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 					loadQuery := &mocks.Query{}
 					loadQuery.On("Consistency", cassandra.One).Return(loadQuery)
-					loadQuery.On("Iter").Return(loadQueryIter)
+					loadQuery.On("IterContext", mock.Anything).Return(loadQueryIter)
 					loadQuery.On("PageSize", mock.Anything).Return(loadQuery)
 					return loadQuery
 				}
@@ -477,7 +575,7 @@ func TestSpanReaderFindTraceIDsDurationStopsAtSearchDepth(t *testing.T) {
 
 		bucketQueries := 0
 		query := &mocks.Query{}
-		query.On("Iter").Run(func(mock.Arguments) { bucketQueries++ }).Return(iter)
+		query.On("IterContext", mock.Anything).Run(func(mock.Arguments) { bucketQueries++ }).Return(iter)
 		r.session.On("Query", queryByDuration, mock.Anything).Return(query)
 
 		now := time.Now()
