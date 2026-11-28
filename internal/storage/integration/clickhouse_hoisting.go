@@ -5,9 +5,11 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/require"
 
 	ch "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
@@ -91,15 +93,44 @@ var ClickHouseHoistedAttributes = []ch.HoistedAttribute{
 // It drops a database left by an earlier run, whose tables may have other hoisted columns.
 func RecreateClickHouseDatabase(t *testing.T, name string) {
 	t.Helper()
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
-		Auth: clickhouse.Auth{
-			Username: "default",
-			Password: "password",
-		},
-	})
-	require.NoError(t, err)
+	conn := openClickHouseWithAuth(t, []string{"127.0.0.1:9000"}, "", "default", "password")
 	defer conn.Close()
 	require.NoError(t, conn.Exec(context.Background(), "DROP DATABASE IF EXISTS "+name+" SYNC"))
 	require.NoError(t, conn.Exec(context.Background(), "CREATE DATABASE "+name))
+}
+
+func openClickHouseWithAuth(t *testing.T, addresses []string, database, username, password string) driver.Conn {
+	t.Helper()
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: addresses,
+		Auth: clickhouse.Auth{
+			Database: database,
+			Username: username,
+			Password: password,
+		},
+	})
+	require.NoError(t, err)
+	return conn
+}
+
+// TruncateClickHouseLocalTables clears all backing *_local tables in database via a direct
+// ClickHouse connection. Needed in distributed mode because TRUNCATE on a Distributed table only
+// discards pending async inserts rather than data in the underlying local tables. Table
+// identifiers are compile-time constants; ClickHouse DDL does not admit parameterized
+// identifiers, and a Replicated database rejects ON CLUSTER while propagating TRUNCATE to replicas.
+func TruncateClickHouseLocalTables(t *testing.T, addresses []string, database, username, password string) {
+	t.Helper()
+	conn := openClickHouseWithAuth(t, addresses, database, username, password)
+	defer conn.Close()
+	tables := []string{
+		"spans_local",
+		"services_local",
+		"operations_local",
+		"trace_id_timestamps_local",
+		"attribute_metadata_local",
+		"dependencies_local",
+	}
+	for _, tbl := range tables {
+		require.NoError(t, conn.Exec(context.Background(), fmt.Sprintf("TRUNCATE TABLE IF EXISTS %s.%s", database, tbl)))
+	}
 }

@@ -1,0 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+macros:
+  shard: "01"
+  replica: replica01
