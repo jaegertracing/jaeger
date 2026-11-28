@@ -25,6 +25,8 @@ const (
 	defaultAttributeMetadataCacheTTL     = time.Hour
 	defaultAttributeMetadataCacheMaxSize = 1000
 	defaultAttributeLayout               = "nested"
+	defaultSetupValidation               = "enforce"
+	setupValidationWarn                  = "warn"
 )
 
 type Configuration struct {
@@ -48,6 +50,11 @@ type Configuration struct {
 	// Exactly one of its variants must be set when CreateSchema is true; the block is
 	// ignored otherwise, because the operator then owns the tables.
 	TableEngine TableEngine `mapstructure:"table_engine"`
+	// SetupValidation controls what happens when a startup check of RFC 0022 §6.4 fails:
+	// "enforce" (the default) stops startup with an error, "warn" logs the failure and
+	// continues. It applies only to the checks this backend can also detect might be a false
+	// positive from a deployment the RFC did not foresee; see cluster_setup.go.
+	SetupValidation string `mapstructure:"setup_validation" valid:"in(warn|enforce),optional"`
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
@@ -76,6 +83,13 @@ type Configuration struct {
 	// creates a table in this layout; an existing table is not converted, and the backend
 	// does not start on a table in the other layout.
 	AttributeLayout string `mapstructure:"attribute_layout"`
+}
+
+// warnOnFailedSetupCheck reports whether a failed startup check of RFC 0022 §6.4 should be
+// logged and ignored rather than stopping startup. An empty SetupValidation means "enforce",
+// as in a Configuration that was not built from DefaultConfiguration.
+func (cfg *Configuration) warnOnFailedSetupCheck() bool {
+	return cfg.SetupValidation == setupValidationWarn
 }
 
 // attributeLayout returns the layout that AttributeLayout names. An empty value is the
@@ -229,6 +243,7 @@ func DefaultConfiguration() Configuration {
 		AttributeMetadataCacheTTL:     defaultAttributeMetadataCacheTTL,
 		AttributeMetadataCacheMaxSize: defaultAttributeMetadataCacheMaxSize,
 		AttributeLayout:               defaultAttributeLayout,
+		SetupValidation:               defaultSetupValidation,
 	}
 }
 

@@ -79,6 +79,23 @@ rows are stored once per replica rather than once per shard.
 replicas, so the data has no second copy, and a node that is down affects every shard, not
 only its own.
 
+With `create_schema: true`, the backend checks the named cluster against `system.clusters`
+before it creates or alters anything (RFC 0022 §6.4): that it exists, has more than one
+shard, and sets `internal_replication` on every shard, so a cluster that would silently
+store every row more than once (as above) is refused instead of started. A failed check
+stops startup by default; `setup_validation: warn` logs it instead and continues, for a
+deployment this check gets wrong:
+
+```yaml
+clickhouse:
+  create_schema: true
+  setup_validation: warn    # default: enforce
+```
+
+This covers only what the connected node's own `system.clusters` shows. It does not yet
+check that every node of the cluster agrees on its definition, or that the named cluster
+groups the nodes as their `shard` macros do; RFC 0022 §6.4 lists those as follow-up work.
+
 ### Attribute layout
 
 The `spans` table stores the attributes of each level in typed groups, such as `str_attributes` and `resource_int_attributes`. The `attribute_layout` setting selects the ClickHouse type of every group:

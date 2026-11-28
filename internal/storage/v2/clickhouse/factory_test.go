@@ -118,7 +118,11 @@ func buildSchema(cfg Configuration) (*schemaBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newSchemaBuilder(cfg, layout, hoistedColumns)
+	cluster, err := cfg.TableEngine.clusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	return newSchemaBuilder(cfg, layout, hoistedColumns, cluster)
 }
 
 // schemaQuery returns the statement newSchemaBuilder renders under the given name for
@@ -756,10 +760,13 @@ func TestNewFactory_InvalidCluster(t *testing.T) {
 
 // TestNewFactory_MergeTreeClusterWarns checks that NewFactory logs a warning, rather than
 // failing, when the cluster block distributes a merge_tree engine, which shards without
-// replicas.
+// replicas. The cluster itself is well formed, two shards with internal_replication, so the
+// only warning logged is the merge_tree one, not a cluster setup failure.
 func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
-	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
-	defer srv.Close()
+	srv := clusterServer(t, []clusterShard{
+		{ShardNum: 1, InternalReplication: 1},
+		{ShardNum: 2, InternalReplication: 1},
+	})
 
 	core, observed := observer.New(zap.WarnLevel)
 	cfg := DefaultConfiguration()
@@ -780,6 +787,33 @@ func TestNewFactory_MergeTreeClusterWarns(t *testing.T) {
 
 	require.Equal(t, 1, observed.Len())
 	assert.Contains(t, observed.All()[0].Message, "the data has no second copy")
+}
+
+// clusterServer is a test server whose system.clusters reports the given shards for any
+// cluster, and falls back to the generic fake server for every other query.
+func clusterServer(t *testing.T, shards []clusterShard) *httptest.Server {
+	fakeServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(fakeServer.Close)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), "FROM system.clusters") {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			fakeServer.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		block := chproto.NewBlock()
+		block.AddColumn("shard_num", "UInt32")
+		block.AddColumn("internal_replication", "UInt8")
+		for _, s := range shards {
+			block.Append(s.ShardNum, s.InternalReplication)
+		}
+		var buf proto.Buffer
+		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(buf.Buf)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 // TestNewFactory_AttributeLayoutMismatch checks that the factory runs the layout check

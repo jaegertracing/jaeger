@@ -468,6 +468,15 @@ SELECT name, engine
 FROM system.tables
 WHERE database = currentDatabase() AND name IN (?, ?)`
 
+// SelectClusterShards returns one row per (shard, replica) of the named cluster, as the
+// connected node's own system.clusters sees it. A cluster that does not exist returns no
+// rows. internal_replication is the same value for every replica of a shard in a correctly
+// configured cluster (RFC 0022 §6.7).
+const SelectClusterShards = `
+SELECT shard_num, internal_replication
+FROM system.clusters
+WHERE cluster = ?`
+
 const (
 	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
 	TruncateServices          = `TRUNCATE TABLE IF EXISTS services`
