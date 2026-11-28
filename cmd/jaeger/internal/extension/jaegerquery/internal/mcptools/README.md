@@ -16,3 +16,35 @@ symlinks that leave it are refused by the OS rather than by a path check. Jaeger
 serving a skill and an agent choosing to read it are separate questions; see
 [#9336](https://github.com/jaegertracing/jaeger/issues/9336) for what is known
 about the second.
+
+## Tuning the tool limits
+
+Three settings bound what six tools may return. Each has a default and can be
+set under the same `ai.mcp` block:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp:
+        max_search_results: 500          # default 100, at most 1000
+        max_span_details_per_request: 50 # default 20,  at most 100
+        max_read_file_size: 1048576      # default 512 KiB, at most 10 MiB
+```
+
+| Setting | Bounds | Tools it limits |
+| --- | --- | --- |
+| `max_search_results` | traces searched, spans returned | `find_traces`, `find_spans` |
+| `max_span_details_per_request` | spans per call | `get_span_details`, `get_trace_errors`, `get_trace_topology` |
+| `max_read_file_size` | bytes served | `read_skill` |
+
+`server_name` (default `jaeger`) sets the name the server advertises to clients.
+
+Leave a setting out, or set it to `0`, to keep its default. A value outside the
+range above is rejected at startup rather than being silently clamped, so a
+limit an operator raised deliberately is the limit that takes effect.
+
+The bounds are per call, not per client: they bound what one call returns, and
+do not cap what a client can ask for across many requests. They apply after the
+data is loaded, so a tool whose cap is small, such as `get_trace_topology`, may
+still read the whole trace before trimming its answer.

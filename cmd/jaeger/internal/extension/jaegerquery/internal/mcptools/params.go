@@ -16,12 +16,21 @@ const (
 	DefaultMaxSpanDetailsPerRequest = 20
 	DefaultMaxSearchResults         = 100
 	DefaultMaxReadFileSize          = 512 * 1024
+
+	// Upper bounds an operator may raise a tunable to, preserved from the
+	// retired jaeger_mcp extension's config validation. They exist so a typo
+	// cannot make one tool call allocate without limit. They sit next to the
+	// defaults they pair with so the validation message and the documented
+	// default cannot drift apart.
+	MaxSpanDetailsPerRequestLimit = 100
+	MaxSearchResultsLimit         = 1000
+	MaxReadFileSizeLimit          = 10 * 1024 * 1024
 )
 
 // ServerParams holds what NewHandler needs beyond its dependencies: the tool
-// limits and server identity, which are fixed by DefaultServerParams, and the
-// operator-set parts of ai.mcp that the query server copies in (the custom
-// skills directory and the transport options).
+// limits and server identity, which DefaultServerParams supplies and the query
+// server then overlays with the operator-set parts of ai.mcp (the tunables, the
+// custom skills directory, and the transport options).
 type ServerParams struct {
 	ServerName               string
 	ServerVersion            string

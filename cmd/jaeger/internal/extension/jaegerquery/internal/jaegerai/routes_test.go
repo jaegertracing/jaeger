@@ -88,6 +88,28 @@ func TestRegister(t *testing.T) {
 		require.NotEqual(t, http.StatusNotFound, status(r, http.MethodGet, "/jaeger/api/ai/mcp/"))
 	})
 
+	t.Run("operator tunables reach the MCP endpoint", func(t *testing.T) {
+		// The bug behind #8926 was a tunable that never reached the server, so
+		// exercise the mount rather than applyTo alone: a non-default server_name
+		// has to come back in the initialize result. Deleting
+		// mcp.applyTo(&mcpParams) in Register must fail this test.
+		cfg := validConfig()
+		cfg.AgentURL = ""
+		cfg.MCP = configoptional.Some(MCPConfig{ServerName: "custom"})
+		r, _ := register(t, cfg)
+
+		body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/mcp/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Contains(t, rr.Body.String(), `"name":"custom"`,
+			"the initialize result must advertise the configured server_name")
+	})
+
 	t.Run("unreadable skills dir fails registration", func(t *testing.T) {
 		cfg := validConfig()
 		cfg.MCP = configoptional.Some(MCPConfig{SkillsDir: filepath.Join(t.TempDir(), "missing")})
