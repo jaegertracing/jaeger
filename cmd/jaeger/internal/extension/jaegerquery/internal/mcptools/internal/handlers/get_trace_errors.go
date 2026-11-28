@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/types"
@@ -37,12 +39,22 @@ func NewGetTraceErrorsHandler(
 	return h.handle
 }
 
+type errorSpanItem struct {
+	detail    types.SpanDetail
+	startTime pcommon.Timestamp
+	spanID    string
+}
+
 // handle processes the get_trace_errors tool request.
 func (h *getTraceErrorsHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
 	input types.GetTraceErrorsInput,
 ) (*mcp.CallToolResult, types.GetTraceErrorsOutput, error) {
+	if input.Offset < 0 {
+		return nil, types.GetTraceErrorsOutput{}, errors.New("offset cannot be negative")
+	}
+
 	// Build query parameters (includes validation)
 	params, err := h.buildQuery(input)
 	if err != nil {
@@ -52,12 +64,9 @@ func (h *getTraceErrorsHandler) handle(
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
 	// AggregateTraces reassembles the full trace so TotalErrorCount reflects every error span.
-	// The Spans slice is capped inside the iteration loop below.
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect spans with error status
-	var errorSpans []types.SpanDetail
-	totalErrors := 0
+	var allErrors []errorSpanItem
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -71,12 +80,12 @@ func (h *getTraceErrorsHandler) handle(
 		for pos, span := range jptrace.SpanIter(trace) {
 			// Check if span has error status
 			if span.Status().Code() == ptrace.StatusCodeError {
-				totalErrors++
-				// Only build and collect detail up to the limit
-				if h.maxSpanDetailsPerRequest == 0 || len(errorSpans) < h.maxSpanDetailsPerRequest {
-					detail := buildSpanDetail(pos, span)
-					errorSpans = append(errorSpans, detail)
-				}
+				detail := buildSpanDetail(pos, span)
+				allErrors = append(allErrors, errorSpanItem{
+					detail:    detail,
+					startTime: span.StartTimestamp(),
+					spanID:    span.SpanID().String(),
+				})
 			}
 		}
 	}
@@ -85,9 +94,35 @@ func (h *getTraceErrorsHandler) handle(
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace not found")
 	}
 
+	// Sort error spans deterministically by start time, then by SpanID
+	sort.Slice(allErrors, func(i, j int) bool {
+		if allErrors[i].startTime != allErrors[j].startTime {
+			return allErrors[i].startTime < allErrors[j].startTime
+		}
+		return allErrors[i].spanID < allErrors[j].spanID
+	})
+
+	totalErrors := len(allErrors)
+	limit := h.maxSpanDetailsPerRequest
+	if input.Limit > 0 && (limit == 0 || input.Limit < limit) {
+		limit = input.Limit
+	}
+
+	var errorSpans []types.SpanDetail
+	if input.Offset < totalErrors {
+		end := totalErrors
+		if limit > 0 && input.Offset+limit < end {
+			end = input.Offset + limit
+		}
+		for i := input.Offset; i < end; i++ {
+			errorSpans = append(errorSpans, allErrors[i].detail)
+		}
+	}
+
 	output := types.GetTraceErrorsOutput{
 		TraceID:         input.TraceID,
 		TotalErrorCount: totalErrors,
+		Offset:          input.Offset,
 		Spans:           errorSpans,
 	}
 
